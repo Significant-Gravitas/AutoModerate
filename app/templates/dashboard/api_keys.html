@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys - {{ project.name }} - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom" data-project-id="{{ project.id }}">
+    <h1 class="h2">API Keys - {{ project.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Project
+            </a>
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createApiKeyModal">
+                                <i class="fas fa-plus"></i> Create API Key
+                            </button>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Existing API Keys -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Existing API Keys</h5>
+            </div>
+            <div class="card-body">
+                {% if project.api_keys %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>API Key</th>
+                                <th>Usage Count</th>
+                                <th>Last Used</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key in project.api_keys %}
+                            <tr>
+                                <td>
+                                    <strong>{{ key.name }}</strong>
+                                </td>
+                                <td>
+                                    <code class="api-key-display" 
+                                          data-full-key="{{ key.key }}" 
+                                          style="cursor: pointer;" 
+                                          title="Click to view full key">
+                                        {{ key.key[:20] }}...
+                                    </code>
+                                    <i class="fas fa-eye text-muted ms-1" style="font-size: 0.8em;"></i>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ key.usage_count }}</span>
+                                </td>
+                                <td>
+                                    {% if key.last_used %}
+                                        {{ key.last_used.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if key.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ key.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary btn-sm copy-key-btn" 
+                                                data-key="{{ key.key }}" 
+                                                title="Copy to clipboard">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                        {% if key.is_active %}
+                                        <button class="btn btn-outline-warning btn-sm toggle-key-btn" 
+                                                data-key-id="{{ key.id }}" 
+                                                data-action="deactivate"
+                                                title="Deactivate">
+                                            <i class="fas fa-pause"></i>
+                                        </button>
+                                        {% else %}
+                                        <button class="btn btn-outline-success btn-sm toggle-key-btn" 
+                                                data-key-id="{{ key.id }}" 
+                                                data-action="activate"
+                                                title="Activate">
+                                            <i class="fas fa-play"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-outline-danger btn-sm delete-key-btn" 
+                                                data-key-id="{{ key.id }}" 
+                                                data-key-name="{{ key.name }}"
+                                                title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-key fa-3x text-muted mb-3"></i>
+                    <h5>No API Keys Yet</h5>
+                    <p class="text-muted">Create your first API key to start using the moderation API.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create API Key Modal -->
+<div class="modal fade" id="createApiKeyModal" tabindex="-1" aria-labelledby="createApiKeyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createApiKeyModalLabel">Create New API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('dashboard.create_api_key', project_id=project.id) }}" id="createApiKeyForm">
+                    <div class="mb-3">
+                        <label for="apiKeyName" class="form-label">API Key Name *</label>
+                        <input type="text" class="form-control" id="apiKeyName" name="name" required 
+                               placeholder="e.g., Production Key, Development Key">
+                        <div class="form-text">Choose a descriptive name to identify this API key.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="createApiKeyForm" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create API Key
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Key Modal -->
+<div class="modal fade" id="apiKeyModal" tabindex="-1" aria-labelledby="apiKeyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="apiKeyModalLabel">Full API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Keep this key secure!</strong> Don't share it publicly or commit it to version control.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">API Key:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="fullApiKey" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyFullKeyBtn">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Usage Example:</label>
+                    <pre class="bg-light p-3 rounded"><code>curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <span id="exampleKey">your-api-key</span>" \
+  -d '{"type": "text", "content": "Content to moderate"}' \
+  {{ request.url_root }}api/moderate</code></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard/api_keys.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,25 @@
+.sidebar {
+    min-height: 100vh;
+    background-color: #f8f9fa;
+}
+
+.content-area {
+    min-height: 100vh;
+}
+
+.status-badge {
+    font-size: 0.8em;
+}
+
+.real-time-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.real-time-indicator:hover {
+    opacity: 1;
+}

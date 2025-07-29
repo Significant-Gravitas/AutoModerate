@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Review Content - {{ content.id[:8] }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1>Review Content</h1>
+                    <p class="text-muted">Content ID: {{ content.id }}</p>
+                </div>
+                <a href="{{ url_for('manual_review.index') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+            
+            <div class="row">
+                <!-- Content Details -->
+                <div class="col-md-8">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3>Content Details</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-3"><strong>Project:</strong></div>
+                                <div class="col-md-9">
+                                    <span class="badge bg-primary">{{ content.project.name }}</span>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-3"><strong>Type:</strong></div>
+                                <div class="col-md-9">
+                                    <span class="badge bg-secondary">{{ content.content_type }}</span>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-3"><strong>Status:</strong></div>
+                                <div class="col-md-9">
+                                    <span class="badge bg-warning">{{ content.status }}</span>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-3"><strong>Created:</strong></div>
+                                <div class="col-md-9">{{ content.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <h5>Content:</h5>
+                            <div class="content-display p-3 bg-light rounded">
+                                <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ content.content_data }}</pre>
+                            </div>
+                            
+                            {% if content.meta_data %}
+                            <hr>
+                            <h5>Metadata:</h5>
+                            <div class="metadata-display p-3 bg-light rounded">
+                                <pre>{{ content.meta_data | tojson(indent=2) }}</pre>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Moderation Results -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3>Moderation Results</h3>
+                        </div>
+                        <div class="card-body">
+                            {% if moderation_results %}
+                                {% for result in moderation_results %}
+                                <div class="moderation-result mb-3 p-3 border rounded">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <strong>Decision:</strong><br>
+                                            {% if result.decision == 'approved' %}
+                                                <span class="badge bg-success">{{ result.decision }}</span>
+                                            {% elif result.decision == 'rejected' %}
+                                                <span class="badge bg-danger">{{ result.decision }}</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">{{ result.decision }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <strong>Type:</strong><br>
+                                            <span class="badge bg-info">{{ result.moderator_type }}</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <strong>Confidence:</strong><br>
+                                            <span class="badge bg-secondary">{{ "%.2f"|format(result.confidence) }}</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <strong>Time:</strong><br>
+                                            <small>{{ "%.3f"|format(result.processing_time) }}s</small>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <strong>Reason:</strong><br>
+                                        <p class="mb-0">{{ result.reason }}</p>
+                                    </div>
+                                    {% if result.details %}
+                                    <div class="mt-2">
+                                        <strong>Details:</strong><br>
+                                        <small><pre>{{ result.details | tojson(indent=2) }}</pre></small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted">No moderation results available.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- API User Info & Decision Panel -->
+                <div class="col-md-4">
+                    <!-- API User Information -->
+                    {% if api_user %}
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h4>API User Information</h4>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>User ID:</strong> <code>{{ api_user.external_user_id }}</code></p>
+                            <p><strong>First Seen:</strong> {{ api_user.first_seen.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <p><strong>Last Seen:</strong> {{ api_user.last_seen.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <p><strong>Total Requests:</strong> {{ api_user.total_requests }}</p>
+                            <p><strong>Approval Rate:</strong> {{ "%.1f"|format(api_user.approval_rate) }}%</p>
+                            
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="text-success">
+                                        <h5>{{ api_user.approved_count }}</h5>
+                                        <small>Approved</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-danger">
+                                        <h5>{{ api_user.rejected_count }}</h5>
+                                        <small>Rejected</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-warning">
+                                        <h5>{{ api_user.flagged_count }}</h5>
+                                        <small>Flagged</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Manual Decision Panel -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Make Decision</h4>
+                        </div>
+                        <div class="card-body">
+                            <form id="decisionForm">
+                                <div class="mb-3">
+                                    <label for="decision" class="form-label">Decision:</label>
+                                    <select class="form-select" id="decision" name="decision" required>
+                                        <option value="">Choose decision...</option>
+                                        <option value="approved">Approve</option>
+                                        <option value="rejected">Reject</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="reason" class="form-label">Reason:</label>
+                                    <textarea class="form-control" id="reason" name="reason" rows="3" 
+                                              placeholder="Brief explanation of your decision..." required></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="notes" class="form-label">Notes (optional):</label>
+                                    <textarea class="form-control" id="notes" name="notes" rows="2" 
+                                              placeholder="Additional notes..."></textarea>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-check"></i> Submit Decision
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('decisionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        decision: document.getElementById('decision').value,
+        reason: document.getElementById('reason').value,
+        notes: document.getElementById('notes').value
+    };
+    
+    // Disable form during submission
+    const submitBtn = document.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
+    fetch('{{ url_for("manual_review.make_decision", content_id=content.id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show Bootstrap toast
+            showMainToast('Decision submitted successfully!');
+            // Redirect back to dashboard after short delay
+            setTimeout(function() {
+                window.location.href = '{{ url_for("manual_review.index") }}';
+            }, 1500);
+        } else {
+            alert('Error: ' + data.error);
+            // Re-enable form
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while submitting the decision.');
+        // Re-enable form
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    });
+});
+
+// Helper to show the main toast
+function showMainToast(message) {
+    var toastEl = document.getElementById('mainToast');
+    var toastBody = document.getElementById('mainToastBody');
+    toastBody.textContent = message;
+    var toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    toast.show();
+}
+</script>
+{% endblock %} 

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard.create_project') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-plus"></i> New Project
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ total_projects }}</h4>
+                        <p class="card-text">Projects</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-project-diagram fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ total_content }}</h4>
+                        <p class="card-text">Content Moderated</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-shield-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ total_api_keys }}</h4>
+                        <p class="card-text">API Keys</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-key fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">Real-time</h4>
+                        <p class="card-text">Monitoring</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-bolt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Invitations -->
+{% if pending_invitations %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-envelope"></i> Pending Project Invitations
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Project</th>
+                                <th>Invited By</th>
+                                <th>Role</th>
+                                <th>Expires</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invitation in pending_invitations %}
+                            <tr>
+                                <td>
+                                    <strong>{{ invitation.project.name }}</strong>
+                                    <br><small class="text-muted">{{ invitation.project.description or 'No description' }}</small>
+                                </td>
+                                <td>{{ invitation.inviter.username }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if invitation.role == 'admin' else 'secondary' }}">
+                                        {{ invitation.role|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ invitation.expires_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('dashboard.accept_invitation', token=invitation.token) }}" class="btn btn-success">
+                                            <i class="fas fa-check"></i> Accept
+                                        </a>
+                                        <form method="POST" action="{{ url_for('dashboard.decline_invitation', token=invitation.token) }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Decline this invitation?')">
+                                                <i class="fas fa-times"></i> Decline
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <a href="{{ url_for('dashboard.create_project') }}" class="btn btn-primary btn-lg w-100 mb-2">
+                            <i class="fas fa-plus"></i> Create New Project
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('api.api_docs') }}" class="btn btn-info btn-lg w-100 mb-2">
+                            <i class="fas fa-book"></i> View API Documentation
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('dashboard.projects') }}" class="btn btn-secondary btn-lg w-100 mb-2">
+                            <i class="fas fa-project-diagram"></i> Manage Projects
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Projects -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Your Projects</h5>
+            </div>
+            <div class="card-body">
+                {% if projects %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>API Keys</th>
+                                <th>Content</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in projects %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="text-decoration-none">
+                                        {{ project.name }}
+                                    </a>
+                                </td>
+                                <td>{{ project.description or 'No description' }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ project.api_keys|length }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">{{ project.content|length }}</span>
+                                </td>
+                                <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
+                    <h5>No Projects Yet</h5>
+                    <p class="text-muted">Create your first project to start moderating content.</p>
+                    <a href="{{ url_for('dashboard.create_project') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Project
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

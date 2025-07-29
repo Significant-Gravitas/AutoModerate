@@ -1,0 +1,70 @@
+/* Rules page specific styles */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.card.bg-light {
+    border: 1px solid #dee2e6;
+}
+
+.card.bg-light .card-header {
+    background-color: #e9ecef;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.form-control-plaintext {
+    padding-left: 0;
+    padding-right: 0;
+    border: none;
+    background-color: transparent;
+}
+
+.alert-info {
+    border-left: 4px solid #0dcaf0;
+}
+
+/* Rule configuration styling */
+#modalRuleConfig pre {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Empty state styling */
+.text-center.py-5 {
+    padding: 3rem 1rem;
+}
+
+.text-center.py-5 .fa-4x {
+    font-size: 4rem;
+    opacity: 0.3;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .btn-group-sm .btn {
+        padding: 0.125rem 0.25rem;
+        font-size: 0.7rem;
+    }
+    
+    .btn-group-sm .btn i {
+        font-size: 0.8rem;
+    }
+}

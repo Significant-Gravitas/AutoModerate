@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Project Settings - {{ project.name }} - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Project Settings - {{ project.name }}</h1>
+            <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Project
+                </a>
+                <a href="{{ url_for('dashboard.project_members', project_id=project.id) }}" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-users"></i> Manage Members
+                </a>
+            </div>
+        </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Project Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Project Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('dashboard.update_project', project_id=project.id) }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Project Name</label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ project.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ project.description or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Project Statistics -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Project Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-primary">{{ stats.total }}</h4>
+                            <small class="text-muted">Total Content</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-success">{{ stats.approved }}</h4>
+                            <small class="text-muted">Approved</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-danger">{{ stats.rejected }}</h4>
+                            <small class="text-muted">Rejected</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-warning">{{ stats.flagged }}</h4>
+                            <small class="text-muted">Flagged</small>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 class="text-info">{{ stats.rules_count }}</h4>
+                            <small class="text-muted">Moderation Rules</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 class="text-secondary">{{ stats.api_keys_count }}</h4>
+                            <small class="text-muted">API Keys</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 class="text-dark">{{ stats.approval_rate|round(1) }}%</h4>
+                            <small class="text-muted">Approval Rate</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Danger Zone -->
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Danger Zone</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Delete Project</h6>
+                    <p class="text-muted small">
+                        This action cannot be undone. This will permanently delete the project and all associated data including:
+                    </p>
+                    <ul class="text-muted small">
+                        <li>All content and moderation results</li>
+                        <li>All moderation rules</li>
+                        <li>All API keys</li>
+                        <li>Project settings and configuration</li>
+                    </ul>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteProjectModal">
+                        <i class="fas fa-trash"></i> Delete Project
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Members Summary -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Project Members</h5>
+                <a href="{{ url_for('dashboard.project_members', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">
+                    Manage Members
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h4 class="text-primary">{{ stats.members_count }}</h4>
+                        <small class="text-muted">Total Members</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-success">{{ stats.admin_count }}</h4>
+                        <small class="text-muted">Admins</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-info">{{ stats.pending_invitations }}</h4>
+                        <small class="text-muted">Pending Invites</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <small class="text-muted">Your role: 
+                        <span class="badge bg-{{ 'primary' if project.get_member_role(current_user.id) == 'owner' else 'success' if project.get_member_role(current_user.id) == 'admin' else 'secondary' }}">
+                            {{ project.get_member_role(current_user.id)|title }}
+                        </span>
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Details -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Project Details</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Created</dt>
+                    <dd class="col-sm-8">{{ project.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                    
+                    <dt class="col-sm-4">Last Updated</dt>
+                    <dd class="col-sm-8">{{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                    
+                    <dt class="col-sm-4">Project ID</dt>
+                    <dd class="col-sm-8">
+                        <code class="small">{{ project.id }}</code>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard('{{ project.id }}')" title="Copy ID">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Project Modal -->
+<div class="modal fade" id="deleteProjectModal" tabindex="-1" aria-labelledby="deleteProjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteProjectModalLabel">Delete Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Warning:</strong> This action cannot be undone!
+                </div>
+                <p>Are you sure you want to delete the project <strong>"{{ project.name }}"</strong>?</p>
+                <p class="text-muted">This will permanently delete:</p>
+                <ul class="text-muted">
+                    <li>{{ stats.total }} content items</li>
+                    <li>{{ stats.rules_count }} moderation rules</li>
+                    <li>{{ stats.api_keys_count }} API keys</li>
+                    <li>All project data and settings</li>
+                </ul>
+                <p>To confirm deletion, please type the project name: <strong>{{ project.name }}</strong></p>
+                <input type="text" class="form-control" id="confirmProjectName" placeholder="Enter project name to confirm" data-project-name="{{ project.name }}">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('dashboard.delete_project', project_id=project.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger" id="confirmDeleteBtn" disabled>
+                        <i class="fas fa-trash"></i> Delete Project
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard/project_settings.js') }}"></script>
+{% endblock %} 

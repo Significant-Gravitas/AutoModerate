@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - AutoModerate{% endblock %}
+
+{% block scripts %}
+<link href="{{ url_for('static', filename='css/dashboard/project_detail.css') }}" rel="stylesheet">
+<script>
+    // Make project ID available to JavaScript
+    window.projectId = '{{ project.id }}';
+</script>
+<script src="{{ url_for('static', filename='js/dashboard/project_detail.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ project.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard.project_api_keys', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-key"></i> API Keys
+            </a>
+            <a href="{{ url_for('dashboard.project_rules', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-cogs"></i> Rules
+            </a>
+            <a href="{{ url_for('dashboard.project_content', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-list"></i> Content
+            </a>
+            <a href="{{ url_for('dashboard.project_settings', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-cog"></i> Settings
+            </a>
+            <a href="{{ url_for('dashboard.project_members', project_id=project.id) }}" class="btn btn-sm btn-outline-info">
+                <i class="fas fa-users"></i> Members
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Project Info -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Project Information</h5>
+                <p class="card-text">{{ project.description or 'No description provided' }}</p>
+                <small class="text-muted">Created {{ project.created_at.strftime('%B %d, %Y') }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">Quick Stats</h5>
+                <div class="row">
+                    <div class="col-12 mb-2">
+                        <h4 class="text-primary">{{ stats.total }}</h4>
+                        <small class="text-muted">Total Content</small>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-4">
+                        <h6 class="text-success">{{ stats.approved }}</h6>
+                        <small class="text-muted">Approved</small>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="text-danger">{{ stats.rejected }}</h6>
+                        <small class="text-muted">Rejected</small>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="text-warning">{{ stats.flagged }}</h6>
+                        <small class="text-muted">Flagged</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Keys Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">API Keys</h5>
+                <a href="{{ url_for('dashboard.project_api_keys', project_id=project.id) }}" class="btn btn-sm btn-primary">
+                    Manage Keys
+                </a>
+            </div>
+            <div class="card-body">
+                {% if project.api_keys %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Key</th>
+                                <th>Usage</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key in project.api_keys[:3] %}
+                            <tr>
+                                <td>{{ key.name }}</td>
+                                <td>
+                                    <code class="api-key-display" 
+                                          data-full-key="{{ key.key }}" 
+                                          style="cursor: pointer;" 
+                                          title="Click to view full key">
+                                        {{ key.key[:20] }}...
+                                    </code>
+                                    <i class="fas fa-eye text-muted ms-1" style="font-size: 0.8em;"></i>
+                                </td>
+                                <td>{{ key.usage_count }}</td>
+                                <td>
+                                    {% if key.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No API keys created yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Content -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Recent Content</h5>
+                <a href="{{ url_for('dashboard.project_content', project_id=project.id) }}" class="btn btn-sm btn-primary">
+                    View All
+                </a>
+            </div>
+            <div class="card-body">
+                {% if recent_content %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Content</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for content in recent_content %}
+                            <tr>
+                                <td><span class="badge bg-info">{{ content.content_type }}</span></td>
+                                <td>{{ content.content_data[:50] }}{% if content.content_data|length > 50 %}...{% endif %}</td>
+                                <td>
+                                    {% if content.status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif content.status == 'rejected' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% elif content.status == 'flagged' %}
+                                        <span class="badge bg-warning">Flagged</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5>No Content Yet</h5>
+                    <p class="text-muted">Start sending content to your API endpoint to see moderation results here.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- API Key Modal -->
+<div class="modal fade" id="apiKeyModal" tabindex="-1" aria-labelledby="apiKeyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="apiKeyModalLabel">Full API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Keep this key secure!</strong> Don't share it publicly or commit it to version control.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">API Key:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="fullApiKey" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyFullKeyBtn">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Usage Example:</label>
+                    <pre class="bg-light p-3 rounded"><code>curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <span id="exampleKey">your-api-key</span>" \
+  -d '{"type": "text", "content": "Content to moderate"}' \
+  {{ request.url_root }}api/moderate</code></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}Content - {{ project.name }} - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom" data-project-id="{{ project.id }}" data-status-filter="{{ current_status }}">
+    <h1 class="h2">Content - {{ project.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Project
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="status" class="form-label">Status Filter</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="">All Status</option>
+                            <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="approved" {% if current_status == 'approved' %}selected{% endif %}>Approved</option>
+                            <option value="rejected" {% if current_status == 'rejected' %}selected{% endif %}>Rejected</option>
+                            <option value="flagged" {% if current_status == 'flagged' %}selected{% endif %}>Flagged</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="content_type" class="form-label">Content Type</label>
+                        <select class="form-select" id="content_type" name="content_type">
+                            <option value="">All Types</option>
+                            <option value="text">Text</option>
+                            <option value="image">Image</option>
+                            <option value="video">Video</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="search" class="form-label">Search Content</label>
+                        <input type="text" class="form-control" id="search" name="search" placeholder="Search in content...">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> Filter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary" id="totalContent">{{ pagination.total }}</h5>
+                <p class="card-text">Total Content</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success" id="approvedContent">
+                    {{ pagination.items|selectattr('status', 'equalto', 'approved')|list|length }}
+                </h5>
+                <p class="card-text">Approved</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-danger" id="rejectedContent">
+                    {{ pagination.items|selectattr('status', 'equalto', 'rejected')|list|length }}
+                </h5>
+                <p class="card-text">Rejected</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning" id="flaggedContent">
+                    {{ pagination.items|selectattr('status', 'equalto', 'flagged')|list|length }}
+                </h5>
+                <p class="card-text">Flagged</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Content Items</h5>
+                <div>
+                    <small class="text-muted">
+                        Showing <span id="showingCount">{{ pagination.items|length }}</span> of <span id="totalCount">{{ pagination.total }}</span> items
+                        (Page {{ pagination.page }} of {{ pagination.pages }})
+                    </small>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if pagination.items %}
+                <div class="table-responsive">
+                    <table class="table table-hover" id="contentTable">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Content</th>
+                                <th>Status</th>
+                                <th>Moderation Results</th>
+                                <th>Processing Time</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contentTableBody">
+                            {% for content in pagination.items %}
+                            <tr data-content-id="{{ content.id }}">
+                                <td>
+                                    <span class="badge bg-info">{{ content.content_type|title }}</span>
+                                </td>
+                                <td>
+                                    <div class="content-preview">
+                                        {% if content.content_type == 'text' %}
+                                            {{ content.content_data[:100] }}{% if content.content_data|length > 100 %}...{% endif %}
+                                        {% elif content.content_type == 'image' %}
+                                            <i class="fas fa-image"></i> Image: {{ content.content_data[:50] }}...
+                                        {% elif content.content_type == 'video' %}
+                                            <i class="fas fa-video"></i> Video: {{ content.content_data[:50] }}...
+                                        {% else %}
+                                            {{ content.content_data[:100] }}{% if content.content_data|length > 100 %}...{% endif %}
+                                        {% endif %}
+                                    </div>
+                                    {% if content.meta_data %}
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> Has metadata
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if content.status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif content.status == 'rejected' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% elif content.status == 'flagged' %}
+                                        <span class="badge bg-warning">Flagged</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if content.moderation_results %}
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for result in content.moderation_results[:3] %}
+                                                {% if result.moderator_type == 'ai' %}
+                                                    <span class="badge bg-primary" title="AI Moderation">AI</span>
+                                                {% elif result.moderator_type == 'rule' %}
+                                                    <span class="badge bg-info" title="Rule-based">Rule</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary" title="Manual Review">Manual</span>
+                                                {% endif %}
+                                            {% endfor %}
+                                            {% if content.moderation_results|length > 3 %}
+                                                <span class="badge bg-light text-dark">+{{ content.moderation_results|length - 3 }}</span>
+                                            {% endif %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">No results</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if content.moderation_results %}
+                                        {% set total_time = content.moderation_results | sum(attribute='processing_time') %}
+                                        {% if total_time %}
+                                            {% if total_time < 1 %}
+                                                <small class="text-success">{{ (total_time * 1000) | round | int }}ms</small>
+                                            {% else %}
+                                                <small class="text-primary">{{ "%.2f" | format(total_time) }}s</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <small class="text-muted">N/A</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <small class="text-muted">N/A</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary btn-sm view-content-btn"
+                                                data-content-id="{{ content.id }}"
+                                                title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if pagination.pages > 1 %}
+                <nav aria-label="Content pagination" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.prev_num, status=current_status) }}">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for page_num in pagination.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num != pagination.page %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=page_num, status=current_status) }}">{{ page_num }}</a>
+                                </li>
+                                {% else %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.next_num, status=current_status) }}">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-4x text-muted mb-4"></i>
+                    <h3>No Content Found</h3>
+                    <p class="text-muted mb-4">
+                        {% if current_status %}
+                            No content with status "{{ current_status }}" found.
+                        {% else %}
+                            No content has been submitted for moderation yet.
+                        {% endif %}
+                    </p>
+                    {% if current_status %}
+                    <a href="{{ url_for('dashboard.project_content', project_id=project.id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-list"></i> View All Content
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content Details Modal -->
+<div class="modal fade" id="contentDetailsModal" tabindex="-1" aria-labelledby="contentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contentDetailsModalLabel">Content Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Content Type:</strong></label>
+                            <p id="modalContentType" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Status:</strong></label>
+                            <p id="modalContentStatus" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Content:</strong></label>
+                    <div id="modalContentData" class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Metadata:</strong></label>
+                    <div id="modalContentMetadata" class="bg-light p-3 rounded"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Moderation Results:</strong></label>
+                    <div id="modalModerationResults"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Created:</strong></label>
+                    <p id="modalContentCreated" class="form-control-plaintext"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard/content.js') }}?v={{ range(1, 1000) | random }}"></script>
+{% endblock %}

@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}User Details - {{ user.username }} - Admin - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">User Details - {{ user.username }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Users
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- User Information -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">User Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Username</dt>
+                    <dd class="col-sm-8">
+                        <strong>{{ user.username }}</strong>
+                        {% if user.id == current_user.id %}
+                            <span class="badge bg-info">You</span>
+                        {% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Email</dt>
+                    <dd class="col-sm-8">{{ user.email }}</dd>
+                    
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        {% if user.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Role</dt>
+                    <dd class="col-sm-8">
+                        {% if user.is_admin %}
+                            <span class="badge bg-danger">Admin</span>
+                        {% else %}
+                            <span class="badge bg-primary">User</span>
+                        {% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Created</dt>
+                    <dd class="col-sm-8">{{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                    
+                    <dt class="col-sm-4">Last Updated</dt>
+                    <dd class="col-sm-8">{{ user.updated_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                </dl>
+                
+                {% if user.id != current_user.id %}
+                <hr>
+                <div class="d-flex gap-2">
+                    <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-{% if user.is_admin %}warning{% else %}success{% endif %}"
+                                onclick="return confirm('{% if user.is_admin %}Revoke admin privileges for {{ user.username }}?{% else %}Grant admin privileges to {{ user.username }}?{% endif %}')">
+                            <i class="fas fa-{% if user.is_admin %}user-minus{% else %}user-plus{% endif %}"></i>
+                            {% if user.is_admin %}Revoke Admin{% else %}Grant Admin{% endif %}
+                        </button>
+                    </form>
+                    
+                    <form method="POST" action="{{ url_for('admin.toggle_active', user_id=user.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-{% if user.is_active %}danger{% else %}success{% endif %}"
+                                onclick="return confirm('{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}')">
+                            <i class="fas fa-{% if user.is_active %}pause{% else %}play{% endif %}"></i>
+                            {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Danger Zone -->
+                <hr>
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle"></i> Danger Zone
+                    </h6>
+                    <p class="mb-2">
+                        <strong>Delete User Account</strong><br>
+                        This action cannot be undone. This will permanently delete the user account and all associated data.
+                    </p>
+                    {% if projects %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>Warning:</strong> This user has {{ projects|length }} project(s). 
+                        All projects must be deleted before the user can be deleted.
+                    </div>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger" 
+                                onclick="return confirm('Are you absolutely sure you want to delete user {{ user.username }}? This action cannot be undone and will permanently delete all user data.')"
+                                {% if projects %}disabled{% endif %}>
+                            <i class="fas fa-trash"></i> Delete User Account
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- User Statistics -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">User Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <h4 class="text-primary">{{ projects|length }}</h4>
+                            <small class="text-muted">Total Projects</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <h4 class="text-info">{{ total_content }}</h4>
+                            <small class="text-muted">Total Content</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <h4 class="text-warning">{{ total_rules }}</h4>
+                            <small class="text-muted">Total Rules</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <h4 class="text-secondary">{{ total_api_keys }}</h4>
+                            <small class="text-muted">API Keys</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Projects -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">User Projects</h5>
+            </div>
+            <div class="card-body">
+                {% if projects %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>Description</th>
+                                <th>Content Count</th>
+                                <th>Rules Count</th>
+                                <th>API Keys</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in projects %}
+                            <tr>
+                                <td>
+                                    <strong>{{ project.name }}</strong>
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 200px;" title="{{ project.description or 'No description' }}">
+                                        {{ project.description or 'No description' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ project.content|length }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning">{{ project.moderation_rules|length }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ project.api_keys|length }}</span>
+                                </td>
+                                <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('admin.project_detail', project_id=project.id) }}" 
+                                           class="btn btn-outline-primary" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" 
+                                           class="btn btn-outline-info" title="View as User">
+                                            <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
+                    <h5>No Projects</h5>
+                    <p class="text-muted">This user hasn't created any projects yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

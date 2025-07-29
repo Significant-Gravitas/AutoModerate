@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Create Rule - {{ project.name }} - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Create Moderation Rule - {{ project.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard.project_rules', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Rules
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Rule Creation Form -->
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Rule Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="ruleForm">
+                    <!-- Basic Information -->
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Rule Name *</label>
+                                <input type="text" class="form-control" id="name" name="name" required 
+                                       placeholder="Enter a descriptive name for this rule">
+                                <div class="form-text">Choose a clear name that describes what this rule does.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="priority" class="form-label">Priority *</label>
+                                <input type="number" class="form-control" id="priority" name="priority" 
+                                       value="100" min="1" max="1000" required>
+                                <div class="form-text">Higher numbers = higher priority (1-1000)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"
+                                  placeholder="Optional: Describe when and why this rule should be applied"></textarea>
+                    </div>
+
+                    <!-- Rule Type Selection -->
+                    <div class="mb-4">
+                        <label class="form-label">Rule Type *</label>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card rule-type-card" data-rule-type="keyword">
+                                    <div class="card-body text-center">
+                                        <input type="radio" class="form-check-input" name="rule_type" value="keyword" id="keyword_type">
+                                        <label for="keyword_type" class="form-check-label d-block mt-2">
+                                            <i class="fas fa-search fa-2x text-info mb-2"></i>
+                                            <h6>Keyword Matching</h6>
+                                            <small class="text-muted">Match specific words or phrases</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card rule-type-card" data-rule-type="regex">
+                                    <div class="card-body text-center">
+                                        <input type="radio" class="form-check-input" name="rule_type" value="regex" id="regex_type">
+                                        <label for="regex_type" class="form-check-label d-block mt-2">
+                                            <i class="fas fa-code fa-2x text-warning mb-2"></i>
+                                            <h6>Regex Pattern</h6>
+                                            <small class="text-muted">Use regular expressions for complex patterns</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card rule-type-card" data-rule-type="ai_prompt">
+                                    <div class="card-body text-center">
+                                        <input type="radio" class="form-check-input" name="rule_type" value="ai_prompt" id="ai_prompt_type">
+                                        <label for="ai_prompt_type" class="form-check-label d-block mt-2">
+                                            <i class="fas fa-brain fa-2x text-success mb-2"></i>
+                                            <h6>AI Prompt</h6>
+                                            <small class="text-muted">Custom AI analysis with your prompt</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rule Configuration Sections -->
+                    
+                    <!-- Keyword Configuration -->
+                    <div id="keyword_config" class="rule-config" style="display: none;">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6 class="mb-0">Keyword Configuration</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="keywords" class="form-label">Keywords/Phrases *</label>
+                                    <textarea class="form-control" id="keywords" name="keywords" rows="3"
+                                              placeholder="Enter keywords or phrases, one per line&#10;Example:&#10;spam&#10;inappropriate content&#10;bad word"></textarea>
+                                    <div class="form-text">Enter one keyword or phrase per line. Phrases can contain multiple words.</div>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="case_sensitive" name="case_sensitive">
+                                    <label class="form-check-label" for="case_sensitive">
+                                        Case sensitive matching
+                                    </label>
+                                    <div class="form-text">If unchecked, "SPAM" and "spam" will be treated the same.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Regex Configuration -->
+                    <div id="regex_config" class="rule-config" style="display: none;">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6 class="mb-0">Regular Expression Configuration</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="regex_pattern" class="form-label">Regex Pattern *</label>
+                                    <input type="text" class="form-control" id="regex_pattern" name="regex_pattern"
+                                           placeholder="e.g., \b\d{3}-\d{2}-\d{4}\b (for SSN pattern)">
+                                    <div class="form-text">Enter a valid regular expression pattern.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="regex_flags" class="form-label">Regex Flags</label>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="flag_ignorecase" name="regex_flags" value="i">
+                                                <label class="form-check-label" for="flag_ignorecase">
+                                                    Ignore case (i)
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="flag_multiline" name="regex_flags" value="m">
+                                                <label class="form-check-label" for="flag_multiline">
+                                                    Multiline (m)
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="flag_dotall" name="regex_flags" value="s">
+                                                <label class="form-check-label" for="flag_dotall">
+                                                    Dot matches all (s)
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="flag_global" name="regex_flags" value="g">
+                                                <label class="form-check-label" for="flag_global">
+                                                    Global match (g)
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>Examples:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li><code>\b\d{3}-\d{2}-\d{4}\b</code> - Matches SSN format</li>
+                                        <li><code>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}</code> - Matches email addresses</li>
+                                        <li><code>\b(?:https?://)?(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}\b</code> - Matches URLs</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Prompt Configuration -->
+                    <div id="ai_prompt_config" class="rule-config" style="display: none;">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6 class="mb-0">AI Prompt Configuration</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="ai_prompt" class="form-label">Custom Prompt *</label>
+                                    <textarea class="form-control" id="ai_prompt" name="ai_prompt" rows="4"
+                                              placeholder="Enter your custom prompt for AI analysis...&#10;&#10;Example:&#10;Analyze this content for hate speech. Consider context and intent. Return 'reject' if it contains hate speech, 'approve' if it's acceptable."></textarea>
+                                    <div class="form-text">Describe what you want the AI to analyze and how it should respond.</div>
+                                </div>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <strong>AI Prompt Tips:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>Be specific about what to look for</li>
+                                        <li>Include examples when possible</li>
+                                        <li>Specify the desired response format</li>
+                                        <li>Consider edge cases and context</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Selection -->
+                    <div class="mb-4 mt-4">
+                        <label class="form-label">Action to Take *</label>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="action" value="approve" id="action_approve">
+                                    <label class="form-check-label" for="action_approve">
+                                        <span class="badge bg-success me-2">Approve</span>
+                                        Automatically approve matching content
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="action" value="reject" id="action_reject">
+                                    <label class="form-check-label" for="action_reject">
+                                        <span class="badge bg-danger me-2">Reject</span>
+                                        Automatically reject matching content
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="action" value="flag" id="action_flag">
+                                    <label class="form-check-label" for="action_flag">
+                                        <span class="badge bg-warning me-2">Flag</span>
+                                        Flag for manual review
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Buttons -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('dashboard.project_rules', project_id=project.id) }}" class="btn btn-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Rule
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard/create_rule.js') }}"></script>
+{% endblock %}

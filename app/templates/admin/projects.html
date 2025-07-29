@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}All Projects - Admin - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">All Projects</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Admin
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">All Projects</h5>
+            </div>
+            <div class="card-body">
+                {% if projects.items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>Owner</th>
+                                <th>Description</th>
+                                <th>Content Count</th>
+                                <th>Rules Count</th>
+                                <th>API Keys</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in projects.items %}
+                            <tr>
+                                <td>
+                                    <strong>{{ project.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ project.owner.username }}</span>
+                                    {% if project.owner.is_admin %}
+                                        <span class="badge bg-danger">Admin</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 200px;" title="{{ project.description or 'No description' }}">
+                                        {{ project.description or 'No description' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ project.content|length }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning">{{ project.moderation_rules|length }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ project.api_keys|length }}</span>
+                                </td>
+                                <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('admin.project_detail', project_id=project.id) }}" 
+                                           class="btn btn-outline-primary" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if projects.pages > 1 %}
+                <nav aria-label="Project pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if projects.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin.projects', page=projects.prev_num) }}">Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for page_num in projects.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num != projects.page %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('admin.projects', page=page_num) }}">{{ page_num }}</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ page_num }}</span>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if projects.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin.projects', page=projects.next_num) }}">Next</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
+                    <h5>No Projects Found</h5>
+                    <p class="text-muted">There are no projects in the system.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Project Statistics -->
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-project-diagram fa-2x text-info mb-2"></i>
+                <h4 class="text-info">{{ projects.total }}</h4>
+                <p class="card-text">Total Projects</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                                            <h4 class="text-primary">{{ unique_owners }}</h4>
+                <p class="card-text">Unique Owners</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-file-alt fa-2x text-success mb-2"></i>
+                                            <h4 class="text-success">{{ total_content }}</h4>
+                <p class="card-text">Total Content</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

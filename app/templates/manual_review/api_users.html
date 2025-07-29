@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}API Users{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>API Users</h1>
+                <a href="{{ url_for('manual_review.index') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Manual Review
+                </a>
+            </div>
+            
+            <!-- API Users Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>API Users and Their Moderation History</h3>
+                </div>
+                <div class="card-body">
+                    {% if api_users %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>User ID</th>
+                                        <th>Project</th>
+                                        <th>First Seen</th>
+                                        <th>Last Seen</th>
+                                        <th>Total Requests</th>
+                                        <th>Approval Rate</th>
+                                        <th>Stats</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in api_users %}
+                                    <tr>
+                                        <td>
+                                            <code>{{ user.external_user_id }}</code>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">{{ user.project.name }}</span>
+                                        </td>
+                                        <td>
+                                            <small>{{ user.first_seen.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        </td>
+                                        <td>
+                                            <small>{{ user.last_seen.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        </td>
+                                        <td>
+                                            <strong>{{ user.total_requests }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if user.approval_rate >= 80 %}
+                                                <span class="badge bg-success">{{ "%.1f"|format(user.approval_rate) }}%</span>
+                                            {% elif user.approval_rate >= 50 %}
+                                                <span class="badge bg-warning">{{ "%.1f"|format(user.approval_rate) }}%</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{{ "%.1f"|format(user.approval_rate) }}%</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="d-flex gap-1">
+                                                <span class="badge bg-success" title="Approved">{{ user.approved_count }}</span>
+                                                <span class="badge bg-danger" title="Rejected">{{ user.rejected_count }}</span>
+                                                <span class="badge bg-warning" title="Flagged">{{ user.flagged_count }}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('manual_review.api_user_detail', user_id=user.id) }}" 
+                                               class="btn btn-sm btn-primary">
+                                                <i class="fas fa-eye"></i> View Details
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h4 class="text-muted">No API users found</h4>
+                            <p class="text-muted">API users will appear here once they start submitting content for moderation.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

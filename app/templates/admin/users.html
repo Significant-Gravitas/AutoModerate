@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - Admin - AutoModerate{% endblock %}
+
+{% block scripts %}
+<script>
+// Password confirmation validation
+document.getElementById('createUserForm').addEventListener('submit', function(e) {
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm_password').value;
+    
+    if (password !== confirmPassword) {
+        e.preventDefault();
+        alert('Passwords do not match. Please try again.');
+        return false;
+    }
+    
+    if (password.length < 6) {
+        e.preventDefault();
+        alert('Password must be at least 6 characters long.');
+        return false;
+    }
+    
+    // Show loading state
+    const submitBtn = document.querySelector('#createUserForm button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    submitBtn.disabled = true;
+    
+    // Re-enable after a delay in case of validation errors
+    setTimeout(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }, 3000);
+});
+
+// Clear form when modal is closed
+document.getElementById('createUserModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('createUserForm').reset();
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">User Management</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Admin
+            </a>
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                <i class="fas fa-plus"></i> Create New User
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">All Users</h5>
+            </div>
+            <div class="card-body">
+                {% if users.items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Role</th>
+                                <th>Projects</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users.items %}
+                            <tr>
+                                <td>
+                                    <strong>{{ user.username }}</strong>
+                                    {% if user.id == current_user.id %}
+                                        <span class="badge bg-info">You</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.email }}</td>
+                                <td>
+                                    {% if user.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.is_admin %}
+                                        <span class="badge bg-danger">Admin</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">User</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ user.projects|length }}</span>
+                                </td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" 
+                                           class="btn btn-outline-primary" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        
+                                        {% if user.id != current_user.id %}
+                                            <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" 
+                                                  style="display: inline;">
+                                                <button type="submit" class="btn btn-outline-warning" 
+                                                        title="{% if user.is_admin %}Revoke Admin{% else %}Grant Admin{% endif %}"
+                                                        onclick="return confirm('{% if user.is_admin %}Revoke admin privileges for {{ user.username }}?{% else %}Grant admin privileges to {{ user.username }}?{% endif %}')">
+                                                    <i class="fas fa-{% if user.is_admin %}user-minus{% else %}user-plus{% endif %}"></i>
+                                                </button>
+                                            </form>
+                                            
+                                            <form method="POST" action="{{ url_for('admin.toggle_active', user_id=user.id) }}" 
+                                                  style="display: inline;">
+                                                <button type="submit" class="btn btn-outline-{% if user.is_active %}danger{% else %}success{% endif %}" 
+                                                        title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %}"
+                                                        onclick="return confirm('{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}')">
+                                                    <i class="fas fa-{% if user.is_active %}pause{% else %}play{% endif %}"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if users.pages > 1 %}
+                <nav aria-label="User pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if users.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin.users', page=users.prev_num) }}">Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for page_num in users.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num != users.page %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('admin.users', page=page_num) }}">{{ page_num }}</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ page_num }}</span>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if users.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin.users', page=users.next_num) }}">Next</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h5>No Users Found</h5>
+                    <p class="text-muted">There are no users in the system.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Statistics -->
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h4 class="text-primary">{{ users.total }}</h4>
+                <p class="card-text">Total Users</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-user-check fa-2x text-success mb-2"></i>
+                <h4 class="text-success">{{ users.items|selectattr('is_active')|list|length }}</h4>
+                <p class="card-text">Active Users</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-user-shield fa-2x text-danger mb-2"></i>
+                <h4 class="text-danger">{{ users.items|selectattr('is_admin')|list|length }}</h4>
+                <p class="card-text">Admin Users</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create User Modal -->
+<div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createUserModalLabel">Create New User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('admin.create_user') }}" id="createUserForm">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username *</label>
+                        <input type="text" class="form-control" id="username" name="username" required 
+                               placeholder="Enter username">
+                        <div class="form-text">Choose a unique username for the user.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email *</label>
+                        <input type="email" class="form-control" id="email" name="email" required 
+                               placeholder="Enter email address">
+                        <div class="form-text">Enter a valid email address.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password *</label>
+                        <input type="password" class="form-control" id="password" name="password" required 
+                               placeholder="Enter password">
+                        <div class="form-text">Set a secure password for the user.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm Password *</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required 
+                               placeholder="Confirm password">
+                        <div class="form-text">Re-enter the password to confirm.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">User Role</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="is_admin" id="role_user" value="0" checked>
+                            <label class="form-check-label" for="role_user">
+                                <span class="badge bg-primary me-2">User</span>
+                                Standard user with project management capabilities
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="is_admin" id="role_admin" value="1">
+                            <label class="form-check-label" for="role_admin">
+                                <span class="badge bg-danger me-2">Admin</span>
+                                Administrator with full system access
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" checked>
+                            <label class="form-check-label" for="is_active">
+                                Active Account
+                            </label>
+                            <div class="form-text">Uncheck to create an inactive account that requires activation.</div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="createUserForm" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

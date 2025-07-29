@@ -1,0 +1,25 @@
+/* Project detail specific styles */
+.api-key-display {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.api-key-display:hover {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    padding: 0.125rem 0.25rem;
+}
+
+.modal-body pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.copy-success {
+    animation: copySuccess 2s ease-in-out;
+}
+
+@keyframes copySuccess {
+    0% { background-color: #28a745; }
+    100% { background-color: #6c757d; }
+}

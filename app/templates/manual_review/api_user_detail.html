@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block title %}API User - {{ api_user.external_user_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1>API User Details</h1>
+                    <p class="text-muted">User ID: {{ api_user.external_user_id }}</p>
+                </div>
+                <a href="{{ url_for('manual_review.api_users') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to API Users
+                </a>
+            </div>
+            
+            <div class="row">
+                <!-- User Statistics -->
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h4>User Statistics</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>Project:</strong><br>
+                                    <span class="badge bg-primary">{{ api_user.project.name }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Approval Rate:</strong><br>
+                                    {% if api_user.approval_rate >= 80 %}
+                                        <span class="badge bg-success">{{ "%.1f"|format(api_user.approval_rate) }}%</span>
+                                    {% elif api_user.approval_rate >= 50 %}
+                                        <span class="badge bg-warning">{{ "%.1f"|format(api_user.approval_rate) }}%</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ "%.1f"|format(api_user.approval_rate) }}%</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>First Seen:</strong><br>
+                                    <small>{{ api_user.first_seen.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Last Seen:</strong><br>
+                                    <small>{{ api_user.last_seen.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>Total Requests:</strong><br>
+                                    <h5>{{ api_user.total_requests }}</h5>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Days Active:</strong><br>
+                                    <h5>{{ ((api_user.last_seen - api_user.first_seen).days + 1) }}</h5>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- Status Breakdown -->
+                            <h6>Status Breakdown:</h6>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="text-success">
+                                        <h4>{{ api_user.approved_count }}</h4>
+                                        <small>Approved</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-danger">
+                                        <h4>{{ api_user.rejected_count }}</h4>
+                                        <small>Rejected</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-warning">
+                                        <h4>{{ api_user.flagged_count }}</h4>
+                                        <small>Flagged</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Progress Bars -->
+                            {% if api_user.total_requests > 0 %}
+                            <div class="mt-3">
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar bg-success" 
+                                         style="width: {{ (api_user.approved_count / api_user.total_requests * 100) }}%">
+                                        {{ api_user.approved_count }}
+                                    </div>
+                                    <div class="progress-bar bg-danger" 
+                                         style="width: {{ (api_user.rejected_count / api_user.total_requests * 100) }}%">
+                                        {{ api_user.rejected_count }}
+                                    </div>
+                                    <div class="progress-bar bg-warning" 
+                                         style="width: {{ (api_user.flagged_count / api_user.total_requests * 100) }}%">
+                                        {{ api_user.flagged_count }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Content History -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Content History</h4>
+                        </div>
+                        <div class="card-body">
+                            {% if content_items %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Content Preview</th>
+                                                <th>Type</th>
+                                                <th>Status</th>
+                                                <th>Created</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for content in content_items %}
+                                            <tr>
+                                                <td>
+                                                    <div class="content-preview">
+                                                        {{ content.content_data[:80] }}{% if content.content_data|length > 80 %}...{% endif %}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-secondary">{{ content.content_type }}</span>
+                                                </td>
+                                                <td>
+                                                    {% if content.status == 'approved' %}
+                                                        <span class="badge bg-success">{{ content.status }}</span>
+                                                    {% elif content.status == 'rejected' %}
+                                                        <span class="badge bg-danger">{{ content.status }}</span>
+                                                    {% elif content.status == 'flagged' %}
+                                                        <span class="badge bg-warning">{{ content.status }}</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ content.status }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                                </td>
+                                                <td>
+                                                    {% if content.status == 'flagged' %}
+                                                        <a href="{{ url_for('manual_review.review_content', content_id=content.id) }}" 
+                                                           class="btn btn-sm btn-warning">
+                                                            <i class="fas fa-flag"></i> Review
+                                                        </a>
+                                                    {% else %}
+                                                        <button class="btn btn-sm btn-outline-primary view-content-btn"
+                                                                data-content-id="{{ content.id }}"
+                                                                data-api-user-id="{{ api_user.id }}"
+                                                                title="View Details">
+                                                            <i class="fas fa-eye"></i> View
+                                                        </button>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-5">
+                                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                                    <h4 class="text-muted">No content found</h4>
+                                    <p class="text-muted">This user hasn't submitted any content yet.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content Details Modal -->
+<div class="modal fade" id="contentDetailsModal" tabindex="-1" aria-labelledby="contentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contentDetailsModalLabel">Content Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Content Type:</strong></label>
+                            <p id="modalContentType" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Status:</strong></label>
+                            <p id="modalContentStatus" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Content:</strong></label>
+                    <div id="modalContentData" class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Metadata:</strong></label>
+                    <div id="modalContentMetadata" class="bg-light p-3 rounded"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Moderation Results:</strong></label>
+                    <div id="modalModerationResults"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Created:</strong></label>
+                    <p id="modalContentCreated" class="form-control-plaintext"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// API User Detail Content Modal JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle view content button clicks
+    document.querySelectorAll('.view-content-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const contentId = this.getAttribute('data-content-id');
+            const apiUserId = this.getAttribute('data-api-user-id');
+            fetchContentDetails(apiUserId, contentId);
+        });
+    });
+});
+
+// Fetch content details for modal
+function fetchContentDetails(apiUserId, contentId) {
+    // Get modal elements
+    const modalContentType = document.getElementById('modalContentType');
+    const modalContentStatus = document.getElementById('modalContentStatus');
+    const modalContentData = document.getElementById('modalContentData');
+    const modalContentMetadata = document.getElementById('modalContentMetadata');
+    const modalModerationResults = document.getElementById('modalModerationResults');
+    const modalContentCreated = document.getElementById('modalContentCreated');
+    const modalElement = document.getElementById('contentDetailsModal');
+    
+    // Check if all modal elements exist
+    if (!modalContentType || !modalContentStatus || !modalContentData || 
+        !modalContentMetadata || !modalModerationResults || !modalContentCreated || !modalElement) {
+        alert('Error: Modal elements not found. Please refresh the page.');
+        return;
+    }
+    
+    // Show loading state
+    modalContentType.innerHTML = '<span class="text-muted">Loading...</span>';
+    modalContentStatus.innerHTML = '<span class="text-muted">Loading...</span>';
+    modalContentData.innerHTML = '<span class="text-muted">Loading...</span>';
+    modalContentMetadata.innerHTML = '<span class="text-muted">Loading...</span>';
+    modalModerationResults.innerHTML = '<span class="text-muted">Loading...</span>';
+    modalContentCreated.innerHTML = '<span class="text-muted">Loading...</span>';
+    
+    // Show modal first
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+    
+    // Fetch content details via AJAX
+    fetch(`/manual-review/api-users/${apiUserId}/content/${contentId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const content = data.content;
+                
+                // Populate modal with fetched data
+                modalContentType.innerHTML = `<span class="badge bg-info">${content.content_type}</span>`;
+                
+                let statusBadge = '';
+                if (content.status === 'approved') {
+                    statusBadge = '<span class="badge bg-success">Approved</span>';
+                } else if (content.status === 'rejected') {
+                    statusBadge = '<span class="badge bg-danger">Rejected</span>';
+                } else if (content.status === 'flagged') {
+                    statusBadge = '<span class="badge bg-warning">Flagged</span>';
+                } else {
+                    statusBadge = '<span class="badge bg-secondary">Pending</span>';
+                }
+                modalContentStatus.innerHTML = statusBadge;
+                
+                modalContentData.textContent = content.content_data;
+                modalContentCreated.textContent = content.created_at;
+                
+                // Format metadata
+                if (content.meta_data && Object.keys(content.meta_data).length > 0) {
+                    modalContentMetadata.innerHTML = `<pre>${JSON.stringify(content.meta_data, null, 2)}</pre>`;
+                } else {
+                    modalContentMetadata.innerHTML = '<em class="text-muted">No metadata</em>';
+                }
+                
+                // Format moderation results
+                let resultsHtml = '';
+                if (content.moderation_results && content.moderation_results.length > 0) {
+                    content.moderation_results.forEach(function(result) {
+                        let badgeClass = 'bg-secondary';
+                        if (result.moderator_type === 'ai') badgeClass = 'bg-primary';
+                        else if (result.moderator_type === 'rule') badgeClass = 'bg-info';
+                        else if (result.moderator_type === 'manual') badgeClass = 'bg-success';
+                        
+                        // Format processing time
+                        let processingTimeText = 'N/A';
+                        if (result.processing_time !== null && result.processing_time !== undefined) {
+                            if (result.processing_time < 1) {
+                                processingTimeText = (result.processing_time * 1000).toFixed(0) + 'ms';
+                            } else {
+                                processingTimeText = result.processing_time.toFixed(2) + 's';
+                            }
+                        }
+                        
+                        resultsHtml += `
+                            <div class="border rounded p-3 mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge ${badgeClass}">${result.moderator_type.toUpperCase()}</span>
+                                    <span class="badge bg-${result.decision === 'approved' ? 'success' : result.decision === 'rejected' ? 'danger' : 'warning'}">${result.decision}</span>
+                                </div>
+                                <p class="mb-1"><strong>Reason:</strong> ${result.reason || 'No reason provided'}</p>
+                                <p class="mb-1"><strong>Confidence:</strong> ${result.confidence ? (result.confidence * 100).toFixed(1) + '%' : 'N/A'}</p>
+                                <p class="mb-0"><strong>Processing Time:</strong> ${processingTimeText}</p>
+                            </div>
+                        `;
+                    });
+                } else {
+                    resultsHtml = '<em class="text-muted">No moderation results</em>';
+                }
+                modalModerationResults.innerHTML = resultsHtml;
+            } else {
+                // Handle error
+                modalContentType.innerHTML = '<span class="text-danger">Error loading content</span>';
+                modalContentStatus.innerHTML = '<span class="text-danger">Error</span>';
+                modalContentData.innerHTML = '<span class="text-danger">Failed to load content details</span>';
+                modalContentMetadata.innerHTML = '<span class="text-danger">Error</span>';
+                modalModerationResults.innerHTML = '<span class="text-danger">Error</span>';
+                modalContentCreated.innerHTML = '<span class="text-danger">Error</span>';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching content details:', error);
+            modalContentType.innerHTML = '<span class="text-danger">Error loading content</span>';
+            modalContentStatus.innerHTML = '<span class="text-danger">Error</span>';
+            modalContentData.innerHTML = '<span class="text-danger">Failed to load content details</span>';
+            modalContentMetadata.innerHTML = '<span class="text-danger">Error</span>';
+            modalModerationResults.innerHTML = '<span class="text-danger">Error</span>';
+            modalContentCreated.innerHTML = '<span class="text-danger">Error</span>';
+        });
+}
+</script>
+{% endblock %}

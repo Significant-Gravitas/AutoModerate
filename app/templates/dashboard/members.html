@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Project Members - {{ project.name }} - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Project Members - {{ project.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Project
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Current Members -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Current Members</h5>
+                {% if project.can_manage_members(current_user.id) %}
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#inviteModal">
+                    <i class="fas fa-plus"></i> Invite Member
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if members %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Joined</th>
+                                {% if project.can_manage_members(current_user.id) %}
+                                <th>Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for member in members %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-sm me-3">
+                                            <div class="avatar-title bg-primary rounded-circle">
+                                                {{ member.user.username[0].upper() }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold">{{ member.user.username }}</div>
+                                            <small class="text-muted">{{ member.user.email }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if member.role == 'owner' else 'success' if member.role == 'admin' else 'secondary' }}">
+                                        {{ member.role|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ member.joined_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </td>
+                                {% if project.can_manage_members(current_user.id) and not member.is_owner %}
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                            Actions
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li>
+                                                <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#roleModal" 
+                                                        data-membership-id="{{ member.membership_id }}" data-current-role="{{ member.role }}">
+                                                    <i class="fas fa-user-edit"></i> Change Role
+                                                </button>
+                                            </li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#removeMemberModal"
+                                                        data-membership-id="{{ member.membership_id }}" data-username="{{ member.user.username }}">
+                                                    <i class="fas fa-user-minus"></i> Remove Member
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </td>
+                                {% elif project.can_manage_members(current_user.id) %}
+                                <td>
+                                    <small class="text-muted">Project Owner</small>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No members found.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Pending Invitations -->
+        {% if pending_invitations %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Pending Invitations</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Invited By</th>
+                                <th>Expires</th>
+                                {% if project.can_manage_members(current_user.id) %}
+                                <th>Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invitation in pending_invitations %}
+                            <tr>
+                                <td>{{ invitation.email }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if invitation.role == 'admin' else 'secondary' }}">
+                                        {{ invitation.role|title }}
+                                    </span>
+                                </td>
+                                <td>{{ invitation.inviter.username }}</td>
+                                <td>
+                                    <small class="text-muted">{{ invitation.expires_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </td>
+                                {% if project.can_manage_members(current_user.id) %}
+                                <td>
+                                    <form method="POST" action="{{ url_for('dashboard.cancel_invitation', project_id=project.id, invitation_id=invitation.id) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Cancel this invitation?')">
+                                            <i class="fas fa-times"></i> Cancel
+                                        </button>
+                                    </form>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <!-- Project Info -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Project Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Owner</dt>
+                    <dd class="col-sm-8">{{ project.owner.username }}</dd>
+                    
+                    <dt class="col-sm-4">Members</dt>
+                    <dd class="col-sm-8">{{ members|length }}</dd>
+                    
+                    <dt class="col-sm-4">Your Role</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge bg-{{ 'primary' if project.get_member_role(current_user.id) == 'owner' else 'success' if project.get_member_role(current_user.id) == 'admin' else 'secondary' }}">
+                            {{ project.get_member_role(current_user.id)|title }}
+                        </span>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Role Information -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Role Permissions</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="text-primary">Owner</h6>
+                    <small class="text-muted">Full control over the project, including deletion and member management.</small>
+                </div>
+                <div class="mb-3">
+                    <h6 class="text-success">Admin</h6>
+                    <small class="text-muted">Can manage members, rules, API keys, and view all content.</small>
+                </div>
+                <div class="mb-0">
+                    <h6 class="text-secondary">Member</h6>
+                    <small class="text-muted">Can view content, rules, and API keys. Cannot modify project settings.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invite Member Modal -->
+{% if project.can_manage_members(current_user.id) %}
+<div class="modal fade" id="inviteModal" tabindex="-1" aria-labelledby="inviteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="inviteModalLabel">Invite Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('dashboard.invite_member', project_id=project.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="form-text">The user will receive an invitation email to join this project.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <select class="form-select" id="role" name="role">
+                            <option value="member">Member</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                        <div class="form-text">Choose the role for this member.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Send Invitation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Change Role Modal -->
+<div class="modal fade" id="roleModal" tabindex="-1" aria-labelledby="roleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="roleModalLabel">Change Member Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="roleForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newRole" class="form-label">New Role</label>
+                        <select class="form-select" id="newRole" name="role" required>
+                            <option value="member">Member</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Update Role
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Remove Member Modal -->
+<div class="modal fade" id="removeMemberModal" tabindex="-1" aria-labelledby="removeMemberModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="removeMemberModalLabel">Remove Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Warning:</strong> This action cannot be undone!
+                </div>
+                <p>Are you sure you want to remove <strong id="memberName"></strong> from this project?</p>
+                <p class="text-muted">The user will lose access to all project data and features.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" id="removeMemberForm" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-user-minus"></i> Remove Member
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard/members.js') }}"></script>
+{% endblock %} 

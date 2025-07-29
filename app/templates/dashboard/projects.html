@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Projects</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard.create_project') }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus"></i> New Project
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% if projects %}
+        <div class="row">
+            {% for project in projects %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ project.name }}</h5>
+                        <p class="card-text">{{ project.description or 'No description provided' }}</p>
+                        
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <small class="text-muted">API Keys</small>
+                                <div class="h6">{{ project.api_keys|length }}</div>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted">Content</small>
+                                <div class="h6">{{ project.content|length }}</div>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted">Rules</small>
+                                <div class="h6">{{ project.moderation_rules|length }}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-eye"></i> View Details
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted">
+                        <small>Created {{ project.created_at.strftime('%Y-%m-%d') }}</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-project-diagram fa-4x text-muted mb-4"></i>
+            <h3>No Projects Yet</h3>
+            <p class="text-muted mb-4">Create your first project to start moderating content with AutoModerate.</p>
+            <a href="{{ url_for('dashboard.create_project') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-plus"></i> Create Your First Project
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

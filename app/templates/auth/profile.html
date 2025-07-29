@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">User Profile</h1>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-user"></i> Profile Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Username</strong></label>
+                            <p class="form-control-plaintext">{{ user.username }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Email</strong></label>
+                            <p class="form-control-plaintext">{{ user.email }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Account Type</strong></label>
+                            <p class="form-control-plaintext">
+                                {% if user.is_admin %}
+                                    <span class="badge bg-danger">Administrator</span>
+                                {% else %}
+                                    <span class="badge bg-primary">User</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Account Status</strong></label>
+                            <p class="form-control-plaintext">
+                                {% if user.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Member Since</strong></label>
+                            <p class="form-control-plaintext">{{ user.created_at.strftime('%B %d, %Y') }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Last Updated</strong></label>
+                            <p class="form-control-plaintext">{{ user.updated_at.strftime('%B %d, %Y') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-bar"></i> Account Statistics
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <h3 class="text-primary">{{ user.projects|length }}</h3>
+                            <p class="text-muted">Projects Created</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <h3 class="text-success">
+                                {% set total_api_keys = user.projects|map(attribute='api_keys')|map('length')|sum %}
+                                {{ total_api_keys }}
+                            </h3>
+                            <p class="text-muted">API Keys</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <h3 class="text-info">
+                                {% set total_content = user.projects|map(attribute='content')|map('length')|sum %}
+                                {{ total_content }}
+                            </h3>
+                            <p class="text-muted">Content Moderated</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-lock"></i> Change Password
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="changePasswordForm" action="{{ url_for('auth.change_password') }}" method="POST">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="current_password" class="form-label">Current Password</label>
+                                <input type="password" class="form-control" id="current_password" name="current_password" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="new_password" class="form-label">New Password</label>
+                                <input type="password" class="form-control" id="new_password" name="new_password" required minlength="6">
+                                <div class="form-text">Password must be at least 6 characters long.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="confirm_password" class="form-label">Confirm New Password</label>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Change Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-project-diagram"></i> Recent Projects
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if user.projects %}
+                <div class="list-group list-group-flush">
+                    {% for project in user.projects[:5] %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ project.name }}</h6>
+                            <p class="mb-1 text-muted">{{ project.description or 'No description' }}</p>
+                            <small class="text-muted">Created {{ project.created_at.strftime('%Y-%m-%d') }}</small>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">
+                                View
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if user.projects|length > 5 %}
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('dashboard.projects') }}" class="btn btn-outline-secondary">
+                        View All Projects
+                    </a>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="text-muted">No projects created yet.</p>
+                    <a href="{{ url_for('dashboard.create_project') }}" class="btn btn-primary">
+                        Create Your First Project
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/auth/profile.js') }}?v={{ range(1, 1000) | random }}"></script>
+{% endblock %}
