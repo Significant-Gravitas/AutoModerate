@@ -33,14 +33,6 @@ Include your API key in the request header:
 X-API-Key: your-api-key-here
 ```
 
-### API Key Query Parameter
-
-Alternatively, you can include the API key as a query parameter:
-
-```http
-GET /api/content?api_key=your-api-key-here
-```
-
 ### Getting an API Key
 
 API keys are generated and managed through the AutoModerate web dashboard. Each API key is project-specific and provides access only to that project's data.

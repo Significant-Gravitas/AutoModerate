@@ -323,14 +323,6 @@ Include your API key in the request header:
 X-API-Key: your-api-key-here
 ```
 
-### API Key Query Parameter
-
-Alternatively, you can include the API key as a query parameter:
-
-```http
-GET /api/content?api_key=your-api-key-here
-```
-
 ### Getting an API Key
 
 1. Log in to the AutoModerate dashboard
