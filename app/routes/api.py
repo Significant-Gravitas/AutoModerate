@@ -3,7 +3,7 @@ from app.models.api_key import APIKey
 from app.models.content import Content
 from app.models.project import Project
 from app.models.api_user import APIUser
-from app.services.moderation_service import ModerationService
+from app.services.moderation_orchestrator import ModerationOrchestrator
 from app import db
 from functools import wraps
 import uuid
@@ -88,8 +88,8 @@ def moderate_content():
         db.session.commit()
         
         # Start moderation process
-        moderation_service = ModerationService()
-        result = moderation_service.moderate_content(content.id, request_start_time)
+        moderation_orchestrator = ModerationOrchestrator()
+        result = moderation_orchestrator.moderate_content(content.id, request_start_time)
         
         return jsonify({
             'success': True,

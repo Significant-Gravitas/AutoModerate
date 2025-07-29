@@ -1,0 +1,98 @@
+import hashlib
+import time
+from flask import current_app
+
+class ResultCache:
+    """Handles caching of moderation results to improve performance"""
+    
+    def __init__(self, cache_ttl=3600):  # 1 hour default
+        self._cache = {}
+        self._cache_ttl = cache_ttl
+    
+    def generate_cache_key(self, content, custom_prompt=None):
+        """Generate a cache key based on content and prompt"""
+        if custom_prompt:
+            combined = f"{content}|{custom_prompt}"
+        else:
+            combined = f"{content}|enhanced_default"
+        return hashlib.md5(combined.encode('utf-8')).hexdigest()
+    
+    def get_cached_result(self, cache_key):
+        """Get cached result if it exists and is not expired"""
+        if cache_key in self._cache:
+            cached_data = self._cache[cache_key]
+            if time.time() - cached_data['timestamp'] < self._cache_ttl:
+                current_app.logger.debug(f"Cache hit for key: {cache_key[:8]}...")
+                return cached_data['result']
+            else:
+                # Remove expired cache entry
+                del self._cache[cache_key]
+                current_app.logger.debug(f"Cache expired for key: {cache_key[:8]}...")
+        return None
+    
+    def cache_result(self, cache_key, result):
+        """Cache the result with timestamp"""
+        self._cache[cache_key] = {
+            'result': result,
+            'timestamp': time.time()
+        }
+        
+        # Simple cache cleanup - remove old entries if cache gets too large
+        if len(self._cache) > 1000:  # Max 1000 cached entries
+            # Remove oldest 200 entries
+            sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k]['timestamp'])
+            for key in sorted_keys[:200]:
+                del self._cache[key]
+            current_app.logger.info(f"Cache cleanup: removed 200 old entries")
+    
+    def invalidate_cache(self, cache_key=None):
+        """Invalidate specific cache entry or all entries"""
+        if cache_key:
+            self._cache.pop(cache_key, None)
+        else:
+            self._cache.clear()
+    
+    def get_cache_stats(self):
+        """Get cache statistics for monitoring"""
+        current_time = time.time()
+        expired_count = sum(1 for data in self._cache.values() 
+                          if current_time - data['timestamp'] >= self._cache_ttl)
+        
+        return {
+            'total_entries': len(self._cache),
+            'expired_entries': expired_count,
+            'valid_entries': len(self._cache) - expired_count,
+            'cache_size_mb': self._estimate_cache_size(),
+            'oldest_entry_age': self._get_oldest_entry_age()
+        }
+    
+    def _estimate_cache_size(self):
+        """Rough estimate of cache size in MB"""
+        # This is a very rough estimate
+        if not self._cache:
+            return 0.0
+        
+        # Sample a few entries to estimate average size
+        sample_keys = list(self._cache.keys())[:10]
+        total_size = 0
+        
+        for key in sample_keys:
+            # Rough estimate: key + result data
+            entry_size = len(str(key)) + len(str(self._cache[key]['result']))
+            total_size += entry_size
+        
+        if sample_keys:
+            avg_size = total_size / len(sample_keys)
+            total_estimated_size = avg_size * len(self._cache)
+            return total_estimated_size / (1024 * 1024)  # Convert to MB
+        
+        return 0.0
+    
+    def _get_oldest_entry_age(self):
+        """Get age of oldest cache entry in seconds"""
+        if not self._cache:
+            return 0
+        
+        current_time = time.time()
+        oldest_timestamp = min(data['timestamp'] for data in self._cache.values())
+        return current_time - oldest_timestamp

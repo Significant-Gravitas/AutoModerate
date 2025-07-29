@@ -40,9 +40,18 @@ AutoModerate is a Flask-based content moderation platform with the following str
   - `websocket.py`: Real-time WebSocket communications
   - `admin.py`: Admin interface for system management
   - `manual_review.py`: Human review interface
-- **Services** (`app/services/`): Business logic
-  - `moderation_service.py`: Core moderation logic and rule processing
-  - `openai_service.py`: OpenAI API integration for AI moderation
+- **Services** (`app/services/`): Clean modular business logic
+  - `moderation_orchestrator.py`: Main coordination and workflow management
+  - **Moderation** (`moderation/`): Core moderation logic
+    - `rule_processor.py`: Rule evaluation logic (keyword, regex, AI)
+    - `rule_cache.py`: Rule caching and management (5-min TTL)
+    - `websocket_notifier.py`: Real-time WebSocket update handling
+  - **AI** (`ai/`): OpenAI integration and AI services
+    - `ai_moderator.py`: AI moderation strategies and workflows
+    - `openai_client.py`: OpenAI client management and connection pooling
+    - `result_cache.py`: AI result caching for performance (1-hour TTL)
+  - `moderation_service.py`: DEPRECATED - backward compatibility wrapper
+  - `openai_service.py`: DEPRECATED - backward compatibility wrapper
 - **Templates/Static**: Jinja2 templates and assets for web interface
 
 ### Database Design
@@ -65,7 +74,42 @@ AutoModerate is a Flask-based content moderation platform with the following str
 1. **Database**: Auto-creates tables and default admin user on startup
 2. **Authentication**: Session-based for web, API key for REST endpoints
 3. **Real-time Updates**: WebSocket rooms per project for live moderation results
-4. **Content Processing**: Asynchronous processing with multiple rule types (keyword, regex, AI)
+4. **Content Processing**: Clean modular architecture with organized workflow:
+   - `ModerationOrchestrator` coordinates the entire process
+   - **Moderation module**: `RuleProcessor` + `RuleCache` + `WebSocketNotifier`
+   - **AI module**: `AIModerator` + `OpenAIClient` + `ResultCache`
+   - Parallel processing with optimized caching at each layer
+
+## Refactored Architecture (New)
+
+The services have been refactored into clean, organized modules:
+
+### Folder Structure:
+```
+app/services/
+├── moderation_orchestrator.py     # Main coordinator
+├── moderation/                    # Core moderation logic
+│   ├── rule_processor.py         # Rule evaluation (keyword/regex/AI)
+│   ├── rule_cache.py             # Rule caching (5min TTL)
+│   └── websocket_notifier.py     # Real-time updates
+├── ai/                           # AI and OpenAI integration
+│   ├── ai_moderator.py           # AI moderation strategies
+│   ├── openai_client.py          # Client management & pooling
+│   └── result_cache.py           # Result caching (1hr TTL)
+├── moderation_service.py         # DEPRECATED wrapper
+└── openai_service.py             # DEPRECATED wrapper
+```
+
+### Key Benefits:
+- **Organized by domain**: Moderation vs AI concerns are separated
+- **Single responsibility**: Each file has one clear purpose
+- **Better testability**: Smaller, focused components
+- **Maintainable**: Changes are localized and easier to understand
+
+### Migration Notes:
+- Old `ModerationService` and `OpenAIService` are now deprecated wrappers
+- Use `ModerationOrchestrator` instead of `ModerationService` for new code
+- Use `AIModerator` instead of `OpenAIService` for new code
 
 ## Important Notes
 
