@@ -10,6 +10,9 @@ class Config:
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'admin@example.com'
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin123'
+    
+    # Database connection preference
+    USE_DIRECT_POSTGRES = bool(os.environ.get('DATABASE_URL', '').startswith('postgresql://'))
 
 class DevelopmentConfig(Config):
     DEBUG = True
