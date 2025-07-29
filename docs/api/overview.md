@@ -10,29 +10,46 @@ http://localhost:6217/api
 
 For production deployments, replace `localhost:6217` with your domain.
 
+## Available Endpoints
+
+AutoModerate provides the following API endpoints:
+
+- **POST /moderate** - Submit content for moderation
+- **GET /content/{content_id}** - Get specific content details
+- **GET /content** - List moderated content with pagination
+- **GET /stats** - Get basic project statistics
+- **GET /health** - API health check (no authentication required)
+- **GET /docs** - API documentation page (no authentication required)
+
 ## Authentication
 
-All API requests require authentication using an API key. Include your API key in the request header:
+All API endpoints (except `/health` and `/docs`) require authentication using an API key.
+
+### API Key Header
+
+Include your API key in the request header:
 
 ```http
 X-API-Key: your-api-key-here
 ```
 
+### API Key Query Parameter
+
+Alternatively, you can include the API key as a query parameter:
+
+```http
+GET /api/content?api_key=your-api-key-here
+```
+
 ### Getting an API Key
 
-1. Log in to the AutoModerate dashboard
-2. Navigate to your project
-3. Go to "API Keys" section
-4. Click "Generate New Key"
-5. Copy and securely store your key
-
-**Important**: API keys are project-specific and provide access only to that project's data.
+API keys are generated and managed through the AutoModerate web dashboard. Each API key is project-specific and provides access only to that project's data.
 
 ## Request Format
 
-- **Content-Type**: `application/json`
-- **Method**: Specified per endpoint (GET, POST, etc.)
-- **Headers**: Must include `X-API-Key`
+- **Content-Type**: `application/json` (for POST requests)
+- **Method**: Specified per endpoint (GET, POST)
+- **Headers**: Must include `X-API-Key` for authenticated endpoints
 
 ### Example Request
 
@@ -43,7 +60,7 @@ curl -X POST \
   -d '{
     "type": "text",
     "content": "This is content to moderate",
-    "metadata": {"source": "user_comment"}
+    "metadata": {"user_id": "user123", "source": "comment_system"}
   }' \
   http://localhost:6217/api/moderate
 ```
@@ -57,9 +74,9 @@ All API responses follow a consistent format:
 ```json
 {
   "success": true,
-  "data": {
-    // Response data here
-  }
+  "content_id": "uuid-here",
+  "status": "approved",
+  "moderation_results": [...]
 }
 ```
 
@@ -67,7 +84,6 @@ All API responses follow a consistent format:
 
 ```json
 {
-  "success": false,
   "error": "Error message describing what went wrong"
 }
 ```
@@ -77,49 +93,47 @@ All API responses follow a consistent format:
 | Code | Meaning | Description |
 |------|---------|-------------|
 | 200 | OK | Request successful |
-| 201 | Created | Resource created successfully |
 | 400 | Bad Request | Invalid request data |
 | 401 | Unauthorized | Invalid or missing API key |
 | 404 | Not Found | Resource not found |
-| 429 | Too Many Requests | Rate limit exceeded |
 | 500 | Internal Server Error | Server error |
 
-## Rate Limiting
+## Content Types
 
-API requests are rate-limited to ensure fair usage:
+AutoModerate currently supports:
 
-- **Default Limit**: 1000 requests per hour per API key
-- **Burst Limit**: 100 requests per minute
-- **Headers Included**:
-  - `X-RateLimit-Limit`: Total requests allowed
-  - `X-RateLimit-Remaining`: Requests remaining in current window
-  - `X-RateLimit-Reset`: Unix timestamp when limit resets
+- **text**: Plain text content (default)
 
-### Rate Limit Response
+## Metadata
 
-When rate limit is exceeded:
+Optional metadata can be included with content submissions:
 
 ```json
 {
-  "success": false,
-  "error": "Rate limit exceeded. Try again later.",
-  "retry_after": 3600
+  "metadata": {
+    "user_id": "user123",
+    "source": "comment_system",
+    "custom_field": "custom_value"
+  }
 }
 ```
 
+**Note**: If `user_id` is provided, AutoModerate will track the user and link them to the content submission.
+
 ## Pagination
 
-List endpoints support pagination using query parameters:
+The `/content` endpoint supports pagination using query parameters:
 
 - `page`: Page number (default: 1)
 - `per_page`: Items per page (default: 20, max: 100)
+- `status`: Filter by status (`approved`, `rejected`, `flagged`, `pending`)
 
 ### Pagination Response
 
 ```json
 {
   "success": true,
-  "data": [...],
+  "content": [...],
   "pagination": {
     "page": 1,
     "pages": 5,
@@ -131,100 +145,36 @@ List endpoints support pagination using query parameters:
 }
 ```
 
-## Content Types
-
-AutoModerate supports various content types:
-
-| Type | Description | Example |
-|------|-------------|---------|
-| `text` | Plain text content | Comments, messages, posts |
-| `html` | HTML content (tags stripped for analysis) | Rich text content |
-| `markdown` | Markdown formatted text | Documentation, articles |
-
-## Metadata
-
-Optional metadata can be included with content submissions:
-
-```json
-{
-  "metadata": {
-    "user_id": "user123",
-    "source": "comment_system",
-    "timestamp": "2024-01-15T10:30:00Z",
-    "ip_address": "192.168.1.1",
-    "custom_field": "custom_value"
-  }
-}
-```
-
-**Note**: If `user_id` is provided, AutoModerate will track per-user statistics.
-
 ## Error Handling
-
-The API uses standard HTTP status codes and provides detailed error messages:
 
 ### Common Errors
 
 ```json
 // Missing API key
 {
-  "success": false,
   "error": "API key required"
 }
 
 // Invalid API key
 {
-  "success": false,
   "error": "Invalid API key"
 }
 
 // Missing required field
 {
-  "success": false,
+  "error": "JSON data required"
+}
+
+// Missing content
+{
   "error": "Content data required"
 }
 
-// Invalid content type
+// Content not found
 {
-  "success": false,
-  "error": "Unsupported content type: video"
+  "error": "Content not found"
 }
 ```
-
-## SDKs and Libraries
-
-Official SDKs are available for popular programming languages:
-
-- **Python**: `pip install automoderate-python`
-- **Node.js**: `npm install automoderate-js`
-- **PHP**: `composer require automoderate/php-sdk`
-
-### Python Example
-
-```python
-from automoderate import AutoModerateclient
-
-client = AutoModerateClient(api_key="your-api-key")
-
-result = client.moderate_content(
-    content="This is some text to moderate",
-    content_type="text",
-    metadata={"user_id": "user123"}
-)
-
-print(f"Decision: {result.decision}")
-print(f"Confidence: {result.confidence}")
-```
-
-## Webhooks
-
-AutoModerate can send webhook notifications for moderation events:
-
-- **Content Moderated**: When content moderation is complete
-- **Manual Review Required**: When content is flagged for human review
-- **Rule Triggered**: When specific moderation rules are matched
-
-See [Webhooks Documentation](webhooks.md) for configuration details.
 
 ## Testing
 
@@ -246,6 +196,6 @@ Response:
 ## Next Steps
 
 - [Content Moderation API](moderation.md) - Submit content for moderation
-- [Statistics API](statistics.md) - Get moderation analytics
 - [WebSocket Events](websockets.md) - Real-time updates
-- [Project Management](projects.md) - Manage projects and API keys
+- [Installation Guide](../guides/installation.md) - Set up AutoModerate
+- [Architecture Guide](../guides/architecture.md) - Understand the system

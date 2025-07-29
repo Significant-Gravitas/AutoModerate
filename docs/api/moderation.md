@@ -37,18 +37,13 @@ X-API-Key: your-api-key
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | string | Yes | Content type: `text`, `html`, `markdown` |
+| `type` | string | No | Content type (defaults to "text") |
 | `content` | string | Yes | The actual content to moderate |
 | `metadata` | object | No | Additional information about the content |
 
 #### Metadata Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `user_id` | string | Unique identifier for the content author |
-| `source` | string | Source of the content (e.g., "comments", "posts") |
-| `ip_address` | string | IP address of the content submitter |
-| `timestamp` | string | ISO 8601 timestamp of content creation |
+The `metadata` object can contain any custom fields. If `user_id` is provided, AutoModerate will track per-user statistics.
 
 ### Response
 
@@ -79,17 +74,6 @@ X-API-Key: your-api-key
 | `status` | string | Moderation decision: `approved`, `rejected`, `flagged` |
 | `moderation_results` | array | Detailed results from moderation process |
 
-#### Moderation Result Object
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `decision` | string | `approved`, `rejected`, or `flagged` |
-| `confidence` | number | Confidence score (0.0 to 1.0) |
-| `reason` | string | Human-readable explanation |
-| `moderator_type` | string | `rule`, `ai`, or `manual` |
-| `rule_name` | string | Name of the triggered rule (if applicable) |
-| `processing_time` | number | Time taken to process in seconds |
-
 ### Example Requests
 
 #### Simple Text Moderation
@@ -112,26 +96,11 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
-    "type": "text",
     "content": "Check out this amazing deal!",
     "metadata": {
       "user_id": "user_12345",
-      "source": "product_review",
-      "ip_address": "192.168.1.100"
+      "source": "product_review"
     }
-  }' \
-  http://localhost:6217/api/moderate
-```
-
-#### HTML Content Moderation
-
-```bash
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key" \
-  -d '{
-    "type": "html",
-    "content": "<p>This is <strong>HTML content</strong> with <a href=\"#\">links</a>.</p>"
   }' \
   http://localhost:6217/api/moderate
 ```
@@ -159,22 +128,23 @@ GET /api/content/{content_id}
   "success": true,
   "content": {
     "id": "123e4567-e89b-12d3-a456-426614174000",
-    "type": "text",
-    "content": "The original content",
-    "status": "approved",
-    "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T10:30:01Z",
-    "metadata": {
+    "project_id": "proj_abc123",
+    "content_type": "text",
+    "content_data": "The original content",
+    "meta_data": {
       "user_id": "user_12345",
       "source": "comments"
     },
+    "status": "approved",
+    "created_at": "2024-01-15T10:30:00",
+    "updated_at": "2024-01-15T10:30:01",
     "moderation_results": [
       {
         "decision": "approved",
         "confidence": 0.95,
         "reason": "Content passed all checks",
         "moderator_type": "rule",
-        "created_at": "2024-01-15T10:30:01Z"
+        "created_at": "2024-01-15T10:30:01"
       }
     ]
   }
@@ -205,9 +175,6 @@ GET /api/content
 | `page` | integer | 1 | Page number |
 | `per_page` | integer | 20 | Items per page (max: 100) |
 | `status` | string | - | Filter by status: `approved`, `rejected`, `flagged` |
-| `user_id` | string | - | Filter by user ID |
-| `since` | string | - | ISO 8601 date, content created after this date |
-| `until` | string | - | ISO 8601 date, content created before this date |
 
 ### Response
 
@@ -217,12 +184,16 @@ GET /api/content
   "content": [
     {
       "id": "123e4567-e89b-12d3-a456-426614174000",
-      "type": "text",
-      "status": "approved",
-      "created_at": "2024-01-15T10:30:00Z",
-      "metadata": {
+      "project_id": "proj_abc123",
+      "content_type": "text",
+      "content_data": "The content text",
+      "meta_data": {
         "user_id": "user_12345"
-      }
+      },
+      "status": "approved",
+      "created_at": "2024-01-15T10:30:00",
+      "updated_at": "2024-01-15T10:30:01",
+      "moderation_results": []
     }
   ],
   "pagination": {
@@ -252,130 +223,255 @@ curl -H "X-API-Key: your-api-key" \
   "http://localhost:6217/api/content?status=rejected&page=1&per_page=50"
 ```
 
-#### Get Content by User
+## Get Project Statistics
 
-```bash
-curl -H "X-API-Key: your-api-key" \
-  "http://localhost:6217/api/content?user_id=user_12345"
+Retrieve basic statistics for your project's moderation activity.
+
+### Endpoint
+
+```http
+GET /api/stats
 ```
 
-#### Get Recent Content
+### Headers
 
-```bash
-curl -H "X-API-Key: your-api-key" \
-  "http://localhost:6217/api/content?since=2024-01-15T00:00:00Z"
+```http
+X-API-Key: your-api-key
 ```
 
-## Moderation Statuses
-
-AutoModerate uses three primary statuses for content:
-
-### Approved ✅
-- Content passed all moderation rules
-- Safe to display to users
-- No further action required
-
-### Rejected ❌
-- Content violated one or more moderation rules
-- Should not be displayed to users
-- May require notification to content author
-
-### Flagged 🚩
-- Content requires manual review
-- Uncertain moderation decision
-- Should be reviewed by human moderators
-
-## Error Responses
-
-### Missing Content
+### Response
 
 ```json
 {
-  "success": false,
-  "error": "Content not found"
-}
-```
-
-### Invalid Content Type
-
-```json
-{
-  "success": false,
-  "error": "Invalid content type. Supported types: text, html, markdown"
-}
-```
-
-### Missing Required Fields
-
-```json
-{
-  "success": false,
-  "error": "Content data required"
-}
-```
-
-### Rate Limit Exceeded
-
-```json
-{
-  "success": false,
-  "error": "Rate limit exceeded. Try again later.",
-  "retry_after": 3600
-}
-```
-
-## Best Practices
-
-### 1. Handle Async Processing
-Moderation can take 1-3 seconds for AI rules. Consider:
-- Showing loading states to users
-- Using WebSocket updates for real-time results
-- Implementing proper timeout handling
-
-### 2. Implement Retry Logic
-```python
-import time
-import requests
-
-def moderate_with_retry(content, max_retries=3):
-    for attempt in range(max_retries):
-        try:
-            response = requests.post('/api/moderate', json={
-                'type': 'text',
-                'content': content
-            })
-            return response.json()
-        except requests.exceptions.RequestException:
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)  # Exponential backoff
-            else:
-                raise
-```
-
-### 3. Use Metadata Effectively
-Include useful metadata for tracking and analytics:
-```json
-{
-  "metadata": {
-    "user_id": "user_12345",
-    "source": "comment_system",
-    "post_id": "post_67890",
-    "ip_address": "192.168.1.1",
-    "user_agent": "Mozilla/5.0...",
-    "referrer": "https://example.com/post/123"
+  "success": true,
+  "stats": {
+    "total_content": 1542,
+    "approved": 1293,
+    "rejected": 218,
+    "flagged": 31,
+    "pending": 0,
+    "approval_rate": 83.9
   }
 }
 ```
 
-### 4. Monitor Performance
-Track moderation performance:
-- Average processing time
-- Rule match rates
-- False positive/negative rates
-- User satisfaction scores
+### Statistics Fields
+
+- **total_content**: Total number of content items moderated
+- **approved**: Number of approved content items
+- **rejected**: Number of rejected content items  
+- **flagged**: Number of items flagged for manual review
+- **pending**: Number of items still being processed
+- **approval_rate**: Percentage of content approved
+
+### Example Request
+
+```bash
+curl -H "X-API-Key: your-api-key" \
+  http://localhost:6217/api/stats
+```
+
+## Health Check
+
+Check the API service status.
+
+### Endpoint
+
+```http
+GET /api/health
+```
+
+**Note**: This endpoint does not require authentication.
+
+### Response
+
+```json
+{
+  "status": "healthy",
+  "service": "AutoModerate API",
+  "version": "1.0.0"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:6217/api/health
+```
+
+## API Documentation
+
+Access the web-based API documentation.
+
+### Endpoint
+
+```http
+GET /api/docs
+```
+
+This endpoint returns an HTML page with interactive API documentation.
+
+## Authentication
+
+All API endpoints (except `/health` and `/docs`) require authentication using an API key.
+
+### API Key Header
+
+Include your API key in the request header:
+
+```http
+X-API-Key: your-api-key-here
+```
+
+### API Key Query Parameter
+
+Alternatively, you can include the API key as a query parameter:
+
+```http
+GET /api/content?api_key=your-api-key-here
+```
+
+### Getting an API Key
+
+1. Log in to the AutoModerate dashboard
+2. Navigate to your project
+3. Go to "API Keys" section
+4. Click "Generate New Key"
+5. Copy and securely store your key
+
+## Error Responses
+
+### Authentication Errors
+
+#### Missing API Key
+
+```json
+{
+  "error": "API key required"
+}
+```
+HTTP Status: 401
+
+#### Invalid API Key
+
+```json
+{
+  "error": "Invalid API key"
+}
+```
+HTTP Status: 401
+
+### Request Errors
+
+#### Missing JSON Data
+
+```json
+{
+  "error": "JSON data required"
+}
+```
+HTTP Status: 400
+
+#### Missing Content
+
+```json
+{
+  "error": "Content data required"
+}
+```
+HTTP Status: 400
+
+#### Content Not Found
+
+```json
+{
+  "error": "Content not found"
+}
+```
+HTTP Status: 404
+
+### Server Errors
+
+#### Internal Server Error
+
+```json
+{
+  "error": "Internal server error"
+}
+```
+HTTP Status: 500
+
+## Moderation Statuses
+
+AutoModerate uses four primary statuses for content:
+
+- **pending**: Content is being processed
+- **approved**: Content passed all moderation rules
+- **rejected**: Content violated one or more moderation rules
+- **flagged**: Content requires manual review
+
+## Content Types
+
+Currently supported content types:
+- **text**: Plain text content (default)
+
+## Best Practices
+
+### 1. Always Handle Errors
+```python
+import requests
+
+response = requests.post('/api/moderate', 
+    headers={'X-API-Key': 'your-key'},
+    json={'content': 'test content'}
+)
+
+if response.status_code == 200:
+    data = response.json()
+    if data['success']:
+        print(f"Content {data['content_id']}: {data['status']}")
+    else:
+        print(f"Error: {data.get('error', 'Unknown error')}")
+else:
+    print(f"HTTP Error: {response.status_code}")
+```
+
+### 2. Use Metadata for Tracking
+Include useful metadata to track content sources and users:
+
+```json
+{
+  "content": "User comment text",
+  "metadata": {
+    "user_id": "user_12345",
+    "source": "comment_system",
+    "post_id": "post_67890",
+    "ip_address": "192.168.1.1"
+  }
+}
+```
+
+### 3. Implement Pagination
+When listing content, always use pagination:
+
+```bash
+# Start with page 1
+curl -H "X-API-Key: your-key" \
+  "http://localhost:6217/api/content?page=1&per_page=50"
+
+# Check pagination.has_next and continue if needed
+```
+
+### 4. Monitor Your Statistics
+Regularly check your project statistics to understand moderation patterns:
+
+```bash
+curl -H "X-API-Key: your-key" \
+  http://localhost:6217/api/stats
+```
 
 ## Next Steps
 
-- [Statistics API](statistics.md) - Get moderation analytics
 - [WebSocket Events](websockets.md) - Real-time moderation updates  
-- [Project Management](projects.md) - Manage rules and settings
+- [Installation Guide](../guides/installation.md) - Set up AutoModerate
+- [Architecture Guide](../guides/architecture.md) - Understand the system

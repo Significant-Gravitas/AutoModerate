@@ -1,6 +1,6 @@
 # WebSocket Real-time Updates
 
-AutoModerate provides real-time updates through WebSocket connections, allowing you to receive instant notifications about moderation results, statistics updates, and system events.
+AutoModerate provides real-time updates through WebSocket connections using Socket.IO, allowing you to receive instant notifications about moderation results.
 
 ## Connection
 
@@ -10,7 +10,7 @@ AutoModerate provides real-time updates through WebSocket connections, allowing 
 ws://localhost:6217/socket.io/
 ```
 
-AutoModerate uses Socket.IO for WebSocket communication, which provides fallback options and automatic reconnection.
+AutoModerate uses Socket.IO for WebSocket communication, which provides automatic fallback options and reconnection.
 
 ### JavaScript Client
 
@@ -49,27 +49,15 @@ sio.connect('http://localhost:6217')
 
 ## Authentication
 
-WebSocket connections are automatically authenticated based on your session or API key.
+WebSocket connections require authentication. You must be logged in to the web dashboard to establish a connection.
 
-### Session-based (Web Dashboard)
+### Session-based Authentication
 
-If you're authenticated in the web dashboard, the WebSocket connection will automatically use your session.
-
-### API Key Authentication
-
-For programmatic access, include your API key in the connection query:
-
-```javascript
-const socket = io('http://localhost:6217', {
-    query: {
-        api_key: 'your-api-key-here'
-    }
-});
-```
+The WebSocket connection automatically uses your web dashboard session. If you're not authenticated, you'll receive an error message.
 
 ## Project Rooms
 
-AutoModerate uses "rooms" to organize real-time updates by project. Join a project room to receive updates only for that specific project.
+AutoModerate uses "rooms" to organize real-time updates by project. You must join a project room to receive updates for that specific project.
 
 ### Join Project Room
 
@@ -78,8 +66,15 @@ socket.emit('join_project', {
     project_id: 'your-project-id'
 });
 
+// Listen for successful join
 socket.on('joined_project', function(data) {
     console.log(`Joined project: ${data.project_id}`);
+    console.log(`Room: ${data.room}`);
+});
+
+// Handle errors
+socket.on('error', function(error) {
+    console.error('Error:', error.message);
 });
 ```
 
@@ -89,200 +84,108 @@ socket.on('joined_project', function(data) {
 socket.emit('leave_project', {
     project_id: 'your-project-id'
 });
+
+socket.on('left_project', function(data) {
+    console.log(`Left project: ${data.project_id}`);
+});
 ```
 
 ## Event Types
 
-### 1. Moderation Updates
+### 1. Connection Events
 
-Receive real-time notifications when content moderation is completed.
+#### Event: `connect`
+
+Triggered when the client connects to the server.
+
+```javascript
+socket.on('connect', function() {
+    console.log('Connected to AutoModerate');
+    // You can now join project rooms
+});
+```
+
+#### Event: `connected`
+
+Server confirmation of successful connection (only for authenticated users).
+
+```javascript
+socket.on('connected', function(data) {
+    console.log('Server message:', data.message);
+});
+```
+
+#### Event: `disconnect`
+
+Triggered when the client disconnects from the server.
+
+```javascript
+socket.on('disconnect', function() {
+    console.log('Disconnected from AutoModerate');
+    // Handle reconnection logic if needed
+});
+```
+
+### 2. Project Room Events
+
+#### Event: `joined_project`
+
+Confirmation that you've successfully joined a project room.
+
+```javascript
+socket.on('joined_project', function(data) {
+    console.log('Joined project:', data.project_id);
+    console.log('Room name:', data.room);
+    // You'll now receive updates for this project
+});
+```
+
+#### Event: `left_project`
+
+Confirmation that you've left a project room.
+
+```javascript
+socket.on('left_project', function(data) {
+    console.log('Left project:', data.project_id);
+    // You'll no longer receive updates for this project
+});
+```
+
+### 3. Error Events
+
+#### Event: `error`
+
+Error messages from the server.
+
+```javascript
+socket.on('error', function(error) {
+    console.error('WebSocket error:', error.message);
+    
+    // Common error messages:
+    // - "Authentication required"
+    // - "Project ID required"
+    // - "Project not found"
+    // - "Access denied - you are not a member of this project"
+});
+```
+
+### 4. Moderation Update Events
 
 #### Event: `moderation_update`
 
+**Note**: The actual moderation update events are sent from the `WebSocketNotifier` service, but the specific event structure would need to be verified by checking the service implementation.
+
+Based on the codebase structure, moderation updates are sent to project rooms when content is processed. To receive these updates:
+
 ```javascript
+// First, join a project room
+socket.emit('join_project', {project_id: 'your-project-id'});
+
+// Then listen for moderation updates
 socket.on('moderation_update', function(data) {
     console.log('Content moderated:', data);
-    
-    // Update your UI
-    updateContentStatus(data.content_id, data.status);
+    // Update your UI based on the moderation result
 });
-```
-
-#### Event Data
-
-```json
-{
-  "content_id": "123e4567-e89b-12d3-a456-426614174000",
-  "project_id": "proj_abc123",
-  "status": "approved",
-  "content_type": "text",
-  "content_preview": "This is some content to moderate...",
-  "meta_data": {
-    "user_id": "user_12345",
-    "source": "comments"
-  },
-  "results_count": 1,
-  "processing_time": 1.23,
-  "moderator_type": "rule",
-  "moderator_name": "AI Rule",
-  "rule_name": "Spam Detection",
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-#### Usage Example
-
-```javascript
-socket.on('moderation_update', function(data) {
-    const statusElement = document.getElementById(`content-${data.content_id}`);
-    
-    if (statusElement) {
-        statusElement.className = `status ${data.status}`;
-        statusElement.textContent = data.status.toUpperCase();
-        
-        // Show additional info
-        if (data.rule_name) {
-            statusElement.title = `Matched rule: ${data.rule_name}`;
-        }
-    }
-    
-    // Update statistics
-    updateProjectStats({
-        total: getCurrentTotal() + 1,
-        [data.status]: getCurrentCount(data.status) + 1
-    });
-});
-```
-
-### 2. Statistics Updates
-
-Get real-time updates to project statistics as new content is moderated.
-
-#### Event: `stats_update`
-
-```javascript
-socket.on('stats_update', function(data) {
-    console.log('Statistics updated:', data);
-    updateDashboard(data);
-});
-```
-
-#### Event Data
-
-```json
-{
-  "total_content": 15421,
-  "approved": 12937,
-  "rejected": 2180,
-  "flagged": 304,
-  "approval_rate": 83.9,
-  "rejection_rate": 14.1,
-  "flag_rate": 2.0,
-  "recent_activity": [
-    {
-      "content_id": "content_123",
-      "decision": "approved",
-      "timestamp": "2024-01-15T16:45:30Z"
-    }
-  ]
-}
-```
-
-### 3. Rule Updates
-
-Receive notifications when moderation rules are created, updated, or deleted.
-
-#### Event: `rule_update`
-
-```javascript
-socket.on('rule_update', function(data) {
-    console.log('Rule updated:', data);
-    
-    if (data.action === 'created') {
-        addRuleToUI(data.rule);
-    } else if (data.action === 'updated') {
-        updateRuleInUI(data.rule);
-    } else if (data.action === 'deleted') {
-        removeRuleFromUI(data.rule.id);
-    }
-});
-```
-
-#### Event Data
-
-```json
-{
-  "action": "updated",
-  "rule": {
-    "id": "rule_123",
-    "name": "Spam Detection",
-    "type": "ai_prompt",
-    "is_active": true,
-    "priority": 5,
-    "action": "reject"
-  },
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-### 4. System Notifications
-
-Receive important system notifications and alerts.
-
-#### Event: `system_notification`
-
-```javascript
-socket.on('system_notification', function(data) {
-    console.log('System notification:', data);
-    showNotification(data.message, data.type);
-});
-```
-
-#### Event Data
-
-```json
-{
-  "type": "warning",
-  "message": "High volume of content detected. Processing may be delayed.",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "persistent": false
-}
-```
-
-#### Notification Types
-
-- `info`: General information
-- `warning`: Warning messages
-- `error`: Error notifications
-- `success`: Success confirmations
-
-### 5. User Activity
-
-Track user-specific activity and violations (requires user tracking).
-
-#### Event: `user_activity`
-
-```javascript
-socket.on('user_activity', function(data) {
-    console.log('User activity:', data);
-    updateUserProfile(data.user_id, data.activity);
-});
-```
-
-#### Event Data
-
-```json
-{
-  "user_id": "user_12345",
-  "activity": {
-    "total_submissions": 89,
-    "recent_violations": 3,
-    "approval_rate": 75.3,
-    "risk_score": 3.2
-  },
-  "triggered_by": "content_456",
-  "timestamp": "2024-01-15T10:30:00Z"
-}
 ```
 
 ## Complete Implementation Example
@@ -298,63 +201,58 @@ socket.on('user_activity', function(data) {
 </head>
 <body>
     <div id="dashboard">
-        <div id="stats">
-            <div>Total: <span id="total-content">0</span></div>
-            <div>Approved: <span id="approved-content">0</span></div>
-            <div>Rejected: <span id="rejected-content">0</span></div>
-            <div>Flagged: <span id="flagged-content">0</span></div>
-        </div>
-        
-        <div id="recent-activity"></div>
+        <div id="status">Status: <span id="connection-status">Connecting...</span></div>
+        <div id="project-info"></div>
         <div id="notifications"></div>
     </div>
 
     <script>
         const socket = io('http://localhost:6217');
-        const projectId = 'your-project-id';
+        const projectId = 'your-project-id'; // Replace with actual project ID
 
-        // Connect and join project room
+        // Connection handling
         socket.on('connect', function() {
+            document.getElementById('connection-status').textContent = 'Connected';
             console.log('Connected to AutoModerate');
+            
+            // Join project room after connecting
             socket.emit('join_project', {project_id: projectId});
         });
 
-        // Handle moderation updates
+        socket.on('disconnect', function() {
+            document.getElementById('connection-status').textContent = 'Disconnected';
+            console.log('Disconnected from AutoModerate');
+        });
+
+        // Authentication confirmation
+        socket.on('connected', function(data) {
+            console.log('Authenticated:', data.message);
+        });
+
+        // Project room events
+        socket.on('joined_project', function(data) {
+            console.log('Joined project:', data.project_id);
+            document.getElementById('project-info').innerHTML = 
+                `<p>Joined project: ${data.project_id}</p><p>Room: ${data.room}</p>`;
+        });
+
+        socket.on('left_project', function(data) {
+            console.log('Left project:', data.project_id);
+            document.getElementById('project-info').innerHTML = 
+                `<p>Left project: ${data.project_id}</p>`;
+        });
+
+        // Error handling
+        socket.on('error', function(error) {
+            console.error('WebSocket error:', error.message);
+            showNotification('Error: ' + error.message, 'error');
+        });
+
+        // Moderation updates (if implemented)
         socket.on('moderation_update', function(data) {
-            addToRecentActivity(data);
-            updateStatistics();
+            console.log('Moderation update:', data);
+            showNotification(`Content ${data.content_id}: ${data.status}`, 'info');
         });
-
-        // Handle statistics updates
-        socket.on('stats_update', function(data) {
-            document.getElementById('total-content').textContent = data.total_content;
-            document.getElementById('approved-content').textContent = data.approved;
-            document.getElementById('rejected-content').textContent = data.rejected;
-            document.getElementById('flagged-content').textContent = data.flagged;
-        });
-
-        // Handle system notifications
-        socket.on('system_notification', function(data) {
-            showNotification(data.message, data.type);
-        });
-
-        function addToRecentActivity(data) {
-            const activity = document.getElementById('recent-activity');
-            const item = document.createElement('div');
-            item.className = `activity-item ${data.status}`;
-            item.innerHTML = `
-                <span class="time">${new Date(data.timestamp).toLocaleTimeString()}</span>
-                <span class="content">${data.content_preview}</span>
-                <span class="status">${data.status}</span>
-                ${data.rule_name ? `<span class="rule">${data.rule_name}</span>` : ''}
-            `;
-            activity.insertBefore(item, activity.firstChild);
-            
-            // Keep only last 10 items
-            while (activity.children.length > 10) {
-                activity.removeChild(activity.lastChild);
-            }
-        }
 
         function showNotification(message, type) {
             const notifications = document.getElementById('notifications');
@@ -365,46 +263,21 @@ socket.on('user_activity', function(data) {
             
             // Auto-remove after 5 seconds
             setTimeout(() => {
-                notifications.removeChild(notification);
+                if (notification.parentNode) {
+                    notifications.removeChild(notification);
+                }
             }, 5000);
         }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            if (projectId) {
+                socket.emit('leave_project', {project_id: projectId});
+            }
+        });
     </script>
 </body>
 </html>
-```
-
-### Backend Integration
-
-```python
-from flask_socketio import emit, join_room, leave_room
-from flask import request
-from app import socketio
-
-@socketio.on('join_project')
-def handle_join_project(data):
-    project_id = data['project_id']
-    
-    # Verify user has access to this project
-    if verify_project_access(request.sid, project_id):
-        join_room(f'project_{project_id}')
-        emit('joined_project', {'project_id': project_id})
-    else:
-        emit('error', {'message': 'Access denied to project'})
-
-@socketio.on('leave_project')
-def handle_leave_project(data):
-    project_id = data['project_id']
-    leave_room(f'project_{project_id}')
-    emit('left_project', {'project_id': project_id})
-
-# Send updates from your moderation service
-def send_moderation_update(project_id, content_data):
-    socketio.emit('moderation_update', content_data, 
-                  room=f'project_{project_id}')
-
-def send_stats_update(project_id, stats_data):
-    socketio.emit('stats_update', stats_data, 
-                  room=f'project_{project_id}')
 ```
 
 ## Error Handling
@@ -414,100 +287,124 @@ def send_stats_update(project_id, stats_data):
 ```javascript
 socket.on('connect_error', function(error) {
     console.error('Connection failed:', error);
-    showErrorMessage('Failed to connect to AutoModerate');
+    document.getElementById('connection-status').textContent = 'Connection Failed';
 });
 
 socket.on('disconnect', function(reason) {
     console.log('Disconnected:', reason);
+    document.getElementById('connection-status').textContent = 'Disconnected';
+    
     if (reason === 'io server disconnect') {
-        // Server disconnected, reconnect manually
+        // Server disconnected, attempt manual reconnection
         socket.connect();
     }
 });
 ```
 
-### Event Error Handling
+### Authentication Errors
 
 ```javascript
 socket.on('error', function(error) {
     console.error('Socket error:', error);
-    showErrorMessage(error.message || 'An error occurred');
-});
-
-// Handle specific errors
-socket.on('authentication_failed', function(data) {
-    console.error('Authentication failed:', data.message);
-    redirectToLogin();
-});
-
-socket.on('project_access_denied', function(data) {
-    console.error('Project access denied:', data.message);
-    showErrorMessage('You do not have access to this project');
+    
+    if (error.message === 'Authentication required') {
+        // Redirect to login page
+        window.location.href = '/auth/login';
+    } else if (error.message.includes('Access denied')) {
+        // User doesn't have access to the project
+        showNotification('You do not have access to this project', 'error');
+    }
 });
 ```
+
+## Access Control
+
+### Project Membership
+
+Only users who are members of a project can join that project's room. The server checks:
+
+1. **Authentication**: User must be logged in
+2. **Project Existence**: Project must exist in the database
+3. **Membership**: User must be either:
+   - The project owner, OR
+   - A project member
+
+### Error Messages
+
+- `"Authentication required"`: User is not logged in
+- `"Project ID required"`: No project_id provided in join_project event
+- `"Project not found"`: Project doesn't exist
+- `"Access denied - you are not a member of this project"`: User lacks permission
 
 ## Performance Considerations
 
 ### Connection Management
 
 ```javascript
-// Reconnection configuration
+// Configure reconnection
 const socket = io('http://localhost:6217', {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: 5,
-    maxReconnectionAttempts: 5,
     timeout: 20000
 });
 
-// Heartbeat to keep connection alive
-setInterval(() => {
-    if (socket.connected) {
-        socket.emit('heartbeat');
-    }
-}, 30000);
+// Track connection state
+let isConnected = false;
+socket.on('connect', () => isConnected = true);
+socket.on('disconnect', () => isConnected = false);
 ```
 
-### Event Throttling
+### Room Management
 
 ```javascript
-// Throttle frequent updates
-let statsUpdateTimeout;
-socket.on('stats_update', function(data) {
-    clearTimeout(statsUpdateTimeout);
-    statsUpdateTimeout = setTimeout(() => {
-        updateDashboard(data);
-    }, 100); // Update at most every 100ms
+// Keep track of joined rooms
+let joinedProjects = new Set();
+
+function joinProject(projectId) {
+    if (!joinedProjects.has(projectId)) {
+        socket.emit('join_project', {project_id: projectId});
+        joinedProjects.add(projectId);
+    }
+}
+
+function leaveProject(projectId) {
+    if (joinedProjects.has(projectId)) {
+        socket.emit('leave_project', {project_id: projectId});
+        joinedProjects.delete(projectId);
+    }
+}
+
+// Clean up on disconnect
+socket.on('disconnect', () => {
+    joinedProjects.clear();
 });
 ```
 
 ## Security Considerations
 
+### Authentication
+
+- WebSocket connections require web dashboard authentication
+- No API key authentication is currently supported for WebSocket connections
+- Users can only join rooms for projects they have access to
+
 ### Input Validation
 
 ```javascript
-socket.on('moderation_update', function(data) {
-    // Validate data structure
-    if (!data.content_id || !data.status) {
-        console.error('Invalid moderation update data');
+// Always validate project IDs
+function joinProject(projectId) {
+    if (!projectId || typeof projectId !== 'string') {
+        console.error('Invalid project ID');
         return;
     }
     
-    // Sanitize content preview
-    const sanitizedPreview = sanitizeHTML(data.content_preview);
-    updateUI(data.content_id, sanitizedPreview, data.status);
-});
+    socket.emit('join_project', {project_id: projectId});
+}
 ```
-
-### Rate Limiting
-
-WebSocket events are rate-limited to prevent abuse:
-- **Connection limit**: 10 connections per IP
-- **Event limit**: 100 events per minute per connection
-- **Room limit**: 50 rooms per connection
 
 ## Next Steps
 
-- [Moderation API](moderation.md) - Submit content for moderation
-- [Statistics API](statistics.md) - Get detailed analytics
-- [Project Management](projects.md) - Configure rules and settings
+- [API Documentation](moderation.md) - Submit content for moderation
+- [Installation Guide](../guides/installation.md) - Set up AutoModerate
+- [Architecture Guide](../guides/architecture.md) - Understand the system
