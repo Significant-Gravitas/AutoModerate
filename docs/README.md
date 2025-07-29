@@ -1,48 +1,33 @@
 # AutoModerate Documentation
 
-Welcome to the AutoModerate documentation! This comprehensive guide covers everything you need to know about the AutoModerate content moderation platform.
+Welcome to the AutoModerate documentation! This guide covers everything you need to know about the AutoModerate content moderation platform.
 
 ## 📚 Documentation Overview
 
 ### Getting Started
 - [**Installation & Setup**](guides/installation.md) - Get AutoModerate running locally or in production
-- [**Quick Start Guide**](guides/quickstart.md) - Your first moderation project in 5 minutes
-- [**Configuration**](guides/configuration.md) - Environment variables and settings
+- [**System Architecture**](guides/architecture.md) - How AutoModerate is built
 
 ### API Documentation
-- [**API Overview**](api/overview.md) - Authentication, rate limits, and general API info
+- [**API Overview**](api/overview.md) - Authentication and general API information
 - [**Content Moderation**](api/moderation.md) - Submit and retrieve moderated content
-- [**Project Management**](api/projects.md) - Manage projects and API keys
-- [**Statistics**](api/statistics.md) - Get moderation statistics and analytics
+- [**Project Statistics**](api/statistics.md) - Get basic moderation statistics
 - [**WebSocket Events**](api/websockets.md) - Real-time updates and notifications
-
-### Architecture & Development
-- [**System Architecture**](guides/architecture.md) - How AutoModerate is built
-- [**Moderation Rules**](guides/moderation-rules.md) - Keyword, regex, and AI-based rules
-- [**Service Architecture**](guides/services.md) - Modular service design and components
-- [**Database Schema**](guides/database.md) - Models and relationships
-
-### Deployment & Operations
-- [**Deployment Guide**](guides/deployment.md) - Production deployment options
-- [**Monitoring & Logging**](guides/monitoring.md) - Observability and troubleshooting
-- [**Performance Tuning**](guides/performance.md) - Optimization tips and best practices
 
 ## 🚀 What is AutoModerate?
 
-AutoModerate is a comprehensive Flask-based content moderation platform that uses OpenAI for intelligent content analysis with real-time WebSocket updates. It provides:
+AutoModerate is a Flask-based content moderation platform that uses OpenAI for intelligent content analysis with real-time WebSocket updates. It provides:
 
 - **Multi-layered Moderation**: Keyword, regex, and AI-powered content filtering
 - **Real-time Updates**: WebSocket-powered live notifications
 - **Project-based Organization**: Manage multiple moderation contexts
 - **RESTful API**: Complete API for integration with any application
-- **Web Dashboard**: User-friendly interface for managing rules and viewing analytics
 - **Scalable Architecture**: Modular design with parallel processing
 
 ## 🔧 Core Features
 
 ### Content Moderation
 - **Text Analysis**: Advanced text moderation with customizable rules
-- **Image Support**: Ready for image content moderation
 - **Multiple Rule Types**: Keyword blocking, regex patterns, and AI prompts
 - **Parallel Processing**: Fast AI rule evaluation with early termination
 
@@ -52,10 +37,9 @@ AutoModerate is a comprehensive Flask-based content moderation platform that use
 - **Instant Notifications**: Immediate feedback on content decisions
 
 ### Management & Analytics
-- **User Authentication**: Secure login and project access control
 - **API Key Management**: Generate and manage project-specific API keys
-- **Comprehensive Statistics**: Detailed analytics and reporting
-- **Manual Review Queue**: Human oversight for edge cases
+- **Basic Statistics**: Track approval, rejection, and flagging rates
+- **Project Organization**: Multiple projects with isolated data
 
 ## 🏗 Architecture Highlights
 
@@ -87,22 +71,36 @@ AutoModerate features a clean, modular architecture:
 
 ## 🔗 Quick Links
 
-- **GitHub Repository**: [AutoModerate](https://github.com/your-username/automoderate)
 - **API Base URL**: `http://localhost:6217/api` (development)
-- **Web Dashboard**: `http://localhost:6217/dashboard`
-- **Default Login**: `admin@example.com` / `admin123`
+- **Health Check**: `http://localhost:6217/api/health`
+- **Default Admin**: `admin@example.com` / `admin123`
 
 ## 📖 Getting Help
 
 - Check the [Installation Guide](guides/installation.md) for setup issues
 - Review [API Documentation](api/overview.md) for integration questions
 - See [Architecture Guide](guides/architecture.md) for development questions
-- Look at [Performance Guide](guides/performance.md) for optimization tips
 
 ## 🤝 Contributing
 
 We welcome contributions! Please see our contributing guidelines and feel free to submit issues and pull requests.
 
+## 📝 Available API Endpoints
+
+- **POST /api/moderate** - Submit content for moderation
+- **GET /api/content/{id}** - Get specific content details
+- **GET /api/content** - List moderated content (with pagination)
+- **GET /api/stats** - Get basic project statistics
+- **GET /api/health** - API health check
+- **GET /api/docs** - API documentation page
+
+## 🌐 WebSocket Events
+
+- **connect** - Client connects to server
+- **disconnect** - Client disconnects from server
+- **join_project** - Join a project room for updates
+- **leave_project** - Leave a project room
+
 ---
 
-**Need help?** Start with the [Quick Start Guide](guides/quickstart.md) or check out the [API Overview](api/overview.md)!
+**Need help?** Start with the [Installation Guide](guides/installation.md) or check out the [API Overview](api/overview.md)!

@@ -408,5 +408,3 @@ Content Received
 
 - [Installation Guide](installation.md) - Set up AutoModerate
 - [API Documentation](../api/overview.md) - Integrate with your app
-- [Performance Guide](performance.md) - Optimization tips
-- [Deployment Guide](deployment.md) - Production deployment

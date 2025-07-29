@@ -457,20 +457,17 @@ journalctl -u automoderate -f
 
 If you encounter issues:
 
-1. Check the [Troubleshooting Guide](troubleshooting.md)
-2. Review log files for error messages
-3. Verify all prerequisites are met
-4. Check the [GitHub Issues](https://github.com/your-username/automoderate/issues)
-5. Join our [Discord Community](https://discord.gg/automoderate)
+1. Review log files for error messages
+2. Verify all prerequisites are met
+3. Check the application health endpoint: `http://localhost:6217/api/health`
+4. Verify OpenAI API key is working correctly
 
 ## Next Steps
 
 After successful installation:
 
-1. [Quick Start Guide](quickstart.md) - Create your first project
-2. [Configuration Guide](configuration.md) - Customize settings
-3. [API Documentation](../api/overview.md) - Integrate with your application
-4. [Deployment Guide](deployment.md) - Deploy to production
+1. [API Documentation](../api/overview.md) - Integrate with your application
+2. [System Architecture](architecture.md) - Understand how AutoModerate works
 
 ## Security Checklist
 
