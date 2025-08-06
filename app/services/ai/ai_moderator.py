@@ -1,4 +1,5 @@
 import json
+import tiktoken
 from flask import current_app
 from .openai_client import OpenAIClient
 from .result_cache import ResultCache
@@ -9,10 +10,182 @@ class AIModerator:
     def __init__(self):
         self.client_manager = OpenAIClient()
         self.cache = ResultCache()
+        # Initialize tokenizer for GPT-3.5 turbo
+        try:
+            self.tokenizer = tiktoken.encoding_for_model("gpt-3.5-turbo")
+        except Exception:
+            # Fallback to cl100k_base encoding if model-specific encoding fails
+            self.tokenizer = tiktoken.get_encoding("cl100k_base")
+        
+        # Reserve tokens for system message, user message template, and response
+        # GPT-3.5 turbo has 16,385 tokens total
+        self.max_content_tokens = 12000  # Conservative limit leaving room for prompts and response
     
+    def count_tokens(self, text):
+        """Count the number of tokens in a text string"""
+        try:
+            return len(self.tokenizer.encode(text))
+        except Exception as e:
+            current_app.logger.error(f"Token counting error: {str(e)}")
+            # Fallback: rough estimation (1 token ≈ 4 characters)
+            return len(text) // 4
+    
+    def split_text_into_chunks(self, text, max_tokens_per_chunk=None):
+        """
+        Split text into chunks that fit within token limits.
+        Tries to split at sentence boundaries when possible.
+        """
+        if max_tokens_per_chunk is None:
+            max_tokens_per_chunk = self.max_content_tokens
+            
+        # If text fits within limit, return as single chunk
+        total_tokens = self.count_tokens(text)
+        if total_tokens <= max_tokens_per_chunk:
+            return [text]
+        
+        chunks = []
+        current_chunk = ""
+        
+        # Split by paragraphs first, then sentences
+        paragraphs = text.split('\n\n')
+        
+        for paragraph in paragraphs:
+            # If current chunk + paragraph would exceed limit, finalize current chunk
+            temp_chunk = current_chunk + ("\n\n" if current_chunk else "") + paragraph
+            if current_chunk and self.count_tokens(temp_chunk) > max_tokens_per_chunk:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = paragraph
+                else:
+                    # Single paragraph is too large, split by sentences
+                    chunks.extend(self._split_paragraph_by_sentences(paragraph, max_tokens_per_chunk))
+            else:
+                current_chunk = temp_chunk
+        
+        # Add the final chunk
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+        
+        return chunks
+    
+    def _split_paragraph_by_sentences(self, paragraph, max_tokens_per_chunk):
+        """Split a large paragraph by sentences"""
+        import re
+        
+        # Split by sentence endings
+        sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+        
+        chunks = []
+        current_chunk = ""
+        
+        for sentence in sentences:
+            temp_chunk = current_chunk + (" " if current_chunk else "") + sentence
+            if current_chunk and self.count_tokens(temp_chunk) > max_tokens_per_chunk:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = sentence
+                else:
+                    # Single sentence is too large, split by words (last resort)
+                    chunks.extend(self._split_sentence_by_words(sentence, max_tokens_per_chunk))
+            else:
+                current_chunk = temp_chunk
+        
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+            
+        return chunks
+    
+    def _split_sentence_by_words(self, sentence, max_tokens_per_chunk):
+        """Split a very long sentence by words as last resort"""
+        words = sentence.split()
+        chunks = []
+        current_chunk = ""
+        
+        for word in words:
+            temp_chunk = current_chunk + (" " if current_chunk else "") + word
+            if current_chunk and self.count_tokens(temp_chunk) > max_tokens_per_chunk:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = word
+                else:
+                    # Even single word is too large (very rare), just add it
+                    chunks.append(word)
+                    current_chunk = ""
+            else:
+                current_chunk = temp_chunk
+        
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+            
+        return chunks
+    
+    def _combine_chunk_results(self, chunk_results, original_content_length):
+        """
+        Combine results from multiple chunks.
+        If ANY chunk is rejected, the entire content is rejected.
+        """
+        if not chunk_results:
+            return {
+                'decision': 'rejected',
+                'reason': 'No moderation results available',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'error': True},
+                'category_scores': {'error': 1.0},
+                'openai_flagged': False
+            }
+        
+        # Check if any chunk was rejected
+        rejected_chunks = [r for r in chunk_results if r['decision'] == 'rejected']
+        
+        if rejected_chunks:
+            # If any chunk is rejected, reject the entire content
+            # Use the result with highest confidence among rejected chunks
+            primary_rejection = max(rejected_chunks, key=lambda x: x.get('confidence', 0))
+            
+            # Combine categories and scores from all rejected chunks
+            combined_categories = {}
+            combined_scores = {}
+            
+            for result in rejected_chunks:
+                if 'categories' in result:
+                    combined_categories.update(result['categories'])
+                if 'category_scores' in result:
+                    combined_scores.update(result['category_scores'])
+            
+            return {
+                'decision': 'rejected',
+                'reason': f"Content rejected (analyzed {len(chunk_results)} chunks, {len(rejected_chunks)} flagged): {primary_rejection['reason']}",
+                'confidence': primary_rejection.get('confidence', 0.8),
+                'moderator_type': primary_rejection.get('moderator_type', 'ai'),
+                'categories': combined_categories,
+                'category_scores': combined_scores,
+                'openai_flagged': primary_rejection.get('openai_flagged', False),
+                'chunk_count': len(chunk_results),
+                'rejected_chunks': len(rejected_chunks),
+                'original_length': original_content_length
+            }
+        else:
+            # All chunks approved - approve the entire content
+            # Use average confidence
+            avg_confidence = sum(r.get('confidence', 0.8) for r in chunk_results) / len(chunk_results)
+            
+            return {
+                'decision': 'approved',
+                'reason': f"All {len(chunk_results)} content chunks passed moderation",
+                'confidence': avg_confidence,
+                'moderator_type': chunk_results[0].get('moderator_type', 'ai'),
+                'categories': {},
+                'category_scores': {},
+                'openai_flagged': False,
+                'chunk_count': len(chunk_results),
+                'rejected_chunks': 0,
+                'original_length': original_content_length
+            }
+
     def moderate_content(self, content, content_type='text', custom_prompt=None):
         """
-        Moderate content using a multi-layered approach:
+        Moderate content using a multi-layered approach with chunking for large content:
         1. Custom prompt analysis (for specific rules) - if provided
         2. OpenAI's built-in moderation API (fast baseline safety check)
         3. Enhanced default moderation (comprehensive safety check)
@@ -30,17 +203,60 @@ class AIModerator:
                     'openai_flagged': False
                 }
             
+            # Check content size and split if necessary (only log for default moderation or first custom rule)
+            content_tokens = self.count_tokens(content)
+            if not custom_prompt:
+                # Only log token count for default moderation (non-rule based)
+                current_app.logger.info(f"Content has {content_tokens} tokens")
+            
             # STEP 1: If custom prompt is provided, use ONLY custom prompt analysis
             if custom_prompt:
-                return self._analyze_with_custom_prompt(content, custom_prompt)
+                if content_tokens <= self.max_content_tokens:
+                    return self._analyze_with_custom_prompt(content, custom_prompt)
+                else:
+                    # Split content and analyze each chunk
+                    chunks = self.split_text_into_chunks(content)
+                    current_app.logger.info(f"Split content into {len(chunks)} chunks for custom prompt analysis")
+                    
+                    chunk_results = []
+                    for i, chunk in enumerate(chunks):
+                        current_app.logger.info(f"Analyzing chunk {i+1}/{len(chunks)} ({self.count_tokens(chunk)} tokens)")
+                        result = self._analyze_with_custom_prompt(chunk, custom_prompt)
+                        chunk_results.append(result)
+                        
+                        # Early exit if chunk is rejected (for efficiency)
+                        if result['decision'] == 'rejected':
+                            current_app.logger.info(f"Chunk {i+1} rejected, stopping analysis")
+                            break
+                    
+                    return self._combine_chunk_results(chunk_results, len(content))
             
             # STEP 2: For default moderation, run baseline check first
+            # Note: OpenAI moderation API has its own limits, but typically handles larger content
             baseline_result = self._run_baseline_moderation(content)
             if baseline_result['decision'] == 'rejected':
                 return baseline_result
                 
             # STEP 3: Run enhanced default moderation for comprehensive safety
-            return self._run_enhanced_default_moderation(content)
+            if content_tokens <= self.max_content_tokens:
+                return self._run_enhanced_default_moderation(content)
+            else:
+                # Split content and analyze each chunk
+                chunks = self.split_text_into_chunks(content)
+                current_app.logger.info(f"Split content into {len(chunks)} chunks for enhanced moderation")
+                
+                chunk_results = []
+                for i, chunk in enumerate(chunks):
+                    current_app.logger.info(f"Analyzing chunk {i+1}/{len(chunks)} ({self.count_tokens(chunk)} tokens)")
+                    result = self._run_enhanced_default_moderation(chunk)
+                    chunk_results.append(result)
+                    
+                    # Early exit if chunk is rejected (for efficiency)
+                    if result['decision'] == 'rejected':
+                        current_app.logger.info(f"Chunk {i+1} rejected, stopping analysis")
+                        break
+                
+                return self._combine_chunk_results(chunk_results, len(content))
                     
         except Exception as e:
             current_app.logger.error(f"OpenAI moderation error: {str(e)}")
@@ -53,7 +269,7 @@ class AIModerator:
                 'category_scores': {},
                 'openai_flagged': False
             }
-    
+
     def _analyze_with_custom_prompt(self, content, custom_prompt):
         """Use GPT with custom prompts for specialized moderation rules"""
         try:
@@ -166,7 +382,7 @@ Respond with ONLY a JSON object in this exact format:
                 'category_scores': {'error': 1.0},
                 'openai_flagged': False
             }
-    
+
     def _run_baseline_moderation(self, content):
         """Run OpenAI's built-in moderation API for fast baseline safety check"""
         try:
@@ -233,7 +449,7 @@ Respond with ONLY a JSON object in this exact format:
                 'category_scores': {'error': 1.0},
                 'openai_flagged': False
             }
-    
+
     def _run_enhanced_default_moderation(self, content):
         """Run enhanced default moderation with comprehensive safety checks"""
         try:
@@ -360,7 +576,7 @@ Respond with ONLY a JSON object:
                 'category_scores': {'error': 1.0},
                 'openai_flagged': False
             }
-    
+
     def get_moderation_categories_info(self):
         """Return information about moderation categories for custom prompts"""
         return {

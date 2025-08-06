@@ -51,6 +51,9 @@ class RuleProcessor:
         results = {}
         app = current_app._get_current_object()
         
+        # Log start of parallel processing
+        current_app.logger.debug(f"Processing {len(ai_rules)} AI rules in parallel")
+        
         def process_single_ai_rule(rule):
             try:
                 with app.app_context():
@@ -74,6 +77,9 @@ class RuleProcessor:
                         reason = ai_result.get('reason', 'AI analysis')
                         confidence = ai_result.get('confidence', 0.8)
             
+                    processing_time = time.time() - start_time
+                    app.logger.debug(f"AI rule '{rule.name}': {'matched' if matched else 'passed'} ({processing_time:.2f}s)")
+                    
                     if matched:
                         return (rule.id, {
                             'decision': rule.action,
@@ -83,7 +89,7 @@ class RuleProcessor:
                             'rule_id': rule.id,
                             'rule_name': rule.name,
                             'rule_type': rule.rule_type,
-                            'processing_time': time.time() - start_time,
+                            'processing_time': processing_time,
                             'categories': {'rule_ai_prompt': True},
                             'category_scores': {'rule_ai_prompt': confidence}
                         })
@@ -108,6 +114,7 @@ class RuleProcessor:
                         for f in futures:
                             if f != future and not f.done():
                                 f.cancel()
+                        current_app.logger.debug(f"AI rule matched - cancelling remaining {len([f for f in futures if not f.done()])} rules")
                         break
             
         except Exception as e:
@@ -115,6 +122,8 @@ class RuleProcessor:
         
         if results:
             current_app.logger.info(f"AI rules: {len(results)}/{len(ai_rules)} matched")
+        else:
+            current_app.logger.debug(f"AI rules: 0/{len(ai_rules)} matched - all passed")
         return results
     
     def _check_keyword_rule(self, content, rule_data):

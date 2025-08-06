@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_socketio import SocketIO
 from config.config import config
+import time
+import sys
 
 # SQLAlchemy - database interface
 db = SQLAlchemy()
@@ -19,6 +21,8 @@ def create_app(config_name='default'):
     
     if use_direct_postgres:
         print("🐘 Using direct PostgreSQL connection via SQLAlchemy")
+        print(f"📊 Pool configuration: size={app.config['SQLALCHEMY_ENGINE_OPTIONS']['pool_size']}, "
+              f"max_overflow={app.config['SQLALCHEMY_ENGINE_OPTIONS']['max_overflow']}")
     else:
         print("🔄 Using SQLAlchemy database")
     
@@ -51,10 +55,9 @@ def create_app(config_name='default'):
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(manual_review_bp)
     
-    # Database initialization
+    # Database initialization with retry logic
     with app.app_context():
-        db.create_all()
-        _create_default_admin(app)
+        _initialize_database_with_retry(app)
     
     # Add custom Jinja2 filters
     @app.template_filter('to_dict_list')
@@ -65,6 +68,40 @@ def create_app(config_name='default'):
         return [item.to_dict() if hasattr(item, 'to_dict') else item for item in items]
     
     return app
+
+def _initialize_database_with_retry(app, max_retries=3, delay=5):
+    """Initialize database with retry logic for connection pool issues"""
+    for attempt in range(max_retries):
+        try:
+            print(f"🔄 Attempting database initialization (attempt {attempt + 1}/{max_retries})")
+            db.create_all()
+            _create_default_admin(app)
+            print("✅ Database initialization successful")
+            return
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "max clients" in error_msg or "pool" in error_msg:
+                print(f"⚠️  Database pool issue on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏱️  Waiting {delay} seconds before retry...")
+                    time.sleep(delay)
+                    delay *= 2  # Exponential backoff
+                else:
+                    print("❌ Max retries reached. Database initialization failed.")
+                    print("💡 Solutions:")
+                    print("   1. Check your database connection pool settings")
+                    print("   2. Reduce SQLALCHEMY_ENGINE_OPTIONS pool_size in config")
+                    print("   3. Contact your database administrator")
+                    # Don't exit completely, allow app to start without DB init
+                    break
+            else:
+                print(f"❌ Database error: {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏱️  Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    print("❌ Database initialization failed after all retries")
+                    break
 
 def _create_default_admin(app):
     """Create default admin user"""
