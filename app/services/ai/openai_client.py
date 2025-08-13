@@ -27,20 +27,18 @@ class OpenAIClient:
     def _get_or_create_client(cls, api_key):
         """Create or reuse OpenAI client with optimized settings for speed"""
         if cls._client is None or cls._api_key != api_key:
-            # Create HTTP client with AGGRESSIVE connection pooling for maximum throughput
             http_client = httpx.Client(
                 timeout=httpx.Timeout(
-                    connect=2.0,    # Faster connection timeout
-                    read=25.0,      # Slightly reduced read timeout
-                    write=5.0,      # Faster write timeout
-                    pool=2.0        # Much faster pool timeout
+                    connect=1.0,
+                    read=8.0, 
+                    write=2.0,
+                    pool=1.0 
                 ),
                 limits=httpx.Limits(
-                    max_keepalive_connections=50,  # More keep-alive connections
-                    max_connections=200,           # Higher connection limit for load
-                    keepalive_expiry=60.0         # Longer keep-alive for reuse
+                    max_keepalive_connections=100,
+                    max_connections=500,
+                    keepalive_expiry=120.0
                 ),
-                # Enable HTTP/2 for better multiplexing
                 http2=True
             )
             
@@ -69,10 +67,10 @@ class OpenAIClient:
                 return False, "API key not configured"
             
             # Simple test with a minimal request
+            model_name = current_app.config.get('OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model_name,
                 messages=[{"role": "user", "content": "test"}],
-                max_tokens=1
             )
             return True, "Connection successful"
         except Exception as e:

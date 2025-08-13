@@ -65,7 +65,7 @@ class WebSocketNotifier:
                 }
                 
                 socketio.emit('moderation_update', update_data, room=f'project_{content_data["project_id"]}')
-                app.logger.debug(f"WebSocket update sent for content {content_data['id']}")
+                # WebSocket update sent
                 
         except Exception as e:
             try:
@@ -78,7 +78,7 @@ class WebSocketNotifier:
         try:
             from app import socketio
             socketio.emit('stats_update', stats, room=f'project_{project_id}')
-            current_app.logger.debug(f"Stats update sent for project {project_id}")
+            # Stats update sent
         except Exception as e:
             current_app.logger.error(f"Stats WebSocket error: {str(e)}")
     
@@ -92,6 +92,6 @@ class WebSocketNotifier:
                 'timestamp': rule_data.get('updated_at', '')
             }
             socketio.emit('rule_update', update_data, room=f'project_{project_id}')
-            current_app.logger.debug(f"Rule {action} notification sent for project {project_id}")
+            # Rule notification sent
         except Exception as e:
             current_app.logger.error(f"Rule update WebSocket error: {str(e)}")

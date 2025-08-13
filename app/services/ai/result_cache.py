@@ -22,12 +22,12 @@ class ResultCache:
         if cache_key in self._cache:
             cached_data = self._cache[cache_key]
             if time.time() - cached_data['timestamp'] < self._cache_ttl:
-                current_app.logger.debug(f"Cache hit for key: {cache_key[:8]}...")
+                # Cache hit
                 return cached_data['result']
             else:
                 # Remove expired cache entry
                 del self._cache[cache_key]
-                current_app.logger.debug(f"Cache expired for key: {cache_key[:8]}...")
+                # Cache expired
         return None
     
     def cache_result(self, cache_key, result):

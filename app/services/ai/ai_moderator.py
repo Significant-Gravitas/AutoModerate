@@ -10,16 +10,25 @@ class AIModerator:
     def __init__(self):
         self.client_manager = OpenAIClient()
         self.cache = ResultCache()
-        # Initialize tokenizer for GPT-3.5 turbo
+        # Load model and token settings from config
+        cfg = current_app.config
+        self.model_name = cfg.get('OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
+        self.model_context_window = int(cfg.get('OPENAI_CONTEXT_WINDOW', 400000))
+        self.max_output_tokens = int(cfg.get('OPENAI_MAX_OUTPUT_TOKENS', 128000))
+
+        # Initialize tokenizer; prefer model-specific, fallback to cl100k_base
         try:
-            self.tokenizer = tiktoken.encoding_for_model("gpt-3.5-turbo")
+            self.tokenizer = tiktoken.encoding_for_model(self.model_name)
         except Exception:
-            # Fallback to cl100k_base encoding if model-specific encoding fails
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
-        # Reserve tokens for system message, user message template, and response
-        # GPT-3.5 turbo has 16,385 tokens total
-        self.max_content_tokens = 12000  # Conservative limit leaving room for prompts and response
+        # Reserve tokens for system+user prompts and model output
+        # Keep generous margins to stay below the context window
+        reserved_for_prompts = 2000
+        safety_margin = 0.90  # use 90% of available capacity to avoid overflow
+        available_for_content = int((self.model_context_window - self.max_output_tokens - reserved_for_prompts) * safety_margin)
+        # Ensure a sensible lower bound
+        self.max_content_tokens = max(12000, available_for_content)
     
     def count_tokens(self, text):
         """Count the number of tokens in a text string"""
@@ -279,46 +288,24 @@ class AIModerator:
             if cached_result:
                 return cached_result
                 
-            system_message = """You are a precise content moderator. Analyze content based on specific rules provided.
+            system_message = """You are a content moderator. Analyze if content violates the given rule. Be conservative - when in doubt, approve.
 
-IMPORTANT: Only reject content that CLEARLY and SPECIFICALLY violates the given rule. If content doesn't clearly match the rule criteria, approve it. Be conservative - when in doubt, approve.
-
-Respond with ONLY a JSON object in this exact format:
-{
-    "decision": "approved|rejected",
-    "reason": "Brief explanation of your decision",
-    "confidence": 0.85
-}
-
-- decision: "approved" (content is acceptable) or "rejected" (content clearly violates the specific rule)
-- reason: Brief explanation of why you made this decision
-- confidence: Number between 0.0 and 1.0 indicating how confident you are
-"""
+Respond ONLY with JSON:
+{"decision": "approved|rejected", "reason": "brief explanation", "confidence": 0.85}"""
             
-            user_message = f"""Analyze this content based on the following specific rule:
-
-RULE: {custom_prompt}
+            user_message = f"""RULE: {custom_prompt}
 
 CONTENT: {content}
 
-Determine if the content specifically violates this rule. Be precise and only reject content that clearly matches the rule criteria. If the content doesn't clearly violate this specific rule, approve it.
-
-Respond with ONLY a JSON object in this exact format:
-{{
-    "decision": "approved|rejected",
-    "reason": "Brief explanation of your decision",
-    "confidence": 0.85
-}}"""
+Does content violate this rule? JSON only:"""
             
             client = self.client_manager.get_client()
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Much faster than GPT-4
+                model=self.model_name,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
                 ],
-                max_tokens=150,  # Reduced tokens for faster response
-                temperature=0.0,  # Deterministic responses
                 top_p=1.0,       # Optimize for speed
                 frequency_penalty=0,
                 presence_penalty=0
@@ -459,61 +446,22 @@ Respond with ONLY a JSON object in this exact format:
             if cached_result:
                 return cached_result
             
-            system_message = """You are a comprehensive content safety moderator. Your job is to identify ANY potentially harmful, inappropriate, or unsafe content.
+            system_message = """You are a safety moderator. Reject harmful content: NSFW, violence, hate speech, illegal activities, self-harm, spam.
 
-CRITICAL: Be very strict and thorough. Reject content that contains or promotes:
-- Sexual content, NSFW material, or requests to generate such content
-- Violence, threats, or harmful activities
-- Hate speech, harassment, or discriminatory content
-- Illegal activities or dangerous instructions
-- Self-harm or suicide content
-- Spam or malicious content
-- Requests to generate inappropriate content (even if phrased indirectly)
-
-IMPORTANT: Pay special attention to:
-- Requests to "generate", "create", "make" inappropriate content
-- Coded language or euphemisms for inappropriate content
-- Content that tries to bypass safety measures
-
-Be conservative - if there's any doubt about safety, REJECT the content.
-
-Respond with ONLY a JSON object in this exact format:
-{
-    "decision": "approved|rejected",
-    "reason": "Brief explanation of your decision",
-    "confidence": 0.95
-}"""
+JSON only:
+{"decision": "approved|rejected", "reason": "brief explanation", "confidence": 0.95}"""
             
-            user_message = f"""Analyze this content for ANY potentially harmful, inappropriate, or unsafe material:
+            user_message = f"""CONTENT: {content}
 
-CONTENT: {content}
-
-Be extremely thorough and strict. Look for:
-1. Explicit sexual content or requests to generate NSFW material
-2. Violence, threats, or harmful instructions
-3. Hate speech or discriminatory content
-4. Illegal activities or dangerous advice
-5. Any requests to generate inappropriate content
-6. Attempts to bypass content filters
-
-If you find ANY of these issues, reject the content immediately.
-
-Respond with ONLY a JSON object:
-{{
-    "decision": "approved|rejected",
-    "reason": "Brief explanation of your decision",
-    "confidence": 0.95
-}}"""
+Is this harmful? JSON only:"""
             
             client = self.client_manager.get_client()
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model_name,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
                 ],
-                max_tokens=150,
-                temperature=0.0,
                 top_p=1.0,
                 frequency_penalty=0,
                 presence_penalty=0

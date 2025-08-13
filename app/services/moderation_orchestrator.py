@@ -31,9 +31,8 @@ class ModerationOrchestrator:
             fast_rules = [r for r in all_rules if r.rule_type in ['keyword', 'regex']]
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
             
-            # Log content and rule info once at the start
+            # Count tokens for processing decisions
             content_tokens = self.ai_moderator.count_tokens(content.content_data)
-            current_app.logger.debug(f"Moderating content {content_id} ({content_tokens} tokens): {len(fast_rules)} fast + {len(ai_rules)} AI rules")
             
             # Process rules and get final decision
             final_decision, results = self._process_rules(content, fast_rules, ai_rules)
@@ -109,7 +108,7 @@ class ModerationOrchestrator:
             return result['decision'], [result]
         else:
             # Rules exist but none matched - approve by default
-            current_app.logger.debug("Content passed all rules - approving")
+            # Content passed all rules
             result = {
                 'decision': 'approved',
                 'confidence': 0.9,
