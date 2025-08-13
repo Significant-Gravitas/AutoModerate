@@ -212,10 +212,9 @@ class AIModerator:
                     'openai_flagged': False
                 }
             
-            # Check content size and split if necessary (only log for default moderation or first custom rule)
+            # Check content size and split if necessary
             content_tokens = self.count_tokens(content)
             if not custom_prompt:
-                # Only log token count for default moderation (non-rule based)
                 current_app.logger.info(f"Content has {content_tokens} tokens")
             
             # STEP 1: If custom prompt is provided, use ONLY custom prompt analysis
@@ -229,13 +228,11 @@ class AIModerator:
                     
                     chunk_results = []
                     for i, chunk in enumerate(chunks):
-                        current_app.logger.info(f"Analyzing chunk {i+1}/{len(chunks)} ({self.count_tokens(chunk)} tokens)")
                         result = self._analyze_with_custom_prompt(chunk, custom_prompt)
                         chunk_results.append(result)
                         
                         # Early exit if chunk is rejected (for efficiency)
                         if result['decision'] == 'rejected':
-                            current_app.logger.info(f"Chunk {i+1} rejected, stopping analysis")
                             break
                     
                     return self._combine_chunk_results(chunk_results, len(content))
@@ -256,13 +253,11 @@ class AIModerator:
                 
                 chunk_results = []
                 for i, chunk in enumerate(chunks):
-                    current_app.logger.info(f"Analyzing chunk {i+1}/{len(chunks)} ({self.count_tokens(chunk)} tokens)")
                     result = self._run_enhanced_default_moderation(chunk)
                     chunk_results.append(result)
                     
                     # Early exit if chunk is rejected (for efficiency)
                     if result['decision'] == 'rejected':
-                        current_app.logger.info(f"Chunk {i+1} rejected, stopping analysis")
                         break
                 
                 return self._combine_chunk_results(chunk_results, len(content))
@@ -524,16 +519,3 @@ Is this harmful? JSON only:"""
                 'category_scores': {'error': 1.0},
                 'openai_flagged': False
             }
-
-    def get_moderation_categories_info(self):
-        """Return information about moderation categories for custom prompts"""
-        return {
-            'hate_speech': 'Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste.',
-            'harassment': 'Content that expresses, incites, or promotes harassing language towards any target.',
-            'violence': 'Content that depicts death, violence, or physical injury, or promotes violent acts.',
-            'sexual_content': 'Content meant to arouse sexual excitement, such as the description of sexual activity, or that promotes sexual services.',
-            'self_harm': 'Content that promotes, encourages, or depicts acts of self-harm, such as suicide, cutting, and eating disorders.',
-            'illicit_activities': 'Content that gives advice or instruction on how to commit illicit acts.',
-            'spam': 'Unwanted, repetitive content that is sent in bulk.',
-            'misinformation': 'False or misleading information that could cause harm.'
-        }

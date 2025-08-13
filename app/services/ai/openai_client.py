@@ -29,15 +29,15 @@ class OpenAIClient:
         if cls._client is None or cls._api_key != api_key:
             http_client = httpx.Client(
                 timeout=httpx.Timeout(
-                    connect=1.0,
-                    read=8.0, 
-                    write=2.0,
-                    pool=1.0 
+                    connect=3.0,     # Increased connect timeout
+                    read=30.0,       # Increased read timeout for AI processing
+                    write=5.0,
+                    pool=2.0
                 ),
                 limits=httpx.Limits(
-                    max_keepalive_connections=100,
-                    max_connections=500,
-                    keepalive_expiry=120.0
+                    max_keepalive_connections=200,  # Increased connection pool
+                    max_connections=1000,           # Increased total connections
+                    keepalive_expiry=300.0          # Longer keepalive
                 ),
                 http2=True
             )
@@ -61,17 +61,26 @@ class OpenAIClient:
         return self.client
     
     def test_connection(self):
-        """Test the OpenAI connection"""
+        """Test the OpenAI connection with timeout"""
         try:
             if not self.is_configured():
                 return False, "API key not configured"
             
-            # Simple test with a minimal request
+            # Simple test with a minimal request and fast timeout
             model_name = current_app.config.get('OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
             response = self.client.chat.completions.create(
                 model=model_name,
-                messages=[{"role": "user", "content": "test"}],
+                messages=[{"role": "user", "content": "hi"}],
+                max_tokens=1
             )
             return True, "Connection successful"
         except Exception as e:
             return False, f"Connection failed: {str(e)}"
+    
+    def warmup_connection(self):
+        """Warm up the connection pool by making a minimal request"""
+        if self.is_configured():
+            try:
+                self.test_connection()
+            except Exception:
+                pass  # Ignore warmup failures

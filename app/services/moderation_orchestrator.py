@@ -31,8 +31,11 @@ class ModerationOrchestrator:
             fast_rules = [r for r in all_rules if r.rule_type in ['keyword', 'regex']]
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
             
-            # Count tokens for processing decisions
+            # Count tokens once and cache for processing decisions
             content_tokens = self.ai_moderator.count_tokens(content.content_data)
+            
+            # Store token count temporarily for processing optimization
+            content._temp_token_count = content_tokens
             
             # Process rules and get final decision
             final_decision, results = self._process_rules(content, fast_rules, ai_rules)
@@ -81,7 +84,7 @@ class ModerationOrchestrator:
         """Process both fast and AI rules, returning first match"""
         results = []
         
-        # Process fast rules first
+        # Process fast rules first - batch processing for better performance
         for rule in fast_rules:
             result = self.rule_processor.apply_fast_rule(rule, content)
             if result:
@@ -171,11 +174,14 @@ class ModerationOrchestrator:
         """Save moderation results to database with bulk operations"""
         content.status = final_decision
         
-        # Update API user stats
+        # Update API user stats efficiently
         if content.api_user_id:
-            api_user = APIUser.query.get(content.api_user_id)
-            if api_user:
-                api_user.update_stats(final_decision)
+            try:
+                api_user = APIUser.query.get(content.api_user_id)
+                if api_user:
+                    api_user.update_stats(final_decision)
+            except Exception as e:
+                current_app.logger.error(f"Error updating API user stats: {str(e)}")
             
         # Bulk create moderation results
         if results:
@@ -202,10 +208,19 @@ class ModerationOrchestrator:
                 )
                 moderation_results.append(moderation_result)
             
-            db.session.bulk_save_objects(moderation_results)
-            
-        db.session.commit()
-        current_app.logger.info(f"Saved results for content {content.id} - decision: {final_decision}")
+            try:
+                db.session.bulk_save_objects(moderation_results)
+            except Exception as e:
+                current_app.logger.error(f"Error saving moderation results: {str(e)}")
+                db.session.rollback()
+                raise
+        
+        try:
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"Error committing database changes: {str(e)}")
+            db.session.rollback()
+            raise
     
     def get_project_stats(self, project_id):
         """Get moderation statistics for a project"""

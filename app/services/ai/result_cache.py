@@ -10,11 +10,20 @@ class ResultCache:
         self._cache_ttl = cache_ttl
     
     def generate_cache_key(self, content, custom_prompt=None):
-        """Generate a cache key based on content and prompt"""
-        if custom_prompt:
-            combined = f"{content}|{custom_prompt}"
+        """Generate a cache key based on content hash and prompt for better performance"""
+        # Use content hash for large content to avoid memory issues
+        if len(content) > 1000:
+            content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()
+            combined = f"{content_hash}_{len(content)}"
         else:
-            combined = f"{content}|enhanced_default"
+            combined = content
+            
+        if custom_prompt:
+            prompt_hash = hashlib.md5(custom_prompt.encode('utf-8')).hexdigest()[:8]
+            combined = f"{combined}|{prompt_hash}"
+        else:
+            combined = f"{combined}|enhanced_default"
+            
         return hashlib.md5(combined.encode('utf-8')).hexdigest()
     
     def get_cached_result(self, cache_key):
@@ -37,13 +46,26 @@ class ResultCache:
             'timestamp': time.time()
         }
         
-        # Simple cache cleanup - remove old entries if cache gets too large
-        if len(self._cache) > 1000:  # Max 1000 cached entries
-            # Remove oldest 200 entries
-            sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k]['timestamp'])
-            for key in sorted_keys[:200]:
-                del self._cache[key]
-            current_app.logger.info(f"Cache cleanup: removed 200 old entries")
+        # Optimized cache cleanup - remove old entries if cache gets too large
+        if len(self._cache) > 2000:  # Increased max cache size
+            # Remove oldest 25% of entries efficiently
+            current_time = time.time()
+            entries_to_remove = []
+            
+            for key, data in self._cache.items():
+                if current_time - data['timestamp'] >= self._cache_ttl * 0.5:  # Remove entries at 50% of TTL
+                    entries_to_remove.append(key)
+            
+            # If not enough expired entries, remove oldest ones
+            if len(entries_to_remove) < len(self._cache) * 0.25:
+                sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k]['timestamp'])
+                entries_to_remove.extend(sorted_keys[:max(500, len(self._cache) // 4)])
+            
+            for key in entries_to_remove[:500]:  # Limit removal to prevent blocking
+                self._cache.pop(key, None)
+                
+            if entries_to_remove:
+                current_app.logger.info(f"Cache cleanup: removed {min(500, len(entries_to_remove))} entries")
     
     def invalidate_cache(self, cache_key=None):
         """Invalidate specific cache entry or all entries"""

@@ -2,6 +2,73 @@
 
 {% block title %}Manual Review Dashboard{% endblock %}
 
+{% block styles %}
+<style>
+    .bulk-actions-container {
+        transition: all 0.3s ease;
+    }
+    
+    .content-checkbox {
+        transform: scale(1.2);
+        margin: 0;
+    }
+    
+    .table-row-selected {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+    }
+    
+    .bulk-action-buttons .btn {
+        margin-right: 0.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .bulk-action-buttons .btn:last-child {
+        margin-right: 0;
+    }
+    
+    .selected-count {
+        font-weight: bold;
+        color: inherit;
+    }
+    
+    .content-preview {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    #bulkActionModal .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    #selectedContentList {
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .bulk-actions-fade-in {
+        animation: fadeInUp 0.3s ease;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
@@ -79,8 +146,21 @@
             
             <!-- Flagged Content List -->
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h3>Content Flagged for Manual Review</h3>
+                    <div id="bulkActionsContainer" class="d-none bulk-actions-container">
+                        <div class="btn-group bulk-action-buttons" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="selectAllBtn">
+                                <i class="fas fa-check-square"></i> Select All
+                            </button>
+                            <button type="button" class="btn btn-success btn-sm" id="bulkApproveBtn" disabled>
+                                <i class="fas fa-check"></i> Approve Selected (<span id="selectedCount" class="selected-count">0</span>)
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm" id="bulkRejectBtn" disabled>
+                                <i class="fas fa-times"></i> Reject Selected (<span id="selectedCountReject" class="selected-count">0</span>)
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     {% if flagged_content %}
@@ -88,6 +168,9 @@
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
+                                        <th width="40">
+                                            <input type="checkbox" id="selectAllCheckbox" class="form-check-input">
+                                        </th>
                                         <th>Content Preview</th>
                                         <th>Project</th>
                                         <th>Type</th>
@@ -99,6 +182,10 @@
                                 <tbody>
                                     {% for content in flagged_content %}
                                     <tr>
+                                        <td>
+                                            <input type="checkbox" class="form-check-input content-checkbox" 
+                                                   data-content-id="{{ content.id }}" data-project-name="{{ content.project.name }}">
+                                        </td>
                                         <td>
                                             <div class="content-preview">
                                                 {{ content.content_data[:100] }}{% if content.content_data|length > 100 %}...{% endif %}
@@ -143,13 +230,256 @@
         </div>
     </div>
 </div>
+
+<!-- Bulk Action Confirmation Modal -->
+<div class="modal fade" id="bulkActionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bulkActionModalTitle">Confirm Bulk Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="bulkActionMessage"></p>
+                <div class="mb-3">
+                    <label for="bulkReason" class="form-label">Reason:</label>
+                    <textarea class="form-control" id="bulkReason" rows="3" 
+                              placeholder="Brief explanation for this bulk decision..." required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="bulkNotes" class="form-label">Notes (optional):</label>
+                    <textarea class="form-control" id="bulkNotes" rows="2" 
+                              placeholder="Additional notes..."></textarea>
+                </div>
+                <div id="selectedContentList" class="small text-muted"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn" id="confirmBulkActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Auto-refresh the page every 30 seconds to check for new flagged content
-    setTimeout(function() {
-        location.reload();
-    }, 30000);
+// Bulk action functionality
+let selectedContentIds = [];
+let currentBulkAction = null;
+
+// Initialize bulk actions when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeBulkActions();
+});
+
+function initializeBulkActions() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const contentCheckboxes = document.querySelectorAll('.content-checkbox');
+    const bulkApproveBtn = document.getElementById('bulkApproveBtn');
+    const bulkRejectBtn = document.getElementById('bulkRejectBtn');
+    const bulkActionsContainer = document.getElementById('bulkActionsContainer');
+    
+    // Show bulk actions container if there are items to select
+    if (contentCheckboxes.length > 0) {
+        bulkActionsContainer.classList.remove('d-none');
+        bulkActionsContainer.classList.add('bulk-actions-fade-in');
+    }
+    
+    // Select all functionality
+    selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+        contentCheckboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+            updateRowSelection(checkbox);
+        });
+        updateBulkActionButtons();
+    });
+    
+    // Select all button functionality
+    selectAllBtn.addEventListener('click', function() {
+        const allSelected = Array.from(contentCheckboxes).every(cb => cb.checked);
+        contentCheckboxes.forEach(checkbox => {
+            checkbox.checked = !allSelected;
+            updateRowSelection(checkbox);
+        });
+        selectAllCheckbox.checked = !allSelected;
+        updateBulkActionButtons();
+    });
+    
+    // Individual checkbox functionality
+    contentCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBulkActionButtons();
+            updateRowSelection(this);
+        });
+    });
+    
+    // Bulk action buttons
+    bulkApproveBtn.addEventListener('click', () => showBulkActionModal('approved'));
+    bulkRejectBtn.addEventListener('click', () => showBulkActionModal('rejected'));
+}
+
+function updateBulkActionButtons() {
+    const contentCheckboxes = document.querySelectorAll('.content-checkbox');
+    const selectedCheckboxes = document.querySelectorAll('.content-checkbox:checked');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    
+    selectedContentIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.contentId);
+    const selectedCount = selectedContentIds.length;
+    
+    // Update button states
+    const bulkApproveBtn = document.getElementById('bulkApproveBtn');
+    const bulkRejectBtn = document.getElementById('bulkRejectBtn');
+    
+    bulkApproveBtn.disabled = selectedCount === 0;
+    bulkRejectBtn.disabled = selectedCount === 0;
+    
+    // Update counters
+    document.getElementById('selectedCount').textContent = selectedCount;
+    document.getElementById('selectedCountReject').textContent = selectedCount;
+    
+    // Update select all checkbox state
+    if (selectedCount === 0) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = false;
+    } else if (selectedCount === contentCheckboxes.length) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = true;
+    } else {
+        selectAllCheckbox.indeterminate = true;
+    }
+}
+
+function updateRowSelection(checkbox) {
+    const row = checkbox.closest('tr');
+    if (checkbox.checked) {
+        row.classList.add('table-row-selected');
+    } else {
+        row.classList.remove('table-row-selected');
+    }
+}
+
+function showBulkActionModal(action) {
+    currentBulkAction = action;
+    const selectedCheckboxes = document.querySelectorAll('.content-checkbox:checked');
+    const selectedCount = selectedCheckboxes.length;
+    
+    if (selectedCount === 0) return;
+    
+    const modal = new bootstrap.Modal(document.getElementById('bulkActionModal'));
+    const modalTitle = document.getElementById('bulkActionModalTitle');
+    const modalMessage = document.getElementById('bulkActionMessage');
+    const confirmBtn = document.getElementById('confirmBulkActionBtn');
+    const selectedContentList = document.getElementById('selectedContentList');
+    
+    // Set modal content based on action
+    if (action === 'approved') {
+        modalTitle.textContent = 'Bulk Approve Content';
+        modalMessage.textContent = `Are you sure you want to approve ${selectedCount} content item(s)?`;
+        confirmBtn.className = 'btn btn-success';
+        confirmBtn.innerHTML = '<i class="fas fa-check"></i> Approve All';
+    } else {
+        modalTitle.textContent = 'Bulk Reject Content';
+        modalMessage.textContent = `Are you sure you want to reject ${selectedCount} content item(s)?`;
+        confirmBtn.className = 'btn btn-danger';
+        confirmBtn.innerHTML = '<i class="fas fa-times"></i> Reject All';
+    }
+    
+    // Show selected content details
+    let contentListHtml = '<strong>Selected content:</strong><br>';
+    selectedCheckboxes.forEach(checkbox => {
+        const row = checkbox.closest('tr');
+        const preview = row.querySelector('.content-preview').textContent.trim();
+        const project = checkbox.dataset.projectName;
+        contentListHtml += `• ${project}: ${preview.substring(0, 50)}...<br>`;
+    });
+    selectedContentList.innerHTML = contentListHtml;
+    
+    // Clear previous form data
+    document.getElementById('bulkReason').value = '';
+    document.getElementById('bulkNotes').value = '';
+    
+    // Set up confirm button
+    confirmBtn.onclick = performBulkAction;
+    
+    modal.show();
+}
+
+function performBulkAction() {
+    const reason = document.getElementById('bulkReason').value.trim();
+    const notes = document.getElementById('bulkNotes').value.trim();
+    
+    if (!reason) {
+        alert('Please provide a reason for this bulk action.');
+        return;
+    }
+    
+    const confirmBtn = document.getElementById('confirmBulkActionBtn');
+    const originalText = confirmBtn.innerHTML;
+    
+    // Disable button and show loading
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
+    // Prepare request data
+    const requestData = {
+        content_ids: selectedContentIds,
+        decision: currentBulkAction,
+        reason: reason,
+        notes: notes
+    };
+    
+    // Send bulk action request
+    fetch('/manual-review/bulk-decision', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('bulkActionModal')).hide();
+            
+            // Show success message
+            showMainToast(`Successfully ${currentBulkAction} ${data.processed_count} content item(s)!`);
+            
+            // Reload page after short delay
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            alert('Error: ' + data.error);
+            // Re-enable button
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while processing the bulk action.');
+        // Re-enable button
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalText;
+    });
+}
+
+// Helper to show the main toast
+function showMainToast(message) {
+    var toastEl = document.getElementById('mainToast');
+    var toastBody = document.getElementById('mainToastBody');
+    toastBody.textContent = message;
+    var toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    toast.show();
+}
+
+// Auto-refresh the page every 30 seconds to check for new flagged content
+setTimeout(function() {
+    location.reload();
+}, 30000);
 </script>
 {% endblock %} 

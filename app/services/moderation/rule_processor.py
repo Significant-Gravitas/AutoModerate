@@ -107,12 +107,11 @@ class RuleProcessor:
                     rule_id, result = future.result()
                     if result:
                         results[rule_id] = result
-            
-                        # Cancel remaining futures
+                        
+                        # Cancel remaining futures for early exit
                         for f in futures:
                             if f != future and not f.done():
                                 f.cancel()
-                        # Cancel remaining futures for early exit
                         break
             
         except Exception as e:
