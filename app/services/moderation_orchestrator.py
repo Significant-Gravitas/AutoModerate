@@ -187,7 +187,8 @@ class ModerationOrchestrator:
         if results:
             moderation_results = []
             for i, result in enumerate(results):
-                processing_time = total_time if i == 0 and total_time > 0 else result.get('processing_time', 0.0)
+                # Use the actual rule processing time, not the total request time
+                rule_processing_time = result.get('processing_time', 0.0)
                 
                 moderation_result = ModerationResult(
                     content_id=content.id,
@@ -196,14 +197,15 @@ class ModerationOrchestrator:
                     reason=result.get('reason', ''),
                     moderator_type=result.get('moderator_type', 'unknown'),
                     moderator_id=result.get('rule_id'),
-                    processing_time=processing_time,
+                    processing_time=rule_processing_time,  # Actual rule processing time
                     details={
                         'categories': result.get('categories', {}),
                         'category_scores': result.get('category_scores', {}),
                         'openai_flagged': result.get('openai_flagged', False),
                         'rule_id': result.get('rule_id'),
                         'rule_name': result.get('rule_name'),
-                        'total_request_time': total_time if i == 0 else None
+                        'total_request_time': total_time,  # Store total time in details
+                        'rule_processing_time': rule_processing_time  # Store both for clarity
                     }
                 )
                 moderation_results.append(moderation_result)
