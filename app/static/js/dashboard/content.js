@@ -241,11 +241,21 @@ function addContentRow(data) {
         tbody.appendChild(newRow);
     }
     
-    // Update showing count
+    // Limit to 25 items - remove excess rows from the bottom
+    const maxItems = 25;
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length > maxItems) {
+        // Remove excess rows from the bottom
+        for (let i = maxItems; i < rows.length; i++) {
+            rows[i].remove();
+        }
+    }
+    
+    // Update showing count to reflect actual displayed items
     const showingCount = document.getElementById('showingCount');
     if (showingCount) {
-        const currentCount = parseInt(showingCount.textContent);
-        showingCount.textContent = currentCount + 1;
+        const actualCount = tbody.querySelectorAll('tr').length;
+        showingCount.textContent = actualCount;
     }
 }
 

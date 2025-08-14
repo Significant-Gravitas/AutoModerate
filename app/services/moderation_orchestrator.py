@@ -60,12 +60,22 @@ class ModerationOrchestrator:
             self._save_results(content, final_decision, results, total_time)
             self.websocket_notifier.send_update_async(content, final_decision, results, total_time)
             
-            # Log final result summary
+            # Log final result summary with cache info
             if results and results[0].get('rule_name'):
                 rule_info = f" ({results[0]['rule_name']})"
             else:
                 rule_info = ""
-            current_app.logger.info(f"Content {content_id}: {final_decision}{rule_info} in {total_time:.2f}s")
+            
+            # Get cache summary for this request
+            cache_summary = self.ai_moderator.cache.get_request_cache_summary()
+            if cache_summary['stores'] > 0:
+                cache_info = f" [Cached {cache_summary['stores']} results, total: {cache_summary['total']}]"
+            elif total_time < 1.0:
+                cache_info = " [Cache hit]"
+            else:
+                cache_info = ""
+            
+            current_app.logger.info(f"Content {content_id}: {final_decision}{rule_info} in {total_time:.2f}s{cache_info}")
             
             return {
                 'decision': final_decision,
