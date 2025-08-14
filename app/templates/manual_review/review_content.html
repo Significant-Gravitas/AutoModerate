@@ -94,7 +94,11 @@
                                         </div>
                                         <div class="col-md-3">
                                             <strong>Time:</strong><br>
-                                            <small>{{ "%.3f"|format(result.processing_time) }}s</small>
+                                            {% if result.details and result.details.total_request_time %}
+                                                <small>{{ "%.3f"|format(result.details.total_request_time) }}s</small>
+                                            {% else %}
+                                                <small>{{ "%.3f"|format(result.processing_time) }}s</small>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     <div class="mt-2">

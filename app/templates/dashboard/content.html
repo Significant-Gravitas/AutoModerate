@@ -181,15 +181,26 @@
                                 </td>
                                 <td>
                                     {% if content.moderation_results %}
-                                        {% set total_time = content.moderation_results | sum(attribute='processing_time') %}
-                                        {% if total_time %}
+                                        {% set first_result = content.moderation_results[0] %}
+                                        {% if first_result.details and first_result.details.total_request_time %}
+                                            {% set total_time = first_result.details.total_request_time %}
                                             {% if total_time < 1 %}
                                                 <small class="text-success">{{ (total_time * 1000) | round | int }}ms</small>
                                             {% else %}
                                                 <small class="text-primary">{{ "%.2f" | format(total_time) }}s</small>
                                             {% endif %}
                                         {% else %}
-                                            <small class="text-muted">N/A</small>
+                                            {# Fallback to old behavior for legacy records #}
+                                            {% set total_time = content.moderation_results | sum(attribute='processing_time') %}
+                                            {% if total_time %}
+                                                {% if total_time < 1 %}
+                                                    <small class="text-success">{{ (total_time * 1000) | round | int }}ms</small>
+                                                {% else %}
+                                                    <small class="text-primary">{{ "%.2f" | format(total_time) }}s</small>
+                                                {% endif %}
+                                            {% else %}
+                                                <small class="text-muted">N/A</small>
+                                            {% endif %}
                                         {% endif %}
                                     {% else %}
                                         <small class="text-muted">N/A</small>
