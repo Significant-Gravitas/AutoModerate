@@ -96,6 +96,20 @@
     </div>
 </div>
 
+<!-- Processing Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info" id="avgProcessingTime">
+                    N/A
+                </h5>
+                <p class="card-text">Average Processing Time</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Content List -->
 <div class="row">
     <div class="col-12">
@@ -130,8 +144,8 @@
                                 <td>
                                     <span class="badge bg-info">{{ content.content_type|title }}</span>
                                 </td>
-                                <td>
-                                    <div class="content-preview">
+                                <td style="max-width: 300px; min-width: 200px;">
+                                    <div class="content-preview" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                         {% if content.content_type == 'text' %}
                                             {{ content.content_data[:100] }}{% if content.content_data|length > 100 %}...{% endif %}
                                         {% elif content.content_type == 'image' %}
@@ -143,7 +157,7 @@
                                         {% endif %}
                                     </div>
                                     {% if content.meta_data %}
-                                    <small class="text-muted">
+                                    <small class="text-muted d-block" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                         <i class="fas fa-info-circle"></i> Has metadata
                                     </small>
                                     {% endif %}

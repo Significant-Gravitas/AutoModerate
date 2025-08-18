@@ -778,7 +778,7 @@ def accept_invitation(token):
         flash('This invitation is no longer valid', 'error')
         return redirect(url_for('auth.login'))
     
-    if invitation.expires_at < datetime.utcnow():
+    if invitation.expires_at.replace(tzinfo=None) < datetime.utcnow():
         invitation.status = 'expired'
         db.session.commit()
         flash('This invitation has expired', 'error')
