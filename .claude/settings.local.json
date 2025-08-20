@@ -3,7 +3,9 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(mv:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(autopep8:*)",
+      "Bash(isort:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
