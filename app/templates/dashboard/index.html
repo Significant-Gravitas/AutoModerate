@@ -200,10 +200,10 @@
                                 </td>
                                 <td>{{ project.description or 'No description' }}</td>
                                 <td>
-                                    <span class="badge bg-primary">{{ project.api_keys|length }}</span>
+                                    <span class="badge bg-primary">{{ project._api_key_count }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-success">{{ project.content|length }}</span>
+                                    <span class="badge bg-success">{{ project._content_count }}</span>
                                 </td>
                                 <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>

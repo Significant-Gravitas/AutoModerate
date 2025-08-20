@@ -28,15 +28,15 @@
                         <div class="row text-center mb-3">
                             <div class="col-4">
                                 <small class="text-muted">API Keys</small>
-                                <div class="h6">{{ project.api_keys|length }}</div>
+                                <div class="h6">{{ project._api_key_count }}</div>
                             </div>
                             <div class="col-4">
                                 <small class="text-muted">Content</small>
-                                <div class="h6">{{ project.content|length }}</div>
+                                <div class="h6">{{ project._content_count }}</div>
                             </div>
                             <div class="col-4">
                                 <small class="text-muted">Rules</small>
-                                <div class="h6">{{ project.moderation_rules|length }}</div>
+                                <div class="h6">{{ project._rules_count }}</div>
                             </div>
                         </div>
                         

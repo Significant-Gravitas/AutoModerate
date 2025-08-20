@@ -1,10 +1,11 @@
 import secrets
-import uuid
 from datetime import datetime, timedelta
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.models.api_key import APIKey
@@ -20,27 +21,48 @@ dashboard_bp = Blueprint('dashboard', __name__)
 @login_required
 def index():
     """Dashboard home page"""
-    # Get projects where user is owner or member
-    owned_projects = Project.query.filter_by(user_id=current_user.id).all()
-    member_projects = Project.query.join(ProjectMember).filter(
-        ProjectMember.user_id == current_user.id).all()
+    # Get all project IDs where user is owner or member
+    owned_project_ids = db.session.query(
+        Project.id).filter_by(user_id=current_user.id)
+    member_project_ids = db.session.query(Project.id).join(ProjectMember).filter(
+        ProjectMember.user_id == current_user.id)
 
-    # Combine and remove duplicates
-    all_project_ids = set()
-    projects = []
+    # Union the queries to get all accessible project IDs
+    all_project_ids = owned_project_ids.union(member_project_ids)
 
-    for project in owned_projects + member_projects:
-        if project.id not in all_project_ids:
-            all_project_ids.add(project.id)
-            projects.append(project)
+    # Get projects and counts separately for better performance
+    projects = Project.query.filter(
+        Project.id.in_(all_project_ids)
+    ).all()
 
-    # Get overall stats
+    project_ids = [p.id for p in projects]
+
+    # Get counts in separate optimized queries
+    content_counts = dict(db.session.query(
+        Content.project_id, func.count(Content.id)
+    ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
+
+    api_key_counts = dict(db.session.query(
+        APIKey.project_id, func.count(APIKey.id)
+    ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
+
+    # Assign counts to projects
+    total_content = 0
+    total_api_keys = 0
+
+    for project in projects:
+        project._content_count = content_counts.get(project.id, 0)
+        project._api_key_count = api_key_counts.get(project.id, 0)
+        total_content += project._content_count
+        total_api_keys += project._api_key_count
+
     total_projects = len(projects)
-    total_content = sum(len(p.content) for p in projects)
-    total_api_keys = sum(len(p.api_keys) for p in projects)
 
-    # Get pending invitations for current user
-    pending_invitations = ProjectInvitation.query.filter_by(
+    # Get pending invitations for current user with joins
+    pending_invitations = ProjectInvitation.query.options(
+        joinedload(ProjectInvitation.project),
+        joinedload(ProjectInvitation.inviter)
+    ).filter_by(
         email=current_user.email,
         status='pending'
     ).filter(ProjectInvitation.expires_at > datetime.utcnow()).all()
@@ -57,19 +79,41 @@ def index():
 @login_required
 def projects():
     """List all user projects"""
-    # Get projects where user is owner or member
-    owned_projects = Project.query.filter_by(user_id=current_user.id).all()
-    member_projects = Project.query.join(ProjectMember).filter(
-        ProjectMember.user_id == current_user.id).all()
+    # Get all project IDs where user is owner or member
+    owned_project_ids = db.session.query(
+        Project.id).filter_by(user_id=current_user.id)
+    member_project_ids = db.session.query(Project.id).join(ProjectMember).filter(
+        ProjectMember.user_id == current_user.id)
 
-    # Combine and remove duplicates
-    all_project_ids = set()
-    projects = []
+    # Union the queries to get all accessible project IDs
+    all_project_ids = owned_project_ids.union(member_project_ids)
 
-    for project in owned_projects + member_projects:
-        if project.id not in all_project_ids:
-            all_project_ids.add(project.id)
-            projects.append(project)
+    # Get projects and counts separately for better performance
+    projects = Project.query.filter(
+        Project.id.in_(all_project_ids)
+    ).all()
+
+    project_ids = [p.id for p in projects]
+
+    # Get counts in separate optimized queries
+    content_counts = dict(db.session.query(
+        Content.project_id, func.count(Content.id)
+    ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
+
+    api_key_counts = dict(db.session.query(
+        APIKey.project_id, func.count(APIKey.id)
+    ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
+
+    rules_counts = dict(db.session.query(
+        ModerationRule.project_id, func.count(ModerationRule.id)
+    ).filter(ModerationRule.project_id.in_(project_ids)).group_by(ModerationRule.project_id).all())
+
+    # Assign counts to projects
+    for project in projects:
+        project._content_count = content_counts.get(project.id, 0)
+        project._api_key_count = api_key_counts.get(project.id, 0)
+        project._rules_count = rules_counts.get(project.id, 0)
+
     return render_template('dashboard/projects.html', projects=projects)
 
 
@@ -608,7 +652,7 @@ def update_project(project_id):
         db.session.commit()
 
         flash('Project updated successfully!', 'success')
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         flash('Error updating project', 'error')
 
