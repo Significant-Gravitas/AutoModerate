@@ -83,4 +83,5 @@ class OpenAIClient:
             try:
                 self.test_connection()
             except Exception:
-                pass  # Ignore warmup failures
+                # Warmup failures are expected and should be ignored
+                pass

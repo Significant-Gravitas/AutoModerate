@@ -19,18 +19,18 @@ class ResultCache:
         """Generate a cache key based on content hash and prompt for better performance"""
         # Use content hash for large content to avoid memory issues
         if len(content) > 1000:
-            content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()
+            content_hash = hashlib.md5(content.encode('utf-8'), usedforsecurity=False).hexdigest()
             combined = f"{content_hash}_{len(content)}"
         else:
             combined = content
             
         if custom_prompt:
-            prompt_hash = hashlib.md5(custom_prompt.encode('utf-8')).hexdigest()[:8]
+            prompt_hash = hashlib.md5(custom_prompt.encode('utf-8'), usedforsecurity=False).hexdigest()[:8]
             combined = f"{combined}|{prompt_hash}"
         else:
             combined = f"{combined}|enhanced_default"
             
-        return hashlib.md5(combined.encode('utf-8')).hexdigest()
+        return hashlib.md5(combined.encode('utf-8'), usedforsecurity=False).hexdigest()
     
     def get_cached_result(self, cache_key):
         """Get cached result if it exists and is not expired"""
