@@ -1,17 +1,18 @@
-import openai
 import httpx
+import openai
 from flask import current_app
+
 
 class OpenAIClient:
     """Manages OpenAI client configuration and connection pooling"""
-    
+
     _client = None
     _api_key = None
-    
+
     def __init__(self):
         try:
             api_key = current_app.config.get('OPENAI_API_KEY')
-            
+
             if not api_key:
                 self.api_key = None
                 self.client = None
@@ -22,7 +23,7 @@ class OpenAIClient:
             current_app.logger.error(f"Failed to configure OpenAI: {str(e)}")
             self.api_key = None
             self.client = None
-    
+
     @classmethod
     def _get_or_create_client(cls, api_key):
         """Create or reuse OpenAI client with optimized settings for speed"""
@@ -41,33 +42,34 @@ class OpenAIClient:
                 ),
                 http2=True
             )
-            
+
             cls._client = openai.OpenAI(
                 api_key=api_key,
                 http_client=http_client
             )
             cls._api_key = api_key
-        
+
         return cls._client
-    
+
     def is_configured(self):
         """Check if OpenAI client is properly configured"""
         return self.api_key is not None and self.client is not None
-    
+
     def get_client(self):
         """Get the configured OpenAI client"""
         if not self.is_configured():
             raise Exception("OpenAI client not configured - API key missing")
         return self.client
-    
+
     def test_connection(self):
         """Test the OpenAI connection with timeout"""
         try:
             if not self.is_configured():
                 return False, "API key not configured"
-            
+
             # Simple test with a minimal request and fast timeout
-            model_name = current_app.config.get('OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
+            model_name = current_app.config.get(
+                'OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
             response = self.client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": "hi"}],
@@ -76,7 +78,7 @@ class OpenAIClient:
             return True, "Connection successful"
         except Exception as e:
             return False, f"Connection failed: {str(e)}"
-    
+
     def warmup_connection(self):
         """Warm up the connection pool by making a minimal request"""
         if self.is_configured():
