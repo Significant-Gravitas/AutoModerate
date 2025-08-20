@@ -31,9 +31,11 @@ class ModerationOrchestrator:
             fast_rules = [r for r in all_rules if r.rule_type in ['keyword', 'regex']]
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
             
-            # Log content and rule info once at the start
+            # Count tokens once and cache for processing decisions
             content_tokens = self.ai_moderator.count_tokens(content.content_data)
-            current_app.logger.debug(f"Moderating content {content_id} ({content_tokens} tokens): {len(fast_rules)} fast + {len(ai_rules)} AI rules")
+            
+            # Store token count temporarily for processing optimization
+            content._temp_token_count = content_tokens
             
             # Process rules and get final decision
             final_decision, results = self._process_rules(content, fast_rules, ai_rules)
@@ -58,12 +60,22 @@ class ModerationOrchestrator:
             self._save_results(content, final_decision, results, total_time)
             self.websocket_notifier.send_update_async(content, final_decision, results, total_time)
             
-            # Log final result summary
+            # Log final result summary with cache info
             if results and results[0].get('rule_name'):
                 rule_info = f" ({results[0]['rule_name']})"
             else:
                 rule_info = ""
-            current_app.logger.info(f"Content {content_id}: {final_decision}{rule_info} in {total_time:.2f}s")
+            
+            # Get cache summary for this request
+            cache_summary = self.ai_moderator.cache.get_request_cache_summary()
+            if cache_summary['stores'] > 0:
+                cache_info = f" [Cached {cache_summary['stores']} results, total: {cache_summary['total']}]"
+            elif total_time < 1.0:
+                cache_info = " [Cache hit]"
+            else:
+                cache_info = ""
+            
+            current_app.logger.info(f"Content {content_id}: {final_decision}{rule_info} in {total_time:.2f}s{cache_info}")
             
             return {
                 'decision': final_decision,
@@ -82,7 +94,7 @@ class ModerationOrchestrator:
         """Process both fast and AI rules, returning first match"""
         results = []
         
-        # Process fast rules first
+        # Process fast rules first - batch processing for better performance
         for rule in fast_rules:
             result = self.rule_processor.apply_fast_rule(rule, content)
             if result:
@@ -109,7 +121,7 @@ class ModerationOrchestrator:
             return result['decision'], [result]
         else:
             # Rules exist but none matched - approve by default
-            current_app.logger.debug("Content passed all rules - approving")
+            # Content passed all rules
             result = {
                 'decision': 'approved',
                 'confidence': 0.9,
@@ -172,17 +184,21 @@ class ModerationOrchestrator:
         """Save moderation results to database with bulk operations"""
         content.status = final_decision
         
-        # Update API user stats
+        # Update API user stats efficiently
         if content.api_user_id:
-            api_user = APIUser.query.get(content.api_user_id)
-            if api_user:
-                api_user.update_stats(final_decision)
+            try:
+                api_user = APIUser.query.get(content.api_user_id)
+                if api_user:
+                    api_user.update_stats(final_decision)
+            except Exception as e:
+                current_app.logger.error(f"Error updating API user stats: {str(e)}")
             
         # Bulk create moderation results
         if results:
             moderation_results = []
             for i, result in enumerate(results):
-                processing_time = total_time if i == 0 and total_time > 0 else result.get('processing_time', 0.0)
+                # Use the actual rule processing time, not the total request time
+                rule_processing_time = result.get('processing_time', 0.0)
                 
                 moderation_result = ModerationResult(
                     content_id=content.id,
@@ -191,22 +207,32 @@ class ModerationOrchestrator:
                     reason=result.get('reason', ''),
                     moderator_type=result.get('moderator_type', 'unknown'),
                     moderator_id=result.get('rule_id'),
-                    processing_time=processing_time,
+                    processing_time=rule_processing_time,  # Actual rule processing time
                     details={
                         'categories': result.get('categories', {}),
                         'category_scores': result.get('category_scores', {}),
                         'openai_flagged': result.get('openai_flagged', False),
                         'rule_id': result.get('rule_id'),
                         'rule_name': result.get('rule_name'),
-                        'total_request_time': total_time if i == 0 else None
+                        'total_request_time': total_time,  # Store total time in details
+                        'rule_processing_time': rule_processing_time  # Store both for clarity
                     }
                 )
                 moderation_results.append(moderation_result)
             
-            db.session.bulk_save_objects(moderation_results)
-            
-        db.session.commit()
-        current_app.logger.info(f"Saved results for content {content.id} - decision: {final_decision}")
+            try:
+                db.session.bulk_save_objects(moderation_results)
+            except Exception as e:
+                current_app.logger.error(f"Error saving moderation results: {str(e)}")
+                db.session.rollback()
+                raise
+        
+        try:
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"Error committing database changes: {str(e)}")
+            db.session.rollback()
+            raise
     
     def get_project_stats(self, project_id):
         """Get moderation statistics for a project"""

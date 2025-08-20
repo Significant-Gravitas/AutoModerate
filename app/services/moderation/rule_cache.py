@@ -32,11 +32,11 @@ class RuleCache:
             project_id in self._cache_timestamps and
             current_time - self._cache_timestamps[project_id] < self._cache_ttl):
             
-            current_app.logger.debug(f"Using cached rules for project {project_id}")
+            # Using cached rules
             return self._rules_cache[project_id]
         
         # Fetch from database
-        current_app.logger.debug(f"Fetching rules from database for project {project_id}")
+        # Fetching rules from database
         try:
             db_rules = ModerationRule.query.filter_by(
                 project_id=project_id,

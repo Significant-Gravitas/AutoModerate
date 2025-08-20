@@ -66,7 +66,7 @@ cp .env.example .env
 python run.py
 ```
 
-The application will be available at `http://localhost:5000`
+The application will be available at `http://localhost:6217` (configured in run.py)
 
 ### 4. Default Login
 
@@ -80,7 +80,7 @@ The application will be available at `http://localhost:5000`
 All API requests require an API key in the header:
 
 ```bash
-curl -H "X-API-Key: your-api-key" http://localhost:5000/api/moderate
+curl -H "X-API-Key: your-api-key" http://localhost:6217/api/moderate
 ```
 
 ### Submit Content for Moderation
@@ -94,7 +94,7 @@ curl -X POST \
     "content": "This is some content to moderate",
     "metadata": {"source": "user_comment"}
   }' \
-  http://localhost:5000/api/moderate
+  http://localhost:6217/api/moderate
 ```
 
 ### Response Format
@@ -119,21 +119,21 @@ curl -X POST \
 
 ```bash
 curl -H "X-API-Key: your-api-key" \
-  http://localhost:5000/api/content/content-id-here
+  http://localhost:6217/api/content/content-id-here
 ```
 
 ### List Content
 
 ```bash
 curl -H "X-API-Key: your-api-key" \
-  "http://localhost:5000/api/content?page=1&per_page=20&status=approved"
+  "http://localhost:6217/api/content?page=1&per_page=20&status=approved"
 ```
 
 ### Get Statistics
 
 ```bash
 curl -H "X-API-Key: your-api-key" \
-  http://localhost:5000/api/stats
+  http://localhost:6217/api/stats
 ```
 
 ## Moderation Rules

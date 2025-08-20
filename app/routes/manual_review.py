@@ -144,6 +144,104 @@ def make_decision(content_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@manual_review_bp.route('/manual-review/bulk-decision', methods=['POST'])
+@login_required
+def bulk_decision():
+    """Make bulk manual decisions on multiple flagged content items"""
+    try:
+        data = request.get_json()
+        content_ids = data.get('content_ids', [])
+        decision = data.get('decision')
+        reason = data.get('reason', 'Bulk manual review decision')
+        notes = data.get('notes', '')
+        
+        if not content_ids:
+            return jsonify({'success': False, 'error': 'No content IDs provided'}), 400
+        
+        if decision not in ['approved', 'rejected']:
+            return jsonify({'success': False, 'error': 'Invalid decision'}), 400
+        
+        if not reason.strip():
+            return jsonify({'success': False, 'error': 'Reason is required'}), 400
+        
+        # Get all content items and validate access
+        content_items = Content.query.filter(Content.id.in_(content_ids)).all()
+        
+        if len(content_items) != len(content_ids):
+            return jsonify({'success': False, 'error': 'Some content items not found'}), 404
+        
+        # Check user has access to all projects
+        for content in content_items:
+            if not current_user.is_admin and not content.project.is_member(current_user.id):
+                return jsonify({'success': False, 'error': f'Access denied for content in project {content.project.name}'}), 403
+        
+        processed_count = 0
+        failed_items = []
+        
+        # Process each content item
+        for content in content_items:
+            try:
+                # Skip if already processed (not flagged)
+                if content.status != 'flagged':
+                    continue
+                
+                # Update content status
+                content.status = decision
+                
+                # Create manual moderation result
+                manual_result = ModerationResult(
+                    content_id=content.id,
+                    decision=decision,
+                    confidence=1.0,  # Manual decisions have 100% confidence
+                    reason=reason,
+                    moderator_type='manual',
+                    moderator_id=current_user.id,
+                    processing_time=0.0,
+                    details={
+                        'manual_reviewer': current_user.username,
+                        'reviewer_id': current_user.id,
+                        'review_notes': notes,
+                        'bulk_action': True,
+                        'bulk_count': len(content_ids)
+                    }
+                )
+                db.session.add(manual_result)
+                
+                # Update API user stats if available
+                if content.api_user_id:
+                    api_user = APIUser.query.get(content.api_user_id)
+                    if api_user:
+                        api_user.update_stats(decision)
+                
+                processed_count += 1
+                
+            except Exception as item_error:
+                current_app.logger.error(f"Error processing content {content.id}: {str(item_error)}")
+                failed_items.append(content.id)
+        
+        # Commit all changes
+        db.session.commit()
+        
+        current_app.logger.info(f"Bulk manual decision made on {processed_count} content items: {decision} by {current_user.username}")
+        
+        response_data = {
+            'success': True,
+            'message': f'Successfully {decision} {processed_count} content item(s)',
+            'processed_count': processed_count,
+            'decision': decision
+        }
+        
+        if failed_items:
+            response_data['failed_items'] = failed_items
+            response_data['message'] += f' ({len(failed_items)} failed)'
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        current_app.logger.error(f"Bulk decision error: {str(e)}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @manual_review_bp.route('/api-users')
 @login_required
 def api_users():

@@ -5,6 +5,7 @@ from flask_socketio import SocketIO
 from config.config import config
 import time
 import sys
+import os
 
 # SQLAlchemy - database interface
 db = SQLAlchemy()
@@ -55,9 +56,10 @@ def create_app(config_name='default'):
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(manual_review_bp)
     
-    # Database initialization with retry logic
-    with app.app_context():
-        _initialize_database_with_retry(app)
+    # Database initialization with retry logic (only in main process, not reloader)
+    if not os.environ.get('WERKZEUG_RUN_MAIN'):
+        with app.app_context():
+            _initialize_database_with_retry(app)
     
     # Add custom Jinja2 filters
     @app.template_filter('to_dict_list')

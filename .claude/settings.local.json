@@ -5,6 +5,7 @@
       "Bash(mv:*)",
       "Bash(grep:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

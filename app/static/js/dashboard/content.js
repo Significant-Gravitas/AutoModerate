@@ -27,6 +27,9 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchContentDetails(contentId);
         });
     });
+    
+    // Calculate and display average processing time
+    calculateAverageProcessingTime();
 });
 
 // Initialize WebSocket connection
@@ -188,7 +191,7 @@ function addContentRow(data) {
     let metadataHtml = '';
     if (data.meta_data && Object.keys(data.meta_data).length > 0) {
         metadataHtml = `
-            <small class="text-muted">
+            <small class="text-muted d-block" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 <i class="fas fa-info-circle"></i> Has metadata
             </small>
         `;
@@ -206,8 +209,8 @@ function addContentRow(data) {
     
     newRow.innerHTML = `
         <td>${contentTypeBadge}</td>
-        <td>
-            <div class="content-preview">
+        <td style="max-width: 300px; min-width: 200px;">
+            <div class="content-preview" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${data.content_preview}
             </div>
             ${metadataHtml}
@@ -241,11 +244,21 @@ function addContentRow(data) {
         tbody.appendChild(newRow);
     }
     
-    // Update showing count
+    // Limit to 25 items - remove excess rows from the bottom
+    const maxItems = 25;
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length > maxItems) {
+        // Remove excess rows from the bottom
+        for (let i = maxItems; i < rows.length; i++) {
+            rows[i].remove();
+        }
+    }
+    
+    // Update showing count to reflect actual displayed items
     const showingCount = document.getElementById('showingCount');
     if (showingCount) {
-        const currentCount = parseInt(showingCount.textContent);
-        showingCount.textContent = currentCount + 1;
+        const actualCount = tbody.querySelectorAll('tr').length;
+        showingCount.textContent = actualCount;
     }
 }
 
@@ -413,6 +426,39 @@ function fetchContentDetails(contentId) {
             modalContentStatus.innerHTML = '<span class="text-danger">Error</span>';
             modalContentData.innerHTML = '<span class="text-danger">Failed to load content details</span>';
         });
+}
+
+// Calculate average processing time from visible content
+function calculateAverageProcessingTime() {
+    const processingTimeElements = document.querySelectorAll('td:nth-child(5) small'); // Processing time column, 5th column, small tags
+    let totalTime = 0;
+    let count = 0;
+    
+    processingTimeElements.forEach(function(element) {
+        const text = element.textContent.trim();
+        if (text && text !== 'N/A' && text !== '-' && text !== '') {
+            // Extract numeric value from text like "4.15s" or "250ms"
+            const match = text.match(/(\d+\.?\d*)(ms|s)/);
+            if (match) {
+                let time = parseFloat(match[1]);
+                if (match[2] === 'ms') {
+                    time = time / 1000; // Convert ms to seconds
+                }
+                totalTime += time;
+                count++;
+            }
+        }
+    });
+    
+    const avgElement = document.getElementById('avgProcessingTime');
+    if (avgElement && count > 0) {
+        const avgTime = totalTime / count;
+        if (avgTime < 1) {
+            avgElement.textContent = Math.round(avgTime * 1000) + 'ms';
+        } else {
+            avgElement.textContent = avgTime.toFixed(2) + 's';
+        }
+    }
 }
 
 // Clean up WebSocket connection when page unloads

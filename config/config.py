@@ -8,6 +8,12 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///automoderate.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+    # OpenAI model and token configuration
+    OPENAI_CHAT_MODEL = os.environ.get('OPENAI_CHAT_MODEL', 'gpt-5-nano-2025-08-07')
+    # Estimated maximum context window size for the selected model
+    OPENAI_CONTEXT_WINDOW = int(os.environ.get('OPENAI_CONTEXT_WINDOW', '400000'))
+    # Upper bound for output tokens; actual requests may use much less
+    OPENAI_MAX_OUTPUT_TOKENS = int(os.environ.get('OPENAI_MAX_OUTPUT_TOKENS', '128000'))
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'admin@example.com'
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin123'
     

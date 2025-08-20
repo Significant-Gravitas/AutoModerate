@@ -327,13 +327,22 @@ function fetchContentDetails(apiUserId, contentId) {
                         else if (result.moderator_type === 'rule') badgeClass = 'bg-info';
                         else if (result.moderator_type === 'manual') badgeClass = 'bg-success';
                         
-                        // Format processing time
+                        // Format processing time - use total_request_time from details if available
                         let processingTimeText = 'N/A';
-                        if (result.processing_time !== null && result.processing_time !== undefined) {
-                            if (result.processing_time < 1) {
-                                processingTimeText = (result.processing_time * 1000).toFixed(0) + 'ms';
+                        let timeToDisplay = null;
+                        
+                        if (result.details && result.details.total_request_time !== null && result.details.total_request_time !== undefined) {
+                            timeToDisplay = result.details.total_request_time;
+                        } else if (result.processing_time !== null && result.processing_time !== undefined) {
+                            // Fallback to processing_time for legacy records
+                            timeToDisplay = result.processing_time;
+                        }
+                        
+                        if (timeToDisplay !== null) {
+                            if (timeToDisplay < 1) {
+                                processingTimeText = (timeToDisplay * 1000).toFixed(0) + 'ms';
                             } else {
-                                processingTimeText = result.processing_time.toFixed(2) + 's';
+                                processingTimeText = timeToDisplay.toFixed(2) + 's';
                             }
                         }
                         

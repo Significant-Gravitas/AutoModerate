@@ -420,7 +420,7 @@ def project_content(project_id):
         query = query.filter_by(status=status)
     
     pagination = query.order_by(Content.created_at.desc()).paginate(
-        page=page, per_page=20, error_out=False
+        page=page, per_page=25, error_out=False
     )
     
     return render_template('dashboard/content.html',
@@ -778,7 +778,7 @@ def accept_invitation(token):
         flash('This invitation is no longer valid', 'error')
         return redirect(url_for('auth.login'))
     
-    if invitation.expires_at < datetime.utcnow():
+    if invitation.expires_at.replace(tzinfo=None) < datetime.utcnow():
         invitation.status = 'expired'
         db.session.commit()
         flash('This invitation has expired', 'error')
