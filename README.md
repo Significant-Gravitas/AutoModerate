@@ -38,7 +38,7 @@ AutoModerate/
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/Bentlybro/AutoModerate
 cd AutoModerate
 
 # Create virtual environment
