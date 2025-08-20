@@ -6,7 +6,7 @@ This directory contains all the necessary files to run AutoModerate as a Docker 
 
 1. **Configure environment variables:**
    ```bash
-   cp .env.docker .env
+   cp .env.docker.example .env
    # Edit .env and add your OPENAI_API_KEY and other configurations
    ```
 
