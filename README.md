@@ -152,22 +152,6 @@ curl -H "X-API-Key: your-api-key" \
 4. Configure rule parameters
 5. Set priority and action (approve/reject/flag)
 
-## Real-time Updates
-
-The platform supports real-time updates via WebSockets:
-
-```javascript
-const socket = io();
-
-// Join project room for updates
-socket.emit('join_project', {project_id: 'your-project-id'});
-
-// Listen for moderation updates
-socket.on('moderation_update', function(data) {
-    console.log('New moderation result:', data);
-});
-```
-
 ## Database Models
 
 ### Core Models
