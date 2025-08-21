@@ -13,6 +13,7 @@ from app.models.moderation_rule import ModerationRule
 from app.models.project import Project, ProjectInvitation, ProjectMember
 from app.models.user import User
 from app.services.database_service import db_service
+from config.default_rules import create_default_rules
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -89,63 +90,7 @@ async def create_project():
             return render_template('dashboard/create_project.html')
 
         # Add default moderation rules
-        default_rules = [
-            {
-                "name": "Fraud & Impersonation",
-                "description": "Content that misrepresents identity, scams users, or spreads fraudulent schemes.",
-                "rule_type": "ai_prompt",
-                "rule_data": {"prompt": "Content that misrepresents identity, scams users, or spreads fraudulent schemes."},
-                "action": "reject",
-                "priority": 100,
-                "is_active": True,
-            },
-            {
-                "name": "Phishing & Unauthorized Data Collection",
-                "description": "Any attempt to collect user data unlawfully, including deceptive AI-generated content designed to steal credentials.",
-                "rule_type": "ai_prompt",
-                "rule_data": {"prompt": "Any attempt to collect user data unlawfully, including deceptive AI-generated content designed to steal credentials."},
-                "action": "reject",
-                "priority": 100,
-                "is_active": True,
-            },
-            {
-                "name": "Misleading AI Content",
-                "description": "AI-generated content that spreads false information, deepfakes, or impersonates individuals without disclosure.",
-                "rule_type": "ai_prompt",
-                "rule_data": {"prompt": "AI-generated content that spreads false information, deepfakes, or impersonates individuals without disclosure."},
-                "action": "reject",
-                "priority": 100,
-                "is_active": True,
-            },
-            {
-                "name": "Illegal Content",
-                "description": "Content that violates applicable laws, including terrorism, child exploitation, and financial crimes.",
-                "rule_type": "ai_prompt",
-                "rule_data": {"prompt": "Content that violates applicable laws, including terrorism, child exploitation, and financial crimes."},
-                "action": "reject",
-                "priority": 100,
-                "is_active": True,
-            },
-            {
-                "name": "Spam & Unsolicited Promotions",
-                "description": "Unwanted advertising, excessive marketing, and pyramid schemes.",
-                "rule_type": "ai_prompt",
-                "rule_data": {"prompt": "Unwanted advertising, excessive marketing, and pyramid schemes."},
-                "action": "reject",
-                "priority": 100,
-                "is_active": True,
-            },
-        ]
-        # Add default moderation rules using database service
-        for rule in default_rules:
-            await db_service.create_moderation_rule(
-                project_id=project.id,
-                name=rule["name"],
-                rule_type=rule["rule_type"],
-                rule_content=str(rule["rule_data"]),
-                action=rule["action"],
-                priority=rule["priority"]
-            )
+        await create_default_rules(db_service, project.id)
 
         # Create default API key
         import secrets
