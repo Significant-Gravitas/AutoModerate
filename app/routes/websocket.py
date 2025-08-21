@@ -1,9 +1,11 @@
+import asyncio
+
 from flask import Blueprint
 from flask_login import current_user
 from flask_socketio import emit, join_room, leave_room
 
 from app import socketio
-from app.models.project import Project
+from app.services.database_service import db_service
 
 websocket_bp = Blueprint('websocket', __name__)
 
@@ -39,14 +41,16 @@ def handle_join_project(data):
         print(f"User {current_user.id} attempting to join project {project_id}")
 
         # Verify user has access to the project (owner or member)
-        project = Project.query.filter_by(id=project_id).first()
+        project = asyncio.run(db_service.get_project_by_id(project_id))
         if not project:
             print(f"Project {project_id} not found")
             emit('error', {'message': 'Project not found'})
             return
 
-        # Check if user is owner or member
-        if not project.is_member(current_user.id):
+        # Check if user is owner or member using centralized service
+        is_member = asyncio.run(
+            db_service.is_project_member(project_id, current_user.id))
+        if not is_member:
             print(
                 f"User {current_user.id} is not a member of project {project_id}")
             emit(

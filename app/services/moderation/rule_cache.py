@@ -2,7 +2,7 @@ import time
 
 from flask import current_app
 
-from app.models.moderation_rule import ModerationRule
+from app.services.database_service import db_service
 
 
 class CachedRule:
@@ -28,7 +28,7 @@ class RuleCache:
         self._cache_timestamps = {}
         self._cache_ttl = cache_ttl
 
-    def get_cached_rules(self, project_id):
+    async def get_cached_rules(self, project_id):
         """Get rules with caching for performance"""
         current_time = time.time()
 
@@ -40,13 +40,9 @@ class RuleCache:
             # Using cached rules
             return self._rules_cache[project_id]
 
-        # Fetch from database
-        # Fetching rules from database
+        # Fetch from database using centralized service
         try:
-            db_rules = ModerationRule.query.filter_by(
-                project_id=project_id,
-                is_active=True
-            ).order_by(ModerationRule.priority.desc()).all()
+            db_rules = await db_service.get_all_rules_for_project(project_id, include_inactive=False)
 
             # Convert to cache-safe objects
             cached_rules = [

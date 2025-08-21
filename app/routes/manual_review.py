@@ -1,5 +1,3 @@
-import json
-
 from flask import (Blueprint, current_app, flash, jsonify, redirect,
                    render_template, request, url_for)
 from flask_login import current_user, login_required
@@ -16,7 +14,7 @@ manual_review_bp = Blueprint('manual_review', __name__)
 
 @manual_review_bp.route('/manual-review')
 @login_required
-def index():
+async def index():
     """Manual review dashboard - shows flagged content across all projects user has access to"""
     try:
         # Get all projects the user has access to
@@ -63,7 +61,7 @@ def index():
 
 @manual_review_bp.route('/manual-review/<content_id>')
 @login_required
-def review_content(content_id):
+async def review_content(content_id):
     """Review specific flagged content"""
     try:
         content = Content.query.get_or_404(content_id)
@@ -95,7 +93,7 @@ def review_content(content_id):
 
 @manual_review_bp.route('/manual-review/<content_id>/decision', methods=['POST'])
 @login_required
-def make_decision(content_id):
+async def make_decision(content_id):
     """Make a manual decision on flagged content"""
     try:
         content = Content.query.get_or_404(content_id)
@@ -156,7 +154,7 @@ def make_decision(content_id):
 
 @manual_review_bp.route('/manual-review/bulk-decision', methods=['POST'])
 @login_required
-def bulk_decision():
+async def bulk_decision():
     """Make bulk manual decisions on multiple flagged content items"""
     try:
         data = request.get_json()
@@ -257,7 +255,7 @@ def bulk_decision():
 
 @manual_review_bp.route('/api-users')
 @login_required
-def api_users():
+async def api_users():
     """View API users and their moderation history"""
     try:
         # Get all projects the user has access to
@@ -285,7 +283,7 @@ def api_users():
 
 @manual_review_bp.route('/api-users/<user_id>')
 @login_required
-def api_user_detail(user_id):
+async def api_user_detail(user_id):
     """View detailed information about a specific API user"""
     try:
         api_user = APIUser.query.get_or_404(user_id)
@@ -311,7 +309,7 @@ def api_user_detail(user_id):
 
 @manual_review_bp.route('/manual-review/api-users/<user_id>/content/<content_id>')
 @login_required
-def get_api_user_content_details(user_id, content_id):
+async def get_api_user_content_details(user_id, content_id):
     """Get content details for modal in API user detail page"""
     try:
         api_user = APIUser.query.get_or_404(user_id)

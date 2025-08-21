@@ -1,13 +1,8 @@
-import uuid
 from functools import wraps
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
-from app import db
-from app.models.api_key import APIKey
-from app.models.api_user import APIUser
-from app.models.content import Content
-from app.models.project import Project
+from app.services.database_service import db_service
 from app.services.moderation_orchestrator import ModerationOrchestrator
 
 api_bp = Blueprint('api', __name__)
@@ -16,31 +11,31 @@ api_bp = Blueprint('api', __name__)
 def require_api_key(f):
     """Decorator to require valid API key for API endpoints"""
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    async def decorated_function(*args, **kwargs):
         api_key = request.headers.get(
             'X-API-Key') or request.args.get('api_key')
 
         if not api_key:
             return jsonify({'error': 'API key required'}), 401
 
-        key_obj = APIKey.query.filter_by(key=api_key, is_active=True).first()
-        if not key_obj:
+        key_obj = await db_service.get_api_key_by_value(api_key)
+        if not key_obj or not key_obj.is_active:
             return jsonify({'error': 'Invalid API key'}), 401
 
         # Increment usage counter
-        key_obj.increment_usage()
+        await db_service.update_api_key_usage(key_obj)
 
         # Add to request context
         request.api_key = key_obj
         request.project = key_obj.project
 
-        return f(*args, **kwargs)
+        return await f(*args, **kwargs)
     return decorated_function
 
 
 @api_bp.route('/moderate', methods=['POST'])
 @require_api_key
-def moderate_content():
+async def moderate_content():
     """
     Main API endpoint for content moderation
     """
@@ -67,39 +62,32 @@ def moderate_content():
         if meta_data and 'user_id' in meta_data:
             external_user_id = meta_data['user_id']
 
-            # Find or create API user
-            api_user = APIUser.query.filter_by(
+            # Find or create API user using centralized service
+            api_user = await db_service.get_or_create_api_user(
                 external_user_id=external_user_id,
                 project_id=request.project.id
-            ).first()
+            )
 
-            if not api_user:
-                api_user = APIUser(
-                    external_user_id=external_user_id,
-                    project_id=request.project.id
-                )
-                db.session.add(api_user)
-                db.session.flush()  # Get the ID without committing
-
-        # Create content record
-        content = Content(
+        # Create content record using database service
+        content_id = await db_service.create_content(
             project_id=request.project.id,
+            content_text=str(content_data),
             content_type=content_type,
-            content_data=content_data,
-            meta_data=meta_data,
             api_user_id=api_user.id if api_user else None
         )
-        db.session.add(content)
-        db.session.commit()
+
+        if not content_id:
+            current_app.logger.error("Failed to create content record")
+            return jsonify({'error': 'Failed to create content record'}), 500
 
         # Start moderation process
         moderation_orchestrator = ModerationOrchestrator()
-        result = moderation_orchestrator.moderate_content(
-            content.id, request_start_time)
+        result = await moderation_orchestrator.moderate_content(
+            content_id, request_start_time)
 
         return jsonify({
             'success': True,
-            'content_id': content.id,
+            'content_id': content_id,
             'status': result.get('decision', 'pending'),
             'moderation_results': result.get('results', [])
         })
@@ -111,14 +99,11 @@ def moderate_content():
 
 @api_bp.route('/content/<content_id>', methods=['GET'])
 @require_api_key
-def get_content(content_id):
+async def get_content(content_id):
     """
     Get content and its moderation results
     """
-    content = Content.query.filter_by(
-        id=content_id,
-        project_id=request.project.id
-    ).first()
+    content = await db_service.get_content_by_id_and_project(content_id, request.project.id)
 
     if not content:
         return jsonify({'error': 'Content not found'}), 404
@@ -131,7 +116,7 @@ def get_content(content_id):
 
 @api_bp.route('/content', methods=['GET'])
 @require_api_key
-def list_content():
+async def list_content():
     """
     List content for the project with pagination
     """
@@ -139,64 +124,52 @@ def list_content():
     per_page = min(request.args.get('per_page', 20, type=int), 100)
     status = request.args.get('status')
 
-    query = Content.query.filter_by(project_id=request.project.id)
-
-    if status:
-        query = query.filter_by(status=status)
-
-    pagination = query.paginate(
-        page=page,
-        per_page=per_page,
-        error_out=False
+    offset = (page - 1) * per_page
+    content_items = await db_service.get_project_content_with_filters(
+        project_id=request.project.id,
+        status=status,
+        limit=per_page,
+        offset=offset
     )
 
     return jsonify({
         'success': True,
-        'content': [item.to_dict() for item in pagination.items],
+        'content': [item.to_dict() for item in content_items],
         'pagination': {
             'page': page,
-            'pages': pagination.pages,
             'per_page': per_page,
-            'total': pagination.total,
-            'has_next': pagination.has_next,
-            'has_prev': pagination.has_prev
+            'has_more': len(content_items) == per_page
         }
     })
 
 
 @api_bp.route('/stats', methods=['GET'])
 @require_api_key
-def get_stats():
+async def get_stats():
     """
     Get moderation statistics for the project
     """
     project_id = request.project.id
 
-    total_content = Content.query.filter_by(project_id=project_id).count()
-    approved_content = Content.query.filter_by(
-        project_id=project_id, status='approved').count()
-    rejected_content = Content.query.filter_by(
-        project_id=project_id, status='rejected').count()
-    flagged_content = Content.query.filter_by(
-        project_id=project_id, status='flagged').count()
-    pending_content = Content.query.filter_by(
-        project_id=project_id, status='pending').count()
+    stats = await db_service.get_content_counts_by_status(project_id)
+    total = stats['total']
+    approved = stats['approved']
 
     return jsonify({
         'success': True,
         'stats': {
-            'total_content': total_content,
-            'approved': approved_content,
-            'rejected': rejected_content,
-            'flagged': flagged_content,
-            'pending': pending_content,
-            'approval_rate': (approved_content / total_content * 100) if total_content > 0 else 0
+            'total_content': total,
+            'approved': approved,
+            'rejected': stats['rejected'],
+            'flagged': stats['flagged'],
+            'pending': stats['pending'],
+            'approval_rate': (approved / total * 100) if total > 0 else 0
         }
     })
 
 
 @api_bp.route('/health', methods=['GET'])
-def health_check():
+async def health_check():
     """
     Health check endpoint
     """

@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -13,6 +12,7 @@ from app.models.moderation_result import ModerationResult
 from app.models.moderation_rule import ModerationRule
 from app.models.project import Project
 from app.models.user import User
+from app.services.database_service import db_service
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -20,45 +20,32 @@ admin_bp = Blueprint('admin', __name__)
 def admin_required(f):
     """Decorator to require admin access"""
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    async def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login'))
         if not current_user.is_admin:
             flash('Access denied. Admin privileges required.', 'error')
             return redirect(url_for('dashboard.index'))
-        return f(*args, **kwargs)
+        return await f(*args, **kwargs)
     return decorated_function
 
 
 @admin_bp.route('/')
 @login_required
 @admin_required
-def index():
+async def index():
     """Admin dashboard overview"""
-    # Get system statistics
-    stats = {
-        'total_users': User.query.count(),
-        'total_projects': Project.query.count(),
-        'total_content': Content.query.count(),
-        'total_rules': ModerationRule.query.count(),
-        'total_api_keys': APIKey.query.count(),
-        'active_users': User.query.filter_by(is_active=True).count(),
-        'admin_users': User.query.filter_by(is_admin=True).count(),
-    }
+    # Get system statistics using centralized service
+    stats = await db_service.get_admin_stats()
 
     # Get recent activity
-    recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
-    recent_projects = Project.query.order_by(
-        Project.created_at.desc()).limit(5).all()
-    recent_content = Content.query.order_by(
-        Content.created_at.desc()).limit(10).all()
+    recent_users = await db_service.get_recent_users(5)
+    recent_projects = await db_service.get_recent_projects(5)
+    recent_content = await db_service.get_recent_content_admin(10)
 
     # Get moderation statistics
     moderation_stats = {
-        'total_moderations': ModerationResult.query.count(),
-        'approved': ModerationResult.query.filter_by(decision='approved').count(),
-        'rejected': ModerationResult.query.filter_by(decision='rejected').count(),
-        'flagged': ModerationResult.query.filter_by(decision='flagged').count(),
+        **(await db_service.get_moderation_result_stats()),
     }
 
     return render_template('admin/index.html',
@@ -72,7 +59,7 @@ def index():
 @admin_bp.route('/users')
 @login_required
 @admin_required
-def users():
+async def users():
     """User management page"""
     page = request.args.get('page', 1, type=int)
     per_page = 20
@@ -87,10 +74,10 @@ def users():
 @admin_bp.route('/users/<user_id>')
 @login_required
 @admin_required
-def user_detail(user_id):
+async def user_detail(user_id):
     """User detail page"""
-    user = User.query.get_or_404(user_id)
-    user_projects = Project.query.filter_by(user_id=user_id).all()
+    user = await db_service.get_user_by_id(user_id)
+    user_projects = await db_service.get_user_projects_for_admin(user_id)
 
     # Calculate user statistics
     total_content = sum(len(project.content) for project in user_projects)
@@ -109,43 +96,46 @@ def user_detail(user_id):
 @admin_bp.route('/users/<user_id>/toggle_admin', methods=['POST'])
 @login_required
 @admin_required
-def toggle_admin(user_id):
+async def toggle_admin(user_id):
     """Toggle admin status for a user"""
     if current_user.id == user_id:
         flash('You cannot modify your own admin status.', 'error')
         return redirect(url_for('admin.users'))
 
-    user = User.query.get_or_404(user_id)
-    user.is_admin = not user.is_admin
-    db.session.commit()
+    user_data = await db_service.toggle_user_admin_status(user_id)
+    if not user_data:
+        flash('User not found.', 'error')
+        return redirect(url_for('admin.users'))
 
-    action = 'granted' if user.is_admin else 'revoked'
-    flash(f'Admin privileges {action} for user {user.username}.', 'success')
+    action = 'granted' if user_data['is_admin'] else 'revoked'
+    flash(f'Admin privileges {action} for user {
+          user_data["username"]}.', 'success')
     return redirect(url_for('admin.users'))
 
 
 @admin_bp.route('/users/<user_id>/toggle_active', methods=['POST'])
 @login_required
 @admin_required
-def toggle_active(user_id):
+async def toggle_active(user_id):
     """Toggle active status for a user"""
     if current_user.id == user_id:
         flash('You cannot deactivate your own account.', 'error')
         return redirect(url_for('admin.users'))
 
-    user = User.query.get_or_404(user_id)
-    user.is_active = not user.is_active
-    db.session.commit()
+    user_data = await db_service.toggle_user_active_status(user_id)
+    if not user_data:
+        flash('User not found.', 'error')
+        return redirect(url_for('admin.users'))
 
-    action = 'activated' if user.is_active else 'deactivated'
-    flash(f'User {user.username} {action}.', 'success')
+    action = 'activated' if user_data['is_active'] else 'deactivated'
+    flash(f'User {user_data["username"]} {action}.', 'success')
     return redirect(url_for('admin.users'))
 
 
 @admin_bp.route('/users/create', methods=['POST'])
 @login_required
 @admin_required
-def create_user():
+async def create_user():
     """Create a new user"""
     try:
         username = request.form.get('username', '').strip()
@@ -205,18 +195,18 @@ def create_user():
 @admin_bp.route('/users/<user_id>/delete', methods=['POST'])
 @login_required
 @admin_required
-def delete_user(user_id):
+async def delete_user(user_id):
     """Delete a user and all their data"""
     try:
         if current_user.id == user_id:
             flash('You cannot delete your own account.', 'error')
             return redirect(url_for('admin.users'))
 
-        user = User.query.get_or_404(user_id)
+        user = await db_service.get_user_by_id(user_id)
         username = user.username
 
         # Check if user has any projects
-        user_projects = Project.query.filter_by(user_id=user_id).all()
+        user_projects = await db_service.get_user_projects_for_admin(user_id)
         if user_projects:
             project_count = len(user_projects)
             flash(
@@ -239,14 +229,26 @@ def delete_user(user_id):
 @admin_bp.route('/projects')
 @login_required
 @admin_required
-def projects():
+async def projects():
     """All projects overview"""
     page = request.args.get('page', 1, type=int)
     per_page = 20
 
-    projects = Project.query.paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    # Get projects using database service with eager loading
+    all_projects = await db_service.get_all_projects_for_admin(page=page, per_page=per_page)
+
+    # Create a simple pagination object
+    class SimplePagination:
+        def __init__(self, items, page, per_page, total):
+            self.items = items
+            self.page = page
+            self.per_page = per_page
+            self.total = total
+            self.has_prev = page > 1
+            self.has_next = len(items) == per_page
+
+    projects = SimplePagination(
+        all_projects, page, per_page, len(all_projects))
 
     # Calculate statistics
     total_content = sum(len(project.content) for project in projects.items)
@@ -261,7 +263,7 @@ def projects():
 @admin_bp.route('/projects/<project_id>')
 @login_required
 @admin_required
-def project_detail(project_id):
+async def project_detail(project_id):
     """Project detail page"""
     project = Project.query.get_or_404(project_id)
 
@@ -279,7 +281,7 @@ def project_detail(project_id):
 @admin_bp.route('/logs')
 @login_required
 @admin_required
-def logs():
+async def logs():
     """System logs page"""
     # This would typically connect to a logging system
     # For now, we'll show recent activity from the database
@@ -296,7 +298,7 @@ def logs():
 @admin_bp.route('/statistics')
 @login_required
 @admin_required
-def statistics():
+async def statistics():
     """Detailed statistics page"""
     # Get date range for statistics
     days = request.args.get('days', 30, type=int)
@@ -343,7 +345,7 @@ def statistics():
 @admin_bp.route('/api/stats')
 @login_required
 @admin_required
-def api_stats():
+async def api_stats():
     """API endpoint for admin statistics"""
     stats = {
         'users': {

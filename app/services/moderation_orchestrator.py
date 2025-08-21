@@ -2,12 +2,10 @@ import time
 
 from flask import current_app
 
-from app import db
-from app.models.api_user import APIUser
-from app.models.content import Content
 from app.models.moderation_result import ModerationResult
 
 from .ai.ai_moderator import AIModerator
+from .database_service import db_service
 from .moderation.rule_cache import RuleCache
 from .moderation.rule_processor import RuleProcessor
 from .moderation.websocket_notifier import WebSocketNotifier
@@ -22,15 +20,15 @@ class ModerationOrchestrator:
         self.rule_processor = RuleProcessor(self.ai_moderator)
         self.websocket_notifier = WebSocketNotifier()
 
-    def moderate_content(self, content_id, request_start_time=None):
+    async def moderate_content(self, content_id, request_start_time=None):
         """Main moderation function with optimized parallel processing"""
         try:
-            content = Content.query.get(content_id)
+            content = await db_service.get_content_by_id(content_id)
             if not content:
                 return {'error': 'Content not found'}
 
             # Get cached rules and separate by type
-            all_rules = self.rule_cache.get_cached_rules(content.project_id)
+            all_rules = await self.rule_cache.get_cached_rules(content.project_id)
             fast_rules = [
                 r for r in all_rules if r.rule_type in ['keyword', 'regex']]
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
@@ -65,7 +63,7 @@ class ModerationOrchestrator:
             total_time = time.time() - request_start_time if request_start_time else 0.0
 
             # Save to database and send updates
-            self._save_results(content, final_decision, results, total_time)
+            await self._save_results(content, final_decision, results, total_time)
             self.websocket_notifier.send_update_async(
                 content, final_decision, results, total_time)
 
@@ -78,7 +76,8 @@ class ModerationOrchestrator:
             # Get cache summary for this request
             cache_summary = self.ai_moderator.cache.get_request_cache_summary()
             if cache_summary['stores'] > 0:
-                cache_info = f" [Cached {cache_summary['stores']} results, total: {cache_summary['total']}]"
+                cache_info = f" [Cached {cache_summary['stores']} results, total: {
+                    cache_summary['total']}]"
             elif total_time < 1.0:
                 cache_info = " [Cache hit]"
             else:
@@ -97,7 +96,7 @@ class ModerationOrchestrator:
 
         except Exception as e:
             current_app.logger.error(f"Moderation error: {str(e)}")
-            db.session.rollback()
+            await db_service.rollback_transaction()
             return {'error': str(e), 'decision': 'rejected', 'results': []}
 
     def _process_rules(self, content, fast_rules, ai_rules):
@@ -194,14 +193,15 @@ class ModerationOrchestrator:
 
         return False
 
-    def _save_results(self, content, final_decision, results, total_time):
+    async def _save_results(self, content, final_decision, results, total_time):
         """Save moderation results to database with bulk operations"""
-        content.status = final_decision
+        # Update content status using database service to ensure persistence
+        await db_service.update_content_status(content.id, status=final_decision)
 
         # Update API user stats efficiently
         if content.api_user_id:
             try:
-                api_user = APIUser.query.get(content.api_user_id)
+                api_user = await db_service.get_api_user_by_id(content.api_user_id)
                 if api_user:
                     api_user.update_stats(final_decision)
             except Exception as e:
@@ -236,40 +236,34 @@ class ModerationOrchestrator:
                 moderation_results.append(moderation_result)
 
             try:
-                db.session.bulk_save_objects(moderation_results)
+                await db_service.bulk_save_objects(moderation_results)
             except Exception as e:
                 current_app.logger.error(
                     f"Error saving moderation results: {str(e)}")
-                db.session.rollback()
+                await db_service.rollback_transaction()
                 raise
 
         try:
-            db.session.commit()
+            await db_service.commit_transaction()
         except Exception as e:
             current_app.logger.error(
                 f"Error committing database changes: {str(e)}")
-            db.session.rollback()
+            await db_service.rollback_transaction()
             raise
 
-    def get_project_stats(self, project_id):
+    async def get_project_stats(self, project_id):
         """Get moderation statistics for a project"""
         try:
-            total = Content.query.filter_by(project_id=project_id).count()
-            approved = Content.query.filter_by(
-                project_id=project_id, status='approved').count()
-            rejected = Content.query.filter_by(
-                project_id=project_id, status='rejected').count()
-            flagged = Content.query.filter_by(
-                project_id=project_id, status='flagged').count()
-            pending = Content.query.filter_by(
-                project_id=project_id, status='pending').count()
+            counts = await db_service.get_content_counts_by_status(project_id)
+            total = counts['total']
+            approved = counts['approved']
 
             return {
                 'total': total,
                 'approved': approved,
-                'rejected': rejected,
-                'flagged': flagged,
-                'pending': pending,
+                'rejected': counts['rejected'],
+                'flagged': counts['flagged'],
+                'pending': counts['pending'],
                 'approval_rate': (approved / total * 100) if total > 0 else 0
             }
         except Exception as e:

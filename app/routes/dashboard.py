@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
-from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from app import db
@@ -13,46 +12,26 @@ from app.models.content import Content
 from app.models.moderation_rule import ModerationRule
 from app.models.project import Project, ProjectInvitation, ProjectMember
 from app.models.user import User
+from app.services.database_service import db_service
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
 @dashboard_bp.route('/')
 @login_required
-def index():
+async def index():
     """Dashboard home page"""
-    # Get all project IDs where user is owner or member
-    owned_project_ids = db.session.query(
-        Project.id).filter_by(user_id=current_user.id)
-    member_project_ids = db.session.query(Project.id).join(ProjectMember).filter(
-        ProjectMember.user_id == current_user.id)
+    # Get user projects using centralized service
+    projects = await db_service.get_user_projects(current_user.id)
 
-    # Union the queries to get all accessible project IDs
-    all_project_ids = owned_project_ids.union(member_project_ids)
-
-    # Get projects and counts separately for better performance
-    projects = Project.query.filter(
-        Project.id.in_(all_project_ids)
-    ).all()
-
-    project_ids = [p.id for p in projects]
-
-    # Get counts in separate optimized queries
-    content_counts = dict(db.session.query(
-        Content.project_id, func.count(Content.id)
-    ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
-
-    api_key_counts = dict(db.session.query(
-        APIKey.project_id, func.count(APIKey.id)
-    ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
-
-    # Assign counts to projects
+    # Get project statistics
     total_content = 0
     total_api_keys = 0
 
     for project in projects:
-        project._content_count = content_counts.get(project.id, 0)
-        project._api_key_count = api_key_counts.get(project.id, 0)
+        stats = await db_service.get_project_stats(project.id)
+        project._content_count = stats.get('total_content', 0)
+        project._api_key_count = stats.get('total_api_keys', 0)
         total_content += project._content_count
         total_api_keys += project._api_key_count
 
@@ -77,49 +56,24 @@ def index():
 
 @dashboard_bp.route('/projects')
 @login_required
-def projects():
+async def projects():
     """List all user projects"""
-    # Get all project IDs where user is owner or member
-    owned_project_ids = db.session.query(
-        Project.id).filter_by(user_id=current_user.id)
-    member_project_ids = db.session.query(Project.id).join(ProjectMember).filter(
-        ProjectMember.user_id == current_user.id)
+    # Get user projects using centralized service
+    projects = await db_service.get_user_projects(current_user.id)
 
-    # Union the queries to get all accessible project IDs
-    all_project_ids = owned_project_ids.union(member_project_ids)
-
-    # Get projects and counts separately for better performance
-    projects = Project.query.filter(
-        Project.id.in_(all_project_ids)
-    ).all()
-
-    project_ids = [p.id for p in projects]
-
-    # Get counts in separate optimized queries
-    content_counts = dict(db.session.query(
-        Content.project_id, func.count(Content.id)
-    ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
-
-    api_key_counts = dict(db.session.query(
-        APIKey.project_id, func.count(APIKey.id)
-    ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
-
-    rules_counts = dict(db.session.query(
-        ModerationRule.project_id, func.count(ModerationRule.id)
-    ).filter(ModerationRule.project_id.in_(project_ids)).group_by(ModerationRule.project_id).all())
-
-    # Assign counts to projects
+    # Add project statistics
     for project in projects:
-        project._content_count = content_counts.get(project.id, 0)
-        project._api_key_count = api_key_counts.get(project.id, 0)
-        project._rules_count = rules_counts.get(project.id, 0)
+        stats = await db_service.get_project_stats(project.id)
+        project._content_count = stats.get('total_content', 0)
+        project._api_key_count = stats.get('total_api_keys', 0)
+        project._rules_count = stats.get('total_rules', 0)
 
     return render_template('dashboard/projects.html', projects=projects)
 
 
 @dashboard_bp.route('/projects/create', methods=['GET', 'POST'])
 @login_required
-def create_project():
+async def create_project():
     """Create a new project"""
     if request.method == 'POST':
         name = request.form.get('name')
@@ -129,13 +83,10 @@ def create_project():
             flash('Project name is required', 'error')
             return render_template('dashboard/create_project.html')
 
-        project = Project(
-            name=name,
-            description=description,
-            user_id=current_user.id
-        )
-        db.session.add(project)
-        db.session.commit()
+        project = await db_service.create_project(name=name, description=description, user_id=current_user.id)
+        if not project:
+            flash('Failed to create project', 'error')
+            return render_template('dashboard/create_project.html')
 
         # Add default moderation rules
         default_rules = [
@@ -185,27 +136,25 @@ def create_project():
                 "is_active": True,
             },
         ]
+        # Add default moderation rules using database service
         for rule in default_rules:
-            new_rule = ModerationRule(
+            await db_service.create_moderation_rule(
                 project_id=project.id,
                 name=rule["name"],
-                description=rule["description"],
                 rule_type=rule["rule_type"],
-                rule_data=rule["rule_data"],
+                rule_content=str(rule["rule_data"]),
                 action=rule["action"],
-                priority=rule["priority"],
-                is_active=rule["is_active"],
+                priority=rule["priority"]
             )
-            db.session.add(new_rule)
-        db.session.commit()
 
         # Create default API key
-        api_key = APIKey(
+        import secrets
+        key_value = f"ak_{secrets.token_urlsafe(32)}"
+        await db_service.create_api_key(
+            project_id=project.id,
             name='Default Key',
-            project_id=project.id
+            key_value=key_value
         )
-        db.session.add(api_key)
-        db.session.commit()
 
         flash('Project created successfully!', 'success')
         return redirect(url_for('dashboard.project_detail', project_id=project.id))
@@ -215,7 +164,7 @@ def create_project():
 
 @dashboard_bp.route('/projects/<project_id>')
 @login_required
-def project_detail(project_id):
+async def project_detail(project_id):
     """Project detail page"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -253,7 +202,7 @@ def project_detail(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/api-keys')
 @login_required
-def project_api_keys(project_id):
+async def project_api_keys(project_id):
     """Manage project API keys"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -266,7 +215,7 @@ def project_api_keys(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/api-keys/create', methods=['POST'])
 @login_required
-def create_api_key(project_id):
+async def create_api_key(project_id):
     """Create new API key"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -290,7 +239,7 @@ def create_api_key(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/rules')
 @login_required
-def project_rules(project_id):
+async def project_rules(project_id):
     """Manage project moderation rules"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -305,7 +254,7 @@ def project_rules(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/rules/create', methods=['GET', 'POST'])
 @login_required
-def create_rule(project_id):
+async def create_rule(project_id):
     """Create new moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -360,7 +309,7 @@ def create_rule(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/rules/<rule_id>/update', methods=['POST'])
 @login_required
-def update_rule(project_id, rule_id):
+async def update_rule(project_id, rule_id):
     """Update existing moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -410,7 +359,7 @@ def update_rule(project_id, rule_id):
 
 @dashboard_bp.route('/projects/<project_id>/rules/<rule_id>/toggle', methods=['POST'])
 @login_required
-def toggle_rule(project_id, rule_id):
+async def toggle_rule(project_id, rule_id):
     """Toggle rule active/inactive status"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -446,7 +395,7 @@ def toggle_rule(project_id, rule_id):
 
 @dashboard_bp.route('/projects/<project_id>/rules/<rule_id>/delete', methods=['POST'])
 @login_required
-def delete_rule(project_id, rule_id):
+async def delete_rule(project_id, rule_id):
     """Delete moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -473,7 +422,7 @@ def delete_rule(project_id, rule_id):
 
 @dashboard_bp.route('/projects/<project_id>/content')
 @login_required
-def project_content(project_id):
+async def project_content(project_id):
     """View project content"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -501,7 +450,7 @@ def project_content(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/content/<content_id>')
 @login_required
-def get_content_details(project_id, content_id):
+async def get_content_details(project_id, content_id):
     """Get content details for modal"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -519,7 +468,7 @@ def get_content_details(project_id, content_id):
 
 @dashboard_bp.route('/projects/<project_id>/api-keys/<key_id>/toggle', methods=['POST'])
 @login_required
-def toggle_api_key(project_id, key_id):
+async def toggle_api_key(project_id, key_id):
     """Toggle API key active/inactive status"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -555,7 +504,7 @@ def toggle_api_key(project_id, key_id):
 
 @dashboard_bp.route('/projects/<project_id>/api-keys/<key_id>/delete', methods=['POST'])
 @login_required
-def delete_api_key(project_id, key_id):
+async def delete_api_key(project_id, key_id):
     """Delete API key"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -582,7 +531,7 @@ def delete_api_key(project_id, key_id):
 
 @dashboard_bp.route('/projects/<project_id>/settings')
 @login_required
-def project_settings(project_id):
+async def project_settings(project_id):
     """Project settings page"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -630,7 +579,7 @@ def project_settings(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/update', methods=['POST'])
 @login_required
-def update_project(project_id):
+async def update_project(project_id):
     """Update project information"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -661,7 +610,7 @@ def update_project(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/delete', methods=['POST'])
 @login_required
-def delete_project(project_id):
+async def delete_project(project_id):
     """Delete a project"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -682,7 +631,7 @@ def delete_project(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/members')
 @login_required
-def project_members(project_id):
+async def project_members(project_id):
     """Manage project members"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -725,7 +674,7 @@ def project_members(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/invite', methods=['POST'])
 @login_required
-def invite_member(project_id):
+async def invite_member(project_id):
     """Invite a user to the project"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -780,7 +729,7 @@ def invite_member(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/invitations/<invitation_id>/cancel', methods=['POST'])
 @login_required
-def cancel_invitation(project_id, invitation_id):
+async def cancel_invitation(project_id, invitation_id):
     """Cancel a pending invitation"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -803,7 +752,7 @@ def cancel_invitation(project_id, invitation_id):
 
 @dashboard_bp.route('/projects/<project_id>/members/<membership_id>/remove', methods=['POST'])
 @login_required
-def remove_member(project_id, membership_id):
+async def remove_member(project_id, membership_id):
     """Remove a member from the project"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -831,7 +780,7 @@ def remove_member(project_id, membership_id):
 
 @dashboard_bp.route('/projects/<project_id>/members/<membership_id>/role', methods=['POST'])
 @login_required
-def update_member_role(project_id, membership_id):
+async def update_member_role(project_id, membership_id):
     """Update a member's role"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
@@ -860,7 +809,7 @@ def update_member_role(project_id, membership_id):
 
 
 @dashboard_bp.route('/invite/<token>')
-def accept_invitation(token):
+async def accept_invitation(token):
     """Accept a project invitation"""
     invitation = ProjectInvitation.query.filter_by(token=token).first_or_404()
 
@@ -910,7 +859,7 @@ def accept_invitation(token):
 
 @dashboard_bp.route('/invite/<token>/decline', methods=['POST'])
 @login_required
-def decline_invitation(token):
+async def decline_invitation(token):
     """Decline a project invitation"""
     invitation = ProjectInvitation.query.filter_by(token=token).first_or_404()
 

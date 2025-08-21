@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 
 from flask import Flask
@@ -41,8 +40,31 @@ def create_app(config_name='default'):
     # User loader for Flask-Login
     @login_manager.user_loader
     def load_user(user_id):
-        from app.models.user import User
-        return User.query.get(user_id)
+        import asyncio
+        import concurrent.futures
+
+        from flask import current_app, has_app_context
+
+        from app.services.database_service import db_service
+
+        # Get the current app reference before creating the thread
+        if has_app_context():
+            app = current_app._get_current_object()
+        else:
+            # If no app context, return None (user not authenticated)
+            return None
+
+        def run_async_with_context():
+            def async_operation():
+                with app.app_context():
+                    return asyncio.run(db_service.get_user_by_id(user_id))
+
+            return async_operation()
+
+        # Run in a separate thread with proper app context
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_async_with_context)
+            return future.result()
 
     # Register blueprints
     from app.routes.admin import admin_bp
@@ -114,18 +136,40 @@ def _initialize_database_with_retry(app, max_retries=3, delay=5):
 def _create_default_admin(app):
     """Create default admin user"""
     try:
-        from app.models.user import User
+        import asyncio
 
-        admin = User.query.filter_by(email=app.config['ADMIN_EMAIL']).first()
+        from app.services.database_service import db_service
+
+        # Use the same pattern as user_loader for async handling
+        try:
+            loop = asyncio.get_event_loop()
+            admin = loop.run_until_complete(
+                db_service.get_user_by_email(app.config['ADMIN_EMAIL']))
+        except RuntimeError:
+            # If no event loop is running, create a new one
+            admin = asyncio.run(db_service.get_user_by_email(
+                app.config['ADMIN_EMAIL']))
+
         if not admin:
-            admin = User(
-                email=app.config['ADMIN_EMAIL'],
-                username='admin',
-                is_admin=True
-            )
-            admin.set_password(app.config['ADMIN_PASSWORD'])
-            db.session.add(admin)
-            db.session.commit()
-            print(f"✅ Created default admin user: {app.config['ADMIN_EMAIL']}")
+            try:
+                loop = asyncio.get_event_loop()
+                admin = loop.run_until_complete(db_service.create_user(
+                    username='admin',
+                    email=app.config['ADMIN_EMAIL'],
+                    password=app.config['ADMIN_PASSWORD'],
+                    is_admin=True
+                ))
+            except RuntimeError:
+                admin = asyncio.run(db_service.create_user(
+                    username='admin',
+                    email=app.config['ADMIN_EMAIL'],
+                    password=app.config['ADMIN_PASSWORD'],
+                    is_admin=True
+                ))
+            if admin:
+                print(f"✅ Created default admin user: {
+                      app.config['ADMIN_EMAIL']}")
+            else:
+                print("❌ Failed to create default admin user")
     except Exception as e:
         print(f"❌ Error creating default admin user: {e}")

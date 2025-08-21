@@ -1,17 +1,14 @@
-import uuid
-
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required, login_user, logout_user
 
-from app import db
-from app.models.user import User
+from app.services.database_service import db_service
 
 auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-def login():
+async def login():
     if request.method == 'POST':
         if request.is_json:
             data = request.get_json()
@@ -21,7 +18,7 @@ def login():
             email = request.form.get('email')
             password = request.form.get('password')
 
-        user = User.query.filter_by(email=email).first()
+        user = await db_service.get_user_by_email(email)
 
         if user and user.check_password(password):
             login_user(user)
@@ -47,7 +44,7 @@ def login():
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
-def register():
+async def register():
     if request.method == 'POST':
         if request.is_json:
             data = request.get_json()
@@ -60,7 +57,7 @@ def register():
             password = request.form.get('password')
 
         # Check if user already exists
-        if User.query.filter_by(email=email).first():
+        if await db_service.get_user_by_email(email):
             if request.is_json:
                 return jsonify({
                     'success': False,
@@ -70,7 +67,7 @@ def register():
                 flash('Email already registered', 'error')
                 return render_template('auth/register.html')
 
-        if User.query.filter_by(username=username).first():
+        if await db_service.get_user_by_username(username):
             if request.is_json:
                 return jsonify({
                     'success': False,
@@ -81,10 +78,16 @@ def register():
                 return render_template('auth/register.html')
 
         # Create new user
-        user = User(username=username, email=email)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
+        user = await db_service.create_user(username=username, email=email, password=password)
+        if not user:
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': 'Failed to create user account'
+                }), 500
+            else:
+                flash('Failed to create user account', 'error')
+                return render_template('auth/register.html')
 
         login_user(user)
 
@@ -103,7 +106,7 @@ def register():
 
 @auth_bp.route('/logout')
 @login_required
-def logout():
+async def logout():
     logout_user()
     flash('You have been logged out', 'info')
     return redirect(url_for('auth.login'))
@@ -111,13 +114,18 @@ def logout():
 
 @auth_bp.route('/profile')
 @login_required
-def profile():
-    return render_template('auth/profile.html', user=current_user)
+async def profile():
+    # Get fresh user data with projects loaded to avoid detached instance errors
+    user = await db_service.get_user_with_projects(current_user.id)
+    if not user:
+        flash('User not found', 'error')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/profile.html', user=user)
 
 
 @auth_bp.route('/change-password', methods=['POST'])
 @login_required
-def change_password():
+async def change_password():
     # Check if this is an AJAX request by looking for specific headers or content type
     # is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
     #     request.headers.get('Content-Type') == 'application/json' or \
@@ -167,8 +175,15 @@ def change_password():
             return redirect(url_for('auth.profile'))
 
     # Update password
-    current_user.set_password(new_password)
-    db.session.commit()
+    if not await db_service.update_user_password(current_user.id, new_password):
+        if request.is_json:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to update password'
+            }), 500
+        else:
+            flash('Failed to update password', 'error')
+            return redirect(url_for('auth.profile'))
 
     if request.is_json:
         return jsonify({

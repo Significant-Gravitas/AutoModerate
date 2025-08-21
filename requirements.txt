@@ -1,5 +1,5 @@
 # Flask and web framework
-Flask==2.3.3
+Flask[async]==2.3.3
 Flask-SQLAlchemy==3.0.5
 Flask-Login==0.6.3
 Flask-WTF==1.1.1
@@ -19,3 +19,7 @@ requests==2.31.0
 
 # Database support
 psycopg2-binary==2.9.9
+
+# Async support
+asyncio
+asyncpg==0.29.0
