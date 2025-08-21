@@ -268,10 +268,6 @@ For support and questions:
 
 ## Roadmap
 
-- [ ] Support for video content moderation
-- [ ] Advanced analytics dashboard
+- [ ] Support for photo moderation
 - [ ] Webhook notifications
 - [ ] Multi-language support
-- [ ] Custom AI model integration
-- [ ] Bulk content processing
-- [ ] Advanced user roles and permissions
