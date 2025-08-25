@@ -2,23 +2,23 @@
 
 {% block title %}Admin Dashboard - AutoModerate{% endblock %}
 
-{% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Admin Dashboard</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-            <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-primary">
-                <i class="fas fa-users"></i> Manage Users
-            </a>
-            <a href="{{ url_for('admin.projects') }}" class="btn btn-sm btn-outline-info">
-                <i class="fas fa-project-diagram"></i> All Projects
-            </a>
-            <a href="{{ url_for('admin.logs') }}" class="btn btn-sm btn-outline-warning">
-                <i class="fas fa-list"></i> System Logs
-            </a>
-        </div>
-    </div>
+{% block page_title %}Admin Dashboard{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group me-2">
+    <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-primary">
+        <i class="fas fa-users"></i> Manage Users
+    </a>
+    <a href="{{ url_for('admin.projects') }}" class="btn btn-sm btn-outline-info">
+        <i class="fas fa-project-diagram"></i> All Projects
+    </a>
+    <a href="{{ url_for('admin.logs') }}" class="btn btn-sm btn-outline-warning">
+        <i class="fas fa-list"></i> System Logs
+    </a>
 </div>
+{% endblock %}
+
+{% block content %}
 
 <!-- System Statistics -->
 <div class="row mb-4">
@@ -61,44 +61,6 @@
     </div>
 </div>
 
-<!-- Moderation Statistics -->
-<div class="row mb-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Moderation Statistics</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-success">{{ moderation_stats.approved }}</h4>
-                            <small class="text-muted">Approved</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-danger">{{ moderation_stats.rejected }}</h4>
-                            <small class="text-muted">Rejected</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-warning">{{ moderation_stats.flagged }}</h4>
-                            <small class="text-muted">Flagged</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h4 class="text-info">{{ stats.total_rules }}</h4>
-                            <small class="text-muted">Active Rules</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <div class="row">
     <!-- Recent Users -->

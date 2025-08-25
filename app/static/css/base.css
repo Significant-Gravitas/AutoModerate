@@ -473,6 +473,29 @@
     line-height: 1.2;
 }
 
+/* Fix admin statistics layout */
+.card .text-center h4 {
+    margin-bottom: 0.5rem;
+}
+
+.card .text-center small {
+    display: block;
+    margin-top: 0.25rem;
+}
+
+/* Ensure statistics numbers are properly spaced */
+.card-body .text-center {
+    padding: 0.5rem 0;
+}
+
+[data-bs-theme="dark"] .card .text-center h4 {
+    color: inherit !important;
+}
+
+[data-bs-theme="dark"] .card .text-center small {
+    color: #adb5bd !important;
+}
+
 /* Simple sidebar collapse using Bootstrap's built-in collapse */
 @media (min-width: 768px) {
     .sidebar-collapsed {
