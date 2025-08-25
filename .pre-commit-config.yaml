@@ -10,7 +10,7 @@ repos:
     hooks:
       - id: flake8
         files: ^(app/|config/|run\.py)
-        args: [--max-line-length=200]
+        args: [--max-line-length=128]
 
   - repo: https://github.com/pycqa/isort
     rev: 5.12.0

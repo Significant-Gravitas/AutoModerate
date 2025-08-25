@@ -181,7 +181,10 @@ async def bulk_decision():
         # Check user has access to all projects
         for content in content_items:
             if not current_user.is_admin and not content.project.is_member(current_user.id):
-                return jsonify({'success': False, 'error': f'Access denied for content in project {content.project.name}'}), 403
+                return jsonify({
+                    'success': False,
+                    'error': f'Access denied for content in project {content.project.name}'
+                }), 403
 
         processed_count = 0
         failed_items = []
