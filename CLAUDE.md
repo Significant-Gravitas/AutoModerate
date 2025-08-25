@@ -5,19 +5,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-# Start the development server
-python run.py
-
-# Install dependencies
+# Set up environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Set up environment
+# Environment configuration
 cp .env.example .env
 # Edit .env and add OPENAI_API_KEY
 
-# Activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Start the development server (runs on port 6217)
+python run.py
+
+# Access application
+# Web interface: http://localhost:6217
+# Default login: admin@example.com / admin123
 ```
 
 ## Architecture Overview
@@ -128,16 +130,50 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 ```
 
 ### Environment Variables:
-- `OPENAI_API_KEY`: Required for AI moderation
-- `DATABASE_URL`: Database connection string (auto-detects PostgreSQL)
+- `OPENAI_API_KEY`: Required for AI moderation (from OpenAI dashboard)
+- `DATABASE_URL`: Database connection string (defaults to SQLite, auto-detects PostgreSQL)
 - `FLASK_CONFIG`: Environment mode (development/production/default)
+- `FLASK_ENV`: Flask environment (development/production)
+- `SECRET_KEY`: Flask secret key for sessions
+- `ADMIN_EMAIL`: Default admin email (default: admin@example.com)  
+- `ADMIN_PASSWORD`: Default admin password (default: admin123)
 - `SQL_DEBUG`: Enable SQLAlchemy query logging in development
+
+## API Usage
+
+### Content Moderation Endpoint
+```bash
+# Submit content for moderation
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "type": "text", 
+    "content": "Content to moderate",
+    "metadata": {"source": "user_comment"}
+  }' \
+  http://localhost:6217/api/moderate
+
+# Get content status
+curl -H "X-API-Key: your-api-key" \
+  http://localhost:6217/api/content/content-id
+
+# List content with pagination  
+curl -H "X-API-Key: your-api-key" \
+  "http://localhost:6217/api/content?page=1&per_page=20&status=approved"
+
+# Get statistics
+curl -H "X-API-Key: your-api-key" \
+  http://localhost:6217/api/stats
+```
 
 ## Important Notes
 
-- Server runs on port 6217 by default (configured in run.py:18)
+- Server runs on port 6217 by default (configured in run.py:23)
 - Default admin credentials: admin@example.com / admin123
 - WebSocket CORS configured for all origins
 - Database initialization includes retry logic for connection pool issues
 - Custom Jinja2 filter `to_dict_list` available for template data conversion
 - Deprecated services (`moderation_service.py`, `openai_service.py`) maintained for backward compatibility
+- No specific test runner configured - project uses standard Flask testing patterns
+- Docker configuration available in `docker/` directory for containerized deployment

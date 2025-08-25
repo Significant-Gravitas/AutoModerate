@@ -2,17 +2,18 @@
 
 {% block title %}Content - {{ project.name }} - AutoModerate{% endblock %}
 
-{% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom" data-project-id="{{ project.id }}" data-status-filter="{{ current_status }}">
-    <h1 class="h2">Content - {{ project.name }}</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-            <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-left"></i> Back to Project
-            </a>
-        </div>
-    </div>
+{% block page_title %}Content - {{ project.name }}{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group me-2">
+    <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Project
+    </a>
 </div>
+{% endblock %}
+
+{% block content %}
+<div data-project-id="{{ project.id }}" data-status-filter="{{ current_status }}" style="display: none;"></div>
 
 <!-- Content ID Search Info -->
 {% if current_search %}
