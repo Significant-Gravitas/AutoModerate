@@ -272,14 +272,15 @@ class DatabaseService:
 
     # Content Operations
     async def create_content(self, project_id: str, content_text: str, content_type: str = 'text',
-                             api_user_id: Optional[str] = None) -> Optional[str]:
+                             api_user_id: Optional[str] = None, meta_data: Optional[dict] = None) -> Optional[str]:
         """Create new content for moderation and return content ID"""
         def _create_content():
             content = Content(
                 project_id=project_id,
                 content_data=content_text,
                 content_type=content_type,
-                api_user_id=api_user_id
+                api_user_id=api_user_id,
+                meta_data=meta_data
             )
             db.session.add(content)
             db.session.commit()

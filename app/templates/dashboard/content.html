@@ -379,7 +379,7 @@
                 
                 <div class="mb-3">
                     <label class="form-label"><strong>Metadata:</strong></label>
-                    <div id="modalContentMetadata" class="bg-light p-3 rounded"></div>
+                    <div id="modalContentMetadata" class="bg-light p-3 rounded" style="max-height: 150px; overflow-y: auto;"></div>
                 </div>
                 
                 <div class="mb-3">
@@ -393,6 +393,9 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button id="viewUserContentBtn" type="button" class="btn btn-info me-auto" style="display: none;">
+                    <i class="fas fa-user"></i> View User's Other Content
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>

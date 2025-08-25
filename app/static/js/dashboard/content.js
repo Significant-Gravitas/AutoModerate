@@ -409,11 +409,34 @@ function fetchContentDetails(contentId) {
                 modalContentData.textContent = content.content_data;
                 modalContentCreated.textContent = content.created_at;
                 
-                // Format metadata
+                // Format metadata and handle user content button
+                const viewUserContentBtn = document.getElementById('viewUserContentBtn');
+                let hasUserInfo = false;
+                
                 if (content.meta_data && Object.keys(content.meta_data).length > 0) {
-                    modalContentMetadata.innerHTML = `<pre>${JSON.stringify(content.meta_data, null, 2)}</pre>`;
+                    // Display formatted metadata
+                    modalContentMetadata.innerHTML = `<pre style="font-size: 0.875rem; margin: 0;">${JSON.stringify(content.meta_data, null, 2)}</pre>`;
                 } else {
-                    modalContentMetadata.innerHTML = '<em class="text-muted">No metadata</em>';
+                    modalContentMetadata.innerHTML = '<em class="text-muted">No metadata available</em>';
+                }
+                
+                // Check if content has an associated external user for the button
+                // Only show for external users (no api_user_id but has user_id in metadata)
+                if (!content.api_user_id && content.meta_data && content.meta_data.user_id && viewUserContentBtn) {
+                    hasUserInfo = true;
+                    viewUserContentBtn.style.display = 'inline-block';
+                    viewUserContentBtn.innerHTML = '<i class="fas fa-user"></i> View User Profile';
+                    
+                    viewUserContentBtn.onclick = function() {
+                        // Navigate to API user by external user ID
+                        const userDetailsUrl = `/api-users/external/${encodeURIComponent(content.meta_data.user_id)}`;
+                        window.location.href = userDetailsUrl;
+                    };
+                }
+                
+                // Hide user content button if no user info found
+                if (!hasUserInfo && viewUserContentBtn) {
+                    viewUserContentBtn.style.display = 'none';
                 }
                 
                 // Format moderation results
@@ -521,6 +544,8 @@ function copyToClipboard(text, button) {
         alert('Content ID: ' + text);
     });
 }
+
+
 
 // Clean up WebSocket connection when page unloads
 window.addEventListener('beforeunload', function() {
