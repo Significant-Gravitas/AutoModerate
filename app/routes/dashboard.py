@@ -380,6 +380,7 @@ async def project_content(project_id):
     status = request.args.get('status')
     search = request.args.get('search')
     content_type = request.args.get('content_type')
+    time_filter = request.args.get('time_filter')
 
     query = Content.query.filter_by(project_id=project.id)
 
@@ -390,6 +391,25 @@ async def project_content(project_id):
     # Apply content type filter
     if content_type:
         query = query.filter_by(content_type=content_type)
+
+    # Apply time filter
+    if time_filter:
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+
+        if time_filter == '1h':
+            time_threshold = now - timedelta(hours=1)
+        elif time_filter == '24h':
+            time_threshold = now - timedelta(hours=24)
+        elif time_filter == '7d':
+            time_threshold = now - timedelta(days=7)
+        elif time_filter == '30d':
+            time_threshold = now - timedelta(days=30)
+        else:
+            time_threshold = None
+
+        if time_threshold:
+            query = query.filter(Content.created_at >= time_threshold)
 
     # Apply search filter
     if search:
@@ -415,7 +435,8 @@ async def project_content(project_id):
                            pagination=pagination,
                            current_status=status,
                            current_search=search,
-                           current_content_type=content_type)
+                           current_content_type=content_type,
+                           current_time_filter=time_filter)
 
 
 @dashboard_bp.route('/projects/<project_id>/content/<content_id>')

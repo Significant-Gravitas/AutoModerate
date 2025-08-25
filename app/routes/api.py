@@ -73,7 +73,8 @@ async def moderate_content():
             project_id=request.project.id,
             content_text=str(content_data),
             content_type=content_type,
-            api_user_id=api_user.id if api_user else None
+            api_user_id=api_user.id if api_user else None,
+            meta_data=meta_data if meta_data else None
         )
 
         if not content_id:

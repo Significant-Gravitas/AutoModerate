@@ -281,6 +281,47 @@ async def api_users():
         return redirect(url_for('dashboard.index'))
 
 
+@manual_review_bp.route('/api-users/external/<external_user_id>')
+@login_required
+async def api_user_by_external_id(external_user_id):
+    """Redirect to API user detail by external user ID"""
+    try:
+        # Get all projects the user has access to
+        user_projects = []
+        if current_user.is_admin:
+            user_projects = Project.query.all()
+        else:
+            user_projects = [
+                project for project in current_user.projects
+                if project.is_member(current_user.id)
+            ]
+
+        if not user_projects:
+            flash('You do not have access to any projects', 'error')
+            return redirect(url_for('manual_review.index'))
+
+        project_ids = [project.id for project in user_projects]
+
+        # Find API user by external user ID within accessible projects
+        api_user = APIUser.query.filter(
+            APIUser.external_user_id == external_user_id,
+            APIUser.project_id.in_(project_ids)
+        ).first()
+
+        if not api_user:
+            flash(f'API user with ID "{
+                  external_user_id}" not found in your accessible projects', 'error')
+            return redirect(url_for('manual_review.api_users'))
+
+        # Redirect to the internal ID route
+        return redirect(url_for('manual_review.api_user_detail', user_id=api_user.id))
+
+    except Exception as e:
+        current_app.logger.error(f"External API user lookup error: {str(e)}")
+        flash('An error occurred while looking up the user', 'error')
+        return redirect(url_for('manual_review.api_users'))
+
+
 @manual_review_bp.route('/api-users/<user_id>')
 @login_required
 async def api_user_detail(user_id):
@@ -293,13 +334,23 @@ async def api_user_detail(user_id):
             flash('You do not have access to this user', 'error')
             return redirect(url_for('manual_review.api_users'))
 
-        # Get all content from this API user
-        content_items = Content.query.filter_by(
-            api_user_id=user_id).order_by(desc(Content.created_at)).all()
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = 20  # Show 20 content items per page
+
+        # Get paginated content from this API user
+        content_pagination = Content.query.filter_by(
+            api_user_id=user_id
+        ).order_by(desc(Content.created_at)).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
 
         return render_template('manual_review/api_user_detail.html',
                                api_user=api_user,
-                               content_items=content_items)
+                               content_items=content_pagination.items,
+                               pagination=content_pagination)
 
     except Exception as e:
         current_app.logger.error(f"API user detail error: {str(e)}")
