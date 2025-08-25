@@ -175,12 +175,72 @@
                                         </tbody>
                                     </table>
                                 </div>
+                                
+                                <!-- Pagination Controls -->
+                                {% if pagination.pages > 1 %}
+                                <nav aria-label="Content pagination" class="mt-4">
+                                    <ul class="pagination justify-content-center">
+                                        {% if pagination.has_prev %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="{{ url_for('manual_review.api_user_detail', user_id=api_user.id, page=pagination.prev_num) }}">
+                                                    <i class="fas fa-chevron-left"></i> Previous
+                                                </a>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item disabled">
+                                                <span class="page-link"><i class="fas fa-chevron-left"></i> Previous</span>
+                                            </li>
+                                        {% endif %}
+
+                                        {% for page_num in pagination.iter_pages() %}
+                                            {% if page_num %}
+                                                {% if page_num != pagination.page %}
+                                                    <li class="page-item">
+                                                        <a class="page-link" href="{{ url_for('manual_review.api_user_detail', user_id=api_user.id, page=page_num) }}">{{ page_num }}</a>
+                                                    </li>
+                                                {% else %}
+                                                    <li class="page-item active">
+                                                        <span class="page-link">{{ page_num }}</span>
+                                                    </li>
+                                                {% endif %}
+                                            {% else %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">…</span>
+                                                </li>
+                                            {% endif %}
+                                        {% endfor %}
+
+                                        {% if pagination.has_next %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="{{ url_for('manual_review.api_user_detail', user_id=api_user.id, page=pagination.next_num) }}">
+                                                    Next <i class="fas fa-chevron-right"></i>
+                                                </a>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item disabled">
+                                                <span class="page-link">Next <i class="fas fa-chevron-right"></i></span>
+                                            </li>
+                                        {% endif %}
+                                    </ul>
+                                </nav>
+                                {% endif %}
                             {% else %}
                                 <div class="text-center py-5">
                                     <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
                                     <h4 class="text-muted">No content found</h4>
                                     <p class="text-muted">This user hasn't submitted any content yet.</p>
                                 </div>
+                            {% endif %}
+                            
+                            <!-- Results Summary -->
+                            {% if content_items %}
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <small class="text-muted">
+                                        Showing {{ ((pagination.page - 1) * pagination.per_page) + 1 }}-{{ ((pagination.page - 1) * pagination.per_page) + content_items|length }} of {{ pagination.total }} content items
+                                    </small>
+                                </div>
+                            </div>
                             {% endif %}
                         </div>
                     </div>

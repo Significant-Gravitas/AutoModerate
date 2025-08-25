@@ -334,13 +334,23 @@ async def api_user_detail(user_id):
             flash('You do not have access to this user', 'error')
             return redirect(url_for('manual_review.api_users'))
 
-        # Get all content from this API user
-        content_items = Content.query.filter_by(
-            api_user_id=user_id).order_by(desc(Content.created_at)).all()
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = 20  # Show 20 content items per page
+
+        # Get paginated content from this API user
+        content_pagination = Content.query.filter_by(
+            api_user_id=user_id
+        ).order_by(desc(Content.created_at)).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
 
         return render_template('manual_review/api_user_detail.html',
                                api_user=api_user,
-                               content_items=content_items)
+                               content_items=content_pagination.items,
+                               pagination=content_pagination)
 
     except Exception as e:
         current_app.logger.error(f"API user detail error: {str(e)}")
