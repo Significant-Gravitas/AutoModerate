@@ -14,10 +14,31 @@
     </div>
 </div>
 
+<!-- Content ID Search Info -->
+{% if current_search %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="fas fa-info-circle"></i>
+            <strong>Search Results:</strong> 
+            {% if current_search|length == 36 and '-' in current_search %}
+                Showing content with ID: <code>{{ current_search }}</code>
+            {% else %}
+                Showing content containing: "<strong>{{ current_search }}</strong>"
+            {% endif %}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Filters -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Search & Filter Content</h6>
+            </div>
             <div class="card-body">
                 <form method="GET" class="row g-3">
                     <div class="col-md-3">
@@ -34,14 +55,16 @@
                         <label for="content_type" class="form-label">Content Type</label>
                         <select class="form-select" id="content_type" name="content_type">
                             <option value="">All Types</option>
-                            <option value="text">Text</option>
-                            <option value="image">Image</option>
-                            <option value="video">Video</option>
+                            <option value="text" {% if current_content_type == 'text' %}selected{% endif %}>Text</option>
+                            <option value="image" disabled style="color: #6c757d;">Image (Soon)</option>
+                            <option value="video" disabled style="color: #6c757d;">Video (Soon)</option>
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label for="search" class="form-label">Search Content</label>
-                        <input type="text" class="form-control" id="search" name="search" placeholder="Search in content...">
+                        <label for="search" class="form-label">Search Content or Content ID</label>
+                        <input type="text" class="form-control" id="search" name="search" 
+                               value="{{ current_search or '' }}"
+                               placeholder="Enter content ID (UUID) or search in content...">
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary w-100">
@@ -129,6 +152,7 @@
                     <table class="table table-hover" id="contentTable">
                         <thead>
                             <tr>
+                                <th>Content ID</th>
                                 <th>Type</th>
                                 <th>Content</th>
                                 <th>Status</th>
@@ -141,6 +165,16 @@
                         <tbody id="contentTableBody">
                             {% for content in pagination.items %}
                             <tr data-content-id="{{ content.id }}">
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <code class="text-muted small me-2" style="font-size: 0.75em; word-break: break-all;">{{ content.id[:8] }}...</code>
+                                        <button class="btn btn-sm btn-outline-secondary copy-id-btn" 
+                                                data-content-id="{{ content.id }}" 
+                                                title="Copy Content ID">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </td>
                                 <td>
                                     <span class="badge bg-info">{{ content.content_type|title }}</span>
                                 </td>
@@ -244,7 +278,7 @@
                     <ul class="pagination justify-content-center">
                         {% if pagination.has_prev %}
                         <li class="page-item">
-                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.prev_num, status=current_status) }}">
+                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.prev_num, status=current_status, search=current_search, content_type=current_content_type) }}">
                                 <i class="fas fa-chevron-left"></i> Previous
                             </a>
                         </li>
@@ -254,7 +288,7 @@
                             {% if page_num %}
                                 {% if page_num != pagination.page %}
                                 <li class="page-item">
-                                    <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=page_num, status=current_status) }}">{{ page_num }}</a>
+                                    <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=page_num, status=current_status, search=current_search, content_type=current_content_type) }}">{{ page_num }}</a>
                                 </li>
                                 {% else %}
                                 <li class="page-item active">
@@ -270,7 +304,7 @@
                         
                         {% if pagination.has_next %}
                         <li class="page-item">
-                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.next_num, status=current_status) }}">
+                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.next_num, status=current_status, search=current_search, content_type=current_content_type) }}">
                                 Next <i class="fas fa-chevron-right"></i>
                             </a>
                         </li>
@@ -311,6 +345,17 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label"><strong>Content ID:</strong></label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="modalContentId" readonly>
+                        <button class="btn btn-outline-secondary copy-modal-id-btn" type="button" title="Copy Content ID">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">Share this ID with users for moderation appeals.</small>
+                </div>
+                
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">

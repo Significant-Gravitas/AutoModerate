@@ -28,6 +28,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Handle copy ID button clicks
+    document.querySelectorAll('.copy-id-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const contentId = this.getAttribute('data-content-id');
+            copyToClipboard(contentId, this);
+        });
+    });
+    
+    // Handle copy modal ID button clicks
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.copy-modal-id-btn')) {
+            const modalContentId = document.getElementById('modalContentId');
+            if (modalContentId && modalContentId.value) {
+                copyToClipboard(modalContentId.value, e.target.closest('.copy-modal-id-btn'));
+            }
+        }
+    });
+    
     // Calculate and display average processing time
     calculateAverageProcessingTime();
 });
@@ -208,6 +226,16 @@ function addContentRow(data) {
     }
     
     newRow.innerHTML = `
+        <td>
+            <div class="d-flex align-items-center">
+                <code class="text-muted small me-2" style="font-size: 0.75em; word-break: break-all;">${data.content_id.substring(0, 8)}...</code>
+                <button class="btn btn-sm btn-outline-secondary copy-id-btn" 
+                        data-content-id="${data.content_id}" 
+                        title="Copy Content ID">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </td>
         <td>${contentTypeBadge}</td>
         <td style="max-width: 300px; min-width: 200px;">
             <div class="content-preview" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -230,11 +258,17 @@ function addContentRow(data) {
         </td>
     `;
     
-    // Add event listener to the new view button
+    // Add event listeners to the new buttons
     const viewBtn = newRow.querySelector('.view-content-btn');
     viewBtn.addEventListener('click', function() {
         const contentId = this.getAttribute('data-content-id');
         fetchContentDetails(contentId);
+    });
+    
+    const copyBtn = newRow.querySelector('.copy-id-btn');
+    copyBtn.addEventListener('click', function() {
+        const contentId = this.getAttribute('data-content-id');
+        copyToClipboard(contentId, this);
     });
     
     // Insert at the top of the table
@@ -321,6 +355,7 @@ function showNotification(message, type = 'info') {
 // Fetch content details for modal
 function fetchContentDetails(contentId) {
     // Get modal elements
+    const modalContentId = document.getElementById('modalContentId');
     const modalContentType = document.getElementById('modalContentType');
     const modalContentStatus = document.getElementById('modalContentStatus');
     const modalContentData = document.getElementById('modalContentData');
@@ -330,13 +365,14 @@ function fetchContentDetails(contentId) {
     const modalElement = document.getElementById('contentDetailsModal');
     
     // Check if all modal elements exist
-    if (!modalContentType || !modalContentStatus || !modalContentData || 
+    if (!modalContentId || !modalContentType || !modalContentStatus || !modalContentData || 
         !modalContentMetadata || !modalModerationResults || !modalContentCreated || !modalElement) {
         alert('Error: Modal elements not found. Please refresh the page.');
         return;
     }
     
     // Show loading state
+    modalContentId.value = contentId; // Set content ID immediately
     modalContentType.innerHTML = '<span class="text-muted">Loading...</span>';
     modalContentStatus.innerHTML = '<span class="text-muted">Loading...</span>';
     modalContentData.innerHTML = '<span class="text-muted">Loading...</span>';
@@ -430,7 +466,7 @@ function fetchContentDetails(contentId) {
 
 // Calculate average processing time from visible content
 function calculateAverageProcessingTime() {
-    const processingTimeElements = document.querySelectorAll('td:nth-child(5) small'); // Processing time column, 5th column, small tags
+    const processingTimeElements = document.querySelectorAll('td:nth-child(6) small'); // Processing time column, 6th column (after adding Content ID), small tags
     let totalTime = 0;
     let count = 0;
     
@@ -459,6 +495,31 @@ function calculateAverageProcessingTime() {
             avgElement.textContent = avgTime.toFixed(2) + 's';
         }
     }
+}
+
+// Copy text to clipboard with visual feedback
+function copyToClipboard(text, button) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show success feedback
+        const originalIcon = button.querySelector('i');
+        const originalTitle = button.title;
+        
+        originalIcon.className = 'fas fa-check';
+        button.title = 'Copied!';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(function() {
+            originalIcon.className = 'fas fa-copy';
+            button.title = originalTitle;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 1000);
+    }).catch(function(err) {
+        // Fallback for older browsers
+        console.error('Could not copy text: ', err);
+        alert('Content ID: ' + text);
+    });
 }
 
 // Clean up WebSocket connection when page unloads

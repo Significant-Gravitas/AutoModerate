@@ -378,10 +378,33 @@ async def project_content(project_id):
 
     page = request.args.get('page', 1, type=int)
     status = request.args.get('status')
+    search = request.args.get('search')
+    content_type = request.args.get('content_type')
 
     query = Content.query.filter_by(project_id=project.id)
+
+    # Apply status filter
     if status:
         query = query.filter_by(status=status)
+
+    # Apply content type filter
+    if content_type:
+        query = query.filter_by(content_type=content_type)
+
+    # Apply search filter
+    if search:
+        search_term = search.strip()
+        if search_term:
+            # Check if search term looks like a content ID (UUID format)
+            import re
+            uuid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+            if re.match(uuid_pattern, search_term):
+                # Search by exact content ID
+                query = query.filter(Content.id == search_term)
+            else:
+                # Search in content data
+                query = query.filter(
+                    Content.content_data.contains(search_term))
 
     pagination = query.order_by(Content.created_at.desc()).paginate(
         page=page, per_page=25, error_out=False
@@ -390,7 +413,9 @@ async def project_content(project_id):
     return render_template('dashboard/content.html',
                            project=project,
                            pagination=pagination,
-                           current_status=status)
+                           current_status=status,
+                           current_search=search,
+                           current_content_type=content_type)
 
 
 @dashboard_bp.route('/projects/<project_id>/content/<content_id>')

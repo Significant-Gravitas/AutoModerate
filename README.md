@@ -6,7 +6,6 @@ A comprehensive Flask-based content moderation platform that uses OpenAI for int
 
 - **User Authentication & Project Management**: Secure login system with project-based organization
 - **API Key Management**: Generate and manage API keys for each project
-- **Multiple Content Types**: Support for text, images, and other content types
 - **Custom Moderation Rules**: Create keyword, regex, and AI-prompt based rules
 - **OpenAI Integration**: Leverage OpenAI's moderation API and GPT models
 - **Real-time Updates**: WebSocket-powered live updates for moderation results
