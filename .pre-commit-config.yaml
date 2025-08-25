@@ -1,18 +1,34 @@
 repos:
+  # Import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=127]
+  
+  # Auto-formatting with autopep8
   - repo: https://github.com/pre-commit/mirrors-autopep8
     rev: v2.0.4
     hooks:
       - id: autopep8
-        args: [--in-place, --recursive]
-
+        args: [--in-place, --max-line-length=127, --aggressive, --aggressive]
+        files: ^(app/|config/|run\.py)
+  
+  # Code quality checks
   - repo: https://github.com/pycqa/flake8
     rev: 6.1.0
     hooks:
       - id: flake8
         files: ^(app/|config/|run\.py)
-        args: [--max-line-length=128]
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+        args: [--max-line-length=127, --extend-ignore=E203]
+  
+  # Remove trailing whitespace and fix files
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
     hooks:
-      - id: isort
+      - id: trailing-whitespace
+        files: ^(app/|config/|run\.py)
+      - id: end-of-file-fixer
+        files: ^(app/|config/|run\.py)
+      - id: check-yaml
+      - id: check-json

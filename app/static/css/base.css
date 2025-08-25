@@ -203,11 +203,11 @@
     color: #fecaca !important;
 }
 
-[data-bs-theme="dark"] h1, 
-[data-bs-theme="dark"] h2, 
-[data-bs-theme="dark"] h3, 
-[data-bs-theme="dark"] h4, 
-[data-bs-theme="dark"] h5, 
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3,
+[data-bs-theme="dark"] h4,
+[data-bs-theme="dark"] h5,
 [data-bs-theme="dark"] h6 {
     color: #fff !important;
 }
@@ -392,7 +392,7 @@
     .table-responsive {
         font-size: 0.875rem;
     }
-    
+
     .table th,
     .table td {
         padding: 0.5rem 0.25rem;
@@ -403,18 +403,18 @@
     .table-responsive {
         font-size: 0.8rem;
     }
-    
+
     .table th,
     .table td {
         padding: 0.4rem 0.2rem;
     }
-    
+
     /* Hide less important columns on mobile */
     #contentTable th:nth-child(6),
     #contentTable td:nth-child(6) {
         display: none; /* Hide Processing Time on mobile */
     }
-    
+
     #contentTable th:nth-child(7),
     #contentTable td:nth-child(7) {
         display: none; /* Hide Created on mobile */
@@ -602,14 +602,14 @@
 
 @media (max-width: 767px) {
     /* Make main content full width */
-    .row .col-md-9, 
+    .row .col-md-9,
     .row .col-lg-10 {
         width: 100% !important;
         max-width: 100% !important;
         flex: 0 0 100% !important;
         margin-left: 0 !important;
     }
-    
+
     /* Ensure main content takes full width on mobile */
     #main-content {
         margin-left: 0 !important;
@@ -625,13 +625,13 @@
     .sidebar-collapsed {
         display: none !important;
     }
-    
+
     .content-expanded {
         margin-left: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
     }
-    
+
     .sidebar-overlay {
         display: none !important;
     }

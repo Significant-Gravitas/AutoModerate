@@ -176,7 +176,8 @@ class AIModerator:
 
             return {
                 'decision': 'rejected',
-                'reason': f"Content rejected (analyzed {len(chunk_results)} chunks, {len(rejected_chunks)} flagged): {primary_rejection['reason']}",
+                'reason': (f"Content rejected (analyzed {len(chunk_results)} chunks, "
+                           f"{len(rejected_chunks)} flagged): {primary_rejection['reason']}"),
                 'confidence': primary_rejection.get('confidence', 0.8),
                 'moderator_type': primary_rejection.get('moderator_type', 'ai'),
                 'categories': combined_categories,
@@ -299,10 +300,12 @@ class AIModerator:
             if cached_result:
                 return cached_result
 
-            system_message = """You are a content moderator. Analyze if content violates the given rule. Be conservative - when in doubt, approve.
-
-Respond ONLY with JSON:
-{"decision": "approved|rejected", "reason": "brief explanation", "confidence": 0.85}"""
+            system_message = (
+                """You are a content moderator. Analyze if content violates the given rule. """
+                """Be conservative - when in doubt, approve.\n\n"""
+                """Respond ONLY with JSON:\n"""
+                """{"decision": "approved|rejected", "reason": "brief explanation", "confidence": 0.85}"""
+            )
 
             user_message = f"""RULE: {custom_prompt}
 
@@ -421,7 +424,10 @@ Does content violate this rule? JSON only:"""
                     'confidence': max_score,
                     'moderator_type': 'ai',
                     'categories': {cat: True for cat in flagged_categories},
-                    'category_scores': {cat: getattr(category_scores, cat.replace('-', '_').replace('/', '_'), 0) for cat in flagged_categories},
+                    'category_scores': {
+                        cat: getattr(category_scores, cat.replace('-', '_').replace('/', '_'), 0)
+                        for cat in flagged_categories
+                    },
                     'openai_flagged': True,
                     'flagged_categories': flagged_categories,
                     'primary_category': max_category
@@ -461,10 +467,12 @@ Does content violate this rule? JSON only:"""
             if cached_result:
                 return cached_result
 
-            system_message = """You are a safety moderator. Reject harmful content: NSFW, violence, hate speech, illegal activities, self-harm, spam.
-
-JSON only:
-{"decision": "approved|rejected", "reason": "brief explanation", "confidence": 0.95}"""
+            system_message = (
+                """You are a safety moderator. Reject harmful content: """
+                """NSFW, violence, hate speech, illegal activities, self-harm, spam.\n\n"""
+                """JSON only:\n"""
+                """{"decision": "approved|rejected", "reason": "brief explanation", "confidence": 0.95}"""
+            )
 
             user_message = f"""CONTENT: {content}
 

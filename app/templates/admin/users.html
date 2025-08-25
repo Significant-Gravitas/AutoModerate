@@ -8,25 +8,25 @@
 document.getElementById('createUserForm').addEventListener('submit', function(e) {
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirm_password').value;
-    
+
     if (password !== confirmPassword) {
         e.preventDefault();
         alert('Passwords do not match. Please try again.');
         return false;
     }
-    
+
     if (password.length < 6) {
         e.preventDefault();
         alert('Password must be at least 6 characters long.');
         return false;
     }
-    
+
     // Show loading state
     const submitBtn = document.querySelector('#createUserForm button[type="submit"]');
     const originalText = submitBtn.innerHTML;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
     submitBtn.disabled = true;
-    
+
     // Re-enable after a delay in case of validation errors
     setTimeout(() => {
         submitBtn.innerHTML = originalText;
@@ -109,24 +109,24 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                                 <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" 
+                                        <a href="{{ url_for('admin.user_detail', user_id=user.id) }}"
                                            class="btn btn-outline-primary" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        
+
                                         {% if user.id != current_user.id %}
-                                            <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" 
+                                            <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}"
                                                   style="display: inline;">
-                                                <button type="submit" class="btn btn-outline-warning" 
+                                                <button type="submit" class="btn btn-outline-warning"
                                                         title="{% if user.is_admin %}Revoke Admin{% else %}Grant Admin{% endif %}"
                                                         onclick="return confirm('{% if user.is_admin %}Revoke admin privileges for {{ user.username }}?{% else %}Grant admin privileges to {{ user.username }}?{% endif %}')">
                                                     <i class="fas fa-{% if user.is_admin %}user-minus{% else %}user-plus{% endif %}"></i>
                                                 </button>
                                             </form>
-                                            
-                                            <form method="POST" action="{{ url_for('admin.toggle_active', user_id=user.id) }}" 
+
+                                            <form method="POST" action="{{ url_for('admin.toggle_active', user_id=user.id) }}"
                                                   style="display: inline;">
-                                                <button type="submit" class="btn btn-outline-{% if user.is_active %}danger{% else %}success{% endif %}" 
+                                                <button type="submit" class="btn btn-outline-{% if user.is_active %}danger{% else %}success{% endif %}"
                                                         title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %}"
                                                         onclick="return confirm('{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}')">
                                                     <i class="fas fa-{% if user.is_active %}pause{% else %}play{% endif %}"></i>
@@ -140,7 +140,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                         </tbody>
                     </table>
                 </div>
-                
+
                 <!-- Pagination -->
                 {% if users.pages > 1 %}
                 <nav aria-label="User pagination">
@@ -150,7 +150,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                                 <a class="page-link" href="{{ url_for('admin.users', page=users.prev_num) }}">Previous</a>
                             </li>
                         {% endif %}
-                        
+
                         {% for page_num in users.iter_pages() %}
                             {% if page_num %}
                                 {% if page_num != users.page %}
@@ -168,7 +168,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                                 </li>
                             {% endif %}
                         {% endfor %}
-                        
+
                         {% if users.has_next %}
                             <li class="page-item">
                                 <a class="page-link" href="{{ url_for('admin.users', page=users.next_num) }}">Next</a>
@@ -177,7 +177,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                     </ul>
                 </nav>
                 {% endif %}
-                
+
                 {% else %}
                 <div class="text-center py-4">
                     <i class="fas fa-users fa-3x text-muted mb-3"></i>
@@ -233,32 +233,32 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                 <form method="POST" action="{{ url_for('admin.create_user') }}" id="createUserForm">
                     <div class="mb-3">
                         <label for="username" class="form-label">Username *</label>
-                        <input type="text" class="form-control" id="username" name="username" required 
+                        <input type="text" class="form-control" id="username" name="username" required
                                placeholder="Enter username">
                         <div class="form-text">Choose a unique username for the user.</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="email" class="form-label">Email *</label>
-                        <input type="email" class="form-control" id="email" name="email" required 
+                        <input type="email" class="form-control" id="email" name="email" required
                                placeholder="Enter email address">
                         <div class="form-text">Enter a valid email address.</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="password" class="form-label">Password *</label>
-                        <input type="password" class="form-control" id="password" name="password" required 
+                        <input type="password" class="form-control" id="password" name="password" required
                                placeholder="Enter password">
                         <div class="form-text">Set a secure password for the user.</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="confirm_password" class="form-label">Confirm Password *</label>
-                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required 
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required
                                placeholder="Confirm password">
                         <div class="form-text">Re-enter the password to confirm.</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">User Role</label>
                         <div class="form-check">
@@ -276,7 +276,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                             </label>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" checked>
@@ -297,4 +297,4 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

@@ -148,7 +148,7 @@
                 </div>
                 <hr>
                 <div class="text-center">
-                    <small class="text-muted">Your role: 
+                    <small class="text-muted">Your role:
                         <span class="badge bg-{{ 'primary' if project.get_member_role(current_user.id) == 'owner' else 'success' if project.get_member_role(current_user.id) == 'admin' else 'secondary' }}">
                             {{ project.get_member_role(current_user.id)|title }}
                         </span>
@@ -166,10 +166,10 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Created</dt>
                     <dd class="col-sm-8">{{ project.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
-                    
+
                     <dt class="col-sm-4">Last Updated</dt>
                     <dd class="col-sm-8">{{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</dd>
-                    
+
                     <dt class="col-sm-4">Project ID</dt>
                     <dd class="col-sm-8">
                         <code class="small">{{ project.id }}</code>
@@ -222,4 +222,4 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard/project_settings.js') }}"></script>
-{% endblock %} 
+{% endblock %}

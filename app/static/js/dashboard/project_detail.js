@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const fullKey = this.getAttribute('data-full-key');
             document.getElementById('fullApiKey').value = fullKey;
             document.getElementById('exampleKey').textContent = fullKey;
-            
+
             const modal = new bootstrap.Modal(document.getElementById('apiKeyModal'));
             modal.show();
         });
@@ -27,11 +27,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const button = document.getElementById('copyFullKeyBtn');
                 const icon = button.querySelector('i');
                 const originalHTML = button.innerHTML;
-                
+
                 button.innerHTML = '<i class="fas fa-check"></i> Copied!';
                 button.classList.add('btn-success');
                 button.classList.remove('btn-outline-secondary');
-                
+
                 setTimeout(function() {
                     button.innerHTML = originalHTML;
                     button.classList.remove('btn-success');
@@ -42,13 +42,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Fallback for older browsers
                 keyInput.select();
                 document.execCommand('copy');
-                
+
                 const button = document.getElementById('copyFullKeyBtn');
                 const originalHTML = button.innerHTML;
                 button.innerHTML = '<i class="fas fa-check"></i> Copied!';
                 button.classList.add('btn-success');
                 button.classList.remove('btn-outline-secondary');
-                
+
                 setTimeout(function() {
                     button.innerHTML = originalHTML;
                     button.classList.remove('btn-success');

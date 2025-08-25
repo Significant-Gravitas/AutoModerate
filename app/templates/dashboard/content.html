@@ -38,7 +38,7 @@
                     | Time: <strong>Last 30 Days</strong>
                 {% endif %}
             {% elif current_search %}
-                <strong>Search Results:</strong> 
+                <strong>Search Results:</strong>
                 {% if current_search|length == 36 and '-' in current_search %}
                     Showing content with ID: <code>{{ current_search }}</code>
                 {% else %}
@@ -102,7 +102,7 @@
                     </div>
                     <div class="col-md-3">
                         <label for="search" class="form-label">Search Content or Content ID</label>
-                        <input type="text" class="form-control" id="search" name="search" 
+                        <input type="text" class="form-control" id="search" name="search"
                                value="{{ current_search or '' }}"
                                placeholder="Enter content ID (UUID) or search in content...">
                     </div>
@@ -208,8 +208,8 @@
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <code class="text-muted small me-2" style="font-size: 0.75em; word-break: break-all;">{{ content.id[:8] }}...</code>
-                                        <button class="btn btn-sm btn-outline-secondary copy-id-btn" 
-                                                data-content-id="{{ content.id }}" 
+                                        <button class="btn btn-sm btn-outline-secondary copy-id-btn"
+                                                data-content-id="{{ content.id }}"
                                                 title="Copy Content ID">
                                             <i class="fas fa-copy"></i>
                                         </button>
@@ -323,7 +323,7 @@
                             </a>
                         </li>
                         {% endif %}
-                        
+
                         {% for page_num in pagination.iter_pages() %}
                             {% if page_num %}
                                 {% if page_num != pagination.page %}
@@ -341,7 +341,7 @@
                             </li>
                             {% endif %}
                         {% endfor %}
-                        
+
                         {% if pagination.has_next %}
                         <li class="page-item">
                             <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.next_num, status=current_status, search=current_search, content_type=current_content_type, time_filter=current_time_filter) }}">
@@ -395,7 +395,7 @@
                     </div>
                     <small class="text-muted">Share this ID with users for moderation appeals.</small>
                 </div>
-                
+
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
@@ -410,22 +410,22 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Content:</strong></label>
                     <div id="modalContentData" class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Metadata:</strong></label>
                     <div id="modalContentMetadata" class="bg-light p-3 rounded" style="max-height: 150px; overflow-y: auto;"></div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Moderation Results:</strong></label>
                     <div id="modalModerationResults"></div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Created:</strong></label>
                     <p id="modalContentCreated" class="form-control-plaintext"></p>

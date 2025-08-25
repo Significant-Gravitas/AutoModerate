@@ -31,7 +31,7 @@
     <div class="col-12">
         <div class="alert alert-info">
             <i class="fas fa-info-circle"></i>
-            <strong>How Rules Work:</strong> Rules are processed in order of priority (highest first). 
+            <strong>How Rules Work:</strong> Rules are processed in order of priority (highest first).
             When content matches a rule, the specified action is taken. If no rules match, AI moderation is applied.
         </div>
     </div>
@@ -103,7 +103,7 @@
                                 <td>{{ rule.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-primary btn-sm view-rule-btn" 
+                                        <button class="btn btn-outline-primary btn-sm view-rule-btn"
                                                 data-rule-id="{{ rule.id }}"
                                                 data-rule-name="{{ rule.name }}"
                                                 data-rule-type="{{ rule.rule_type }}"
@@ -124,21 +124,21 @@
                                             <i class="fas fa-edit"></i>
                                         </button>
                                         {% if rule.is_active %}
-                                        <button class="btn btn-outline-warning btn-sm toggle-rule-btn" 
+                                        <button class="btn btn-outline-warning btn-sm toggle-rule-btn"
                                                 data-rule-id="{{ rule.id }}"
                                                 data-action="deactivate"
                                                 title="Deactivate">
                                             <i class="fas fa-pause"></i>
                                         </button>
                                         {% else %}
-                                        <button class="btn btn-outline-success btn-sm toggle-rule-btn" 
+                                        <button class="btn btn-outline-success btn-sm toggle-rule-btn"
                                                 data-rule-id="{{ rule.id }}"
                                                 data-action="activate"
                                                 title="Activate">
                                             <i class="fas fa-play"></i>
                                         </button>
                                         {% endif %}
-                                        <button class="btn btn-outline-danger btn-sm delete-rule-btn" 
+                                        <button class="btn btn-outline-danger btn-sm delete-rule-btn"
                                                 data-rule-id="{{ rule.id }}"
                                                 data-rule-name="{{ rule.name }}"
                                                 title="Delete">
@@ -189,12 +189,12 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Description:</strong></label>
                     <p id="modalRuleDescription" class="form-control-plaintext"></p>
                 </div>
-                
+
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
@@ -209,7 +209,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Rule Configuration:</strong></label>
                     <div id="modalRuleConfig" class="bg-light p-3 rounded"></div>
@@ -234,7 +234,7 @@
             <form id="editRuleForm" method="POST">
                 <div class="modal-body">
                     <input type="hidden" id="editRuleId" name="rule_id">
-                    
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -250,12 +250,12 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="editRuleDescription" class="form-label">Description</label>
                         <textarea class="form-control" id="editRuleDescription" name="description" rows="2"></textarea>
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -275,7 +275,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Rule Type Specific Configuration -->
                     <div id="editRuleConfig">
                         <!-- Will be populated dynamically -->

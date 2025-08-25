@@ -24,7 +24,7 @@
                     <div class="card-body">
                         <h5 class="card-title">{{ project.name }}</h5>
                         <p class="card-text">{{ project.description or 'No description provided' }}</p>
-                        
+
                         <div class="row text-center mb-3">
                             <div class="col-4">
                                 <small class="text-muted">API Keys</small>
@@ -39,7 +39,7 @@
                                 <div class="h6">{{ project._rules_count }}</div>
                             </div>
                         </div>
-                        
+
                         <div class="d-grid gap-2">
                             <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-eye"></i> View Details

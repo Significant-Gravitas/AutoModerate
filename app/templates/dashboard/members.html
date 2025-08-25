@@ -72,7 +72,7 @@
                                         </button>
                                         <ul class="dropdown-menu">
                                             <li>
-                                                <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#roleModal" 
+                                                <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#roleModal"
                                                         data-membership-id="{{ member.membership_id }}" data-current-role="{{ member.role }}">
                                                     <i class="fas fa-user-edit"></i> Change Role
                                                 </button>
@@ -168,10 +168,10 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Owner</dt>
                     <dd class="col-sm-8">{{ project.owner.username }}</dd>
-                    
+
                     <dt class="col-sm-4">Members</dt>
                     <dd class="col-sm-8">{{ members|length }}</dd>
-                    
+
                     <dt class="col-sm-4">Your Role</dt>
                     <dd class="col-sm-8">
                         <span class="badge bg-{{ 'primary' if project.get_member_role(current_user.id) == 'owner' else 'success' if project.get_member_role(current_user.id) == 'admin' else 'secondary' }}">
@@ -302,4 +302,4 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard/members.js') }}"></script>
-{% endblock %} 
+{% endblock %}

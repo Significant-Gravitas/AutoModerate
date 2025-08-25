@@ -15,7 +15,7 @@
                     <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>
             </div>
-            
+
             <div class="row">
                 <!-- Content Details -->
                 <div class="col-md-8">
@@ -46,14 +46,14 @@
                                 <div class="col-md-3"><strong>Created:</strong></div>
                                 <div class="col-md-9">{{ content.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
                             </div>
-                            
+
                             <hr>
-                            
+
                             <h5>Content:</h5>
                             <div class="content-display p-3 bg-light rounded">
                                 <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ content.content_data }}</pre>
                             </div>
-                            
+
                             {% if content.meta_data %}
                             <hr>
                             <h5>Metadata:</h5>
@@ -63,7 +63,7 @@
                             {% endif %}
                         </div>
                     </div>
-                    
+
                     <!-- Moderation Results -->
                     <div class="card mb-4">
                         <div class="card-header">
@@ -119,7 +119,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- API User Info & Decision Panel -->
                 <div class="col-md-4">
                     <!-- API User Information -->
@@ -134,7 +134,7 @@
                             <p><strong>Last Seen:</strong> {{ api_user.last_seen.strftime('%Y-%m-%d %H:%M') }}</p>
                             <p><strong>Total Requests:</strong> {{ api_user.total_requests }}</p>
                             <p><strong>Approval Rate:</strong> {{ "%.1f"|format(api_user.approval_rate) }}%</p>
-                            
+
                             <div class="row text-center">
                                 <div class="col-4">
                                     <div class="text-success">
@@ -158,7 +158,7 @@
                         </div>
                     </div>
                     {% endif %}
-                    
+
                     <!-- Manual Decision Panel -->
                     <div class="card">
                         <div class="card-header">
@@ -174,19 +174,19 @@
                                         <option value="rejected">Reject</option>
                                     </select>
                                 </div>
-                                
+
                                 <div class="mb-3">
                                     <label for="reason" class="form-label">Reason:</label>
-                                    <textarea class="form-control" id="reason" name="reason" rows="3" 
+                                    <textarea class="form-control" id="reason" name="reason" rows="3"
                                               placeholder="Brief explanation of your decision..." required></textarea>
                                 </div>
-                                
+
                                 <div class="mb-3">
                                     <label for="notes" class="form-label">Notes (optional):</label>
-                                    <textarea class="form-control" id="notes" name="notes" rows="2" 
+                                    <textarea class="form-control" id="notes" name="notes" rows="2"
                                               placeholder="Additional notes..."></textarea>
                                 </div>
-                                
+
                                 <div class="d-grid gap-2">
                                     <button type="submit" class="btn btn-success">
                                         <i class="fas fa-check"></i> Submit Decision
@@ -206,19 +206,19 @@
 <script>
 document.getElementById('decisionForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    
+
     const formData = {
         decision: document.getElementById('decision').value,
         reason: document.getElementById('reason').value,
         notes: document.getElementById('notes').value
     };
-    
+
     // Disable form during submission
     const submitBtn = document.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    
+
     fetch('{{ url_for("manual_review.make_decision", content_id=content.id) }}', {
         method: 'POST',
         headers: {
@@ -260,4 +260,4 @@ function showMainToast(message) {
     toast.show();
 }
 </script>
-{% endblock %} 
+{% endblock %}
