@@ -15,17 +15,46 @@
 {% block content %}
 <div data-project-id="{{ project.id }}" data-status-filter="{{ current_status }}" style="display: none;"></div>
 
-<!-- Content ID Search Info -->
-{% if current_search %}
+<!-- Content Search & Filter Info -->
+{% if current_search or current_time_filter %}
 <div class="row mb-3">
     <div class="col-12">
         <div class="alert alert-info alert-dismissible fade show" role="alert">
             <i class="fas fa-info-circle"></i>
-            <strong>Search Results:</strong> 
-            {% if current_search|length == 36 and '-' in current_search %}
-                Showing content with ID: <code>{{ current_search }}</code>
-            {% else %}
-                Showing content containing: "<strong>{{ current_search }}</strong>"
+            {% if current_search and current_time_filter %}
+                <strong>Active Filters:</strong>
+                {% if current_search|length == 36 and '-' in current_search %}
+                    Content ID: <code>{{ current_search }}</code>
+                {% else %}
+                    Search: "<strong>{{ current_search }}</strong>"
+                {% endif %}
+                {% if current_time_filter == '1h' %}
+                    | Time: <strong>Last Hour</strong>
+                {% elif current_time_filter == '24h' %}
+                    | Time: <strong>Last 24 Hours</strong>
+                {% elif current_time_filter == '7d' %}
+                    | Time: <strong>Last 7 Days</strong>
+                {% elif current_time_filter == '30d' %}
+                    | Time: <strong>Last 30 Days</strong>
+                {% endif %}
+            {% elif current_search %}
+                <strong>Search Results:</strong> 
+                {% if current_search|length == 36 and '-' in current_search %}
+                    Showing content with ID: <code>{{ current_search }}</code>
+                {% else %}
+                    Showing content containing: "<strong>{{ current_search }}</strong>"
+                {% endif %}
+            {% elif current_time_filter %}
+                <strong>Time Filter:</strong>
+                {% if current_time_filter == '1h' %}
+                    Showing content from the <strong>Last Hour</strong>
+                {% elif current_time_filter == '24h' %}
+                    Showing content from the <strong>Last 24 Hours</strong>
+                {% elif current_time_filter == '7d' %}
+                    Showing content from the <strong>Last 7 Days</strong>
+                {% elif current_time_filter == '30d' %}
+                    Showing content from the <strong>Last 30 Days</strong>
+                {% endif %}
             {% endif %}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
@@ -52,7 +81,7 @@
                             <option value="flagged" {% if current_status == 'flagged' %}selected{% endif %}>Flagged</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label for="content_type" class="form-label">Content Type</label>
                         <select class="form-select" id="content_type" name="content_type">
                             <option value="">All Types</option>
@@ -61,7 +90,17 @@
                             <option value="video" disabled style="color: #6c757d;">Video (Soon)</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-2">
+                        <label for="time_filter" class="form-label">Time Filter</label>
+                        <select class="form-select" id="time_filter" name="time_filter">
+                            <option value="">All Time</option>
+                            <option value="1h" {% if current_time_filter == '1h' %}selected{% endif %}>Last Hour</option>
+                            <option value="24h" {% if current_time_filter == '24h' %}selected{% endif %}>Last 24 Hours</option>
+                            <option value="7d" {% if current_time_filter == '7d' %}selected{% endif %}>Last 7 Days</option>
+                            <option value="30d" {% if current_time_filter == '30d' %}selected{% endif %}>Last 30 Days</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label for="search" class="form-label">Search Content or Content ID</label>
                         <input type="text" class="form-control" id="search" name="search" 
                                value="{{ current_search or '' }}"
@@ -279,7 +318,7 @@
                     <ul class="pagination justify-content-center">
                         {% if pagination.has_prev %}
                         <li class="page-item">
-                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.prev_num, status=current_status, search=current_search, content_type=current_content_type) }}">
+                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.prev_num, status=current_status, search=current_search, content_type=current_content_type, time_filter=current_time_filter) }}">
                                 <i class="fas fa-chevron-left"></i> Previous
                             </a>
                         </li>
@@ -289,7 +328,7 @@
                             {% if page_num %}
                                 {% if page_num != pagination.page %}
                                 <li class="page-item">
-                                    <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=page_num, status=current_status, search=current_search, content_type=current_content_type) }}">{{ page_num }}</a>
+                                    <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=page_num, status=current_status, search=current_search, content_type=current_content_type, time_filter=current_time_filter) }}">{{ page_num }}</a>
                                 </li>
                                 {% else %}
                                 <li class="page-item active">
@@ -305,7 +344,7 @@
                         
                         {% if pagination.has_next %}
                         <li class="page-item">
-                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.next_num, status=current_status, search=current_search, content_type=current_content_type) }}">
+                            <a class="page-link" href="{{ url_for('dashboard.project_content', project_id=project.id, page=pagination.next_num, status=current_status, search=current_search, content_type=current_content_type, time_filter=current_time_filter) }}">
                                 Next <i class="fas fa-chevron-right"></i>
                             </a>
                         </li>
