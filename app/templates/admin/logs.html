@@ -32,7 +32,7 @@
                                     <strong>{{ content.content_data[:50] }}...</strong>
                                 </div>
                                 <small class="text-muted">
-                                    Project: {{ content.project.name }} | 
+                                    Project: {{ content.project.name }} |
                                     User: {{ content.project.owner.username }}
                                 </small>
                             </div>
@@ -69,7 +69,7 @@
                                     <strong>{{ moderation.content.content_data[:50] }}...</strong>
                                 </div>
                                 <small class="text-muted">
-                                    Project: {{ moderation.content.project.name }} | 
+                                    Project: {{ moderation.content.project.name }} |
                                     {% if moderation.moderator_type == 'rule' and moderation.rule %}
                                         Rule: {{ moderation.rule.name }}
                                     {% elif moderation.moderator_type == 'ai' %}
@@ -128,9 +128,9 @@
                             'color': 'text-warning'
                         }) %}
                     {% endfor %}
-                    
+
                     {% set sorted_activities = all_activities|sort(attribute='time', reverse=true) %}
-                    
+
                     {% if sorted_activities %}
                         {% for activity in sorted_activities[:20] %}
                         <div class="timeline-item">
@@ -148,7 +148,7 @@
                                              </small>
                                             <br>
                                             <small class="text-muted">
-                                                Project: {{ activity.item.project.name }} | 
+                                                Project: {{ activity.item.project.name }} |
                                                 User: {{ activity.item.project.owner.username }}
                                             </small>
                                         {% else %}
@@ -159,7 +159,7 @@
                                              </small>
                                             <br>
                                                                                          <small class="text-muted">
-                                                 Decision: 
+                                                 Decision:
                                                  <span class="badge bg-{% if activity.item.decision == 'approved' %}success{% elif activity.item.decision == 'rejected' %}danger{% else %}warning{% endif %}">
                                                      {{ activity.item.decision|title }}
                                                  </span>
@@ -231,4 +231,4 @@
     border-left: 3px solid #007bff;
 }
 </style>
-{% endblock %} 
+{% endblock %}

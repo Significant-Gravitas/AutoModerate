@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateActiveNavigation() {
         const sections = document.querySelectorAll('[id]');
         const navLinks = document.querySelectorAll('.nav-link[href^="#"]');
-        
+
         let current = '';
         sections.forEach(section => {
             const sectionTop = section.offsetTop;
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 current = section.getAttribute('id');
             }
         });
-        
+
         navLinks.forEach(link => {
             link.classList.remove('active');
             if (link.getAttribute('href') === '#' + current) {
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update navigation on scroll
     window.addEventListener('scroll', updateActiveNavigation);
-    
+
     // Initial navigation update
     updateActiveNavigation();
 
@@ -49,43 +49,43 @@ document.addEventListener('DOMContentLoaded', function() {
 // Add copy buttons to code blocks
 function addCopyButtonsToCodeBlocks() {
     const codeBlocks = document.querySelectorAll('pre code');
-    
+
     codeBlocks.forEach((codeBlock, index) => {
         const pre = codeBlock.parentElement;
-        
+
         // Skip if already has a copy button
         if (pre.querySelector('.copy-btn')) return;
-        
+
         // Create copy button
         const copyBtn = document.createElement('button');
         copyBtn.className = 'btn btn-sm btn-outline-light copy-btn';
         copyBtn.style.cssText = 'position: absolute; top: 0.5rem; right: 0.5rem; opacity: 0.7; transition: opacity 0.2s;';
         copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
         copyBtn.title = 'Copy code';
-        
+
         // Style the pre element
         pre.style.position = 'relative';
-        
+
         // Add hover effects
         pre.addEventListener('mouseenter', () => {
             copyBtn.style.opacity = '1';
         });
-        
+
         pre.addEventListener('mouseleave', () => {
             copyBtn.style.opacity = '0.7';
         });
-        
+
         // Add copy functionality
         copyBtn.addEventListener('click', function() {
             const text = codeBlock.textContent;
-            
+
             navigator.clipboard.writeText(text).then(function() {
                 // Success feedback
                 const originalHTML = copyBtn.innerHTML;
                 copyBtn.innerHTML = '<i class="fas fa-check"></i>';
                 copyBtn.classList.remove('btn-outline-light');
                 copyBtn.classList.add('btn-success');
-                
+
                 setTimeout(function() {
                     copyBtn.innerHTML = originalHTML;
                     copyBtn.classList.remove('btn-success');
@@ -100,13 +100,13 @@ function addCopyButtonsToCodeBlocks() {
                 textArea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textArea);
-                
+
                 // Success feedback
                 const originalHTML = copyBtn.innerHTML;
                 copyBtn.innerHTML = '<i class="fas fa-check"></i>';
                 copyBtn.classList.remove('btn-outline-light');
                 copyBtn.classList.add('btn-success');
-                
+
                 setTimeout(function() {
                     copyBtn.innerHTML = originalHTML;
                     copyBtn.classList.remove('btn-success');
@@ -114,7 +114,7 @@ function addCopyButtonsToCodeBlocks() {
                 }, 2000);
             });
         });
-        
+
         pre.appendChild(copyBtn);
     });
 }

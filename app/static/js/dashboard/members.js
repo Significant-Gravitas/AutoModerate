@@ -6,17 +6,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const button = event.relatedTarget;
             const membershipId = button.getAttribute('data-membership-id');
             const currentRole = button.getAttribute('data-current-role');
-            
+
             // Set the form action
             const form = document.getElementById('roleForm');
             form.action = `/dashboard/projects/${projectId}/members/${membershipId}/role`;
-            
+
             // Set the current role in the select
             const roleSelect = document.getElementById('newRole');
             roleSelect.value = currentRole;
         });
     }
-    
+
     // Handle remove member modal
     const removeMemberModal = document.getElementById('removeMemberModal');
     if (removeMemberModal) {
@@ -24,35 +24,35 @@ document.addEventListener('DOMContentLoaded', function() {
             const button = event.relatedTarget;
             const membershipId = button.getAttribute('data-membership-id');
             const username = button.getAttribute('data-username');
-            
+
             // Set the member name
             document.getElementById('memberName').textContent = username;
-            
+
             // Set the form action
             const form = document.getElementById('removeMemberForm');
             form.action = `/dashboard/projects/${projectId}/members/${membershipId}/remove`;
         });
     }
-    
+
     // Handle invitation form validation
     const inviteForm = document.querySelector('#inviteModal form');
     if (inviteForm) {
         inviteForm.addEventListener('submit', function(event) {
             const email = document.getElementById('email').value.trim();
             const role = document.getElementById('role').value;
-            
+
             if (!email) {
                 event.preventDefault();
                 alert('Please enter an email address');
                 return;
             }
-            
+
             if (!isValidEmail(email)) {
                 event.preventDefault();
                 alert('Please enter a valid email address');
                 return;
             }
-            
+
             if (!role) {
                 event.preventDefault();
                 alert('Please select a role');
@@ -60,13 +60,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Email validation function
     function isValidEmail(email) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     }
-    
+
     // Get project ID from URL
     const urlParts = window.location.pathname.split('/');
     const projectId = urlParts[2]; // /dashboard/projects/{projectId}/members
@@ -91,10 +91,10 @@ function copyInvitationLink(token) {
             </div>
         `;
         document.body.appendChild(toast);
-        
+
         const bsToast = new bootstrap.Toast(toast);
         bsToast.show();
-        
+
         // Remove toast after it's hidden
         toast.addEventListener('hidden.bs.toast', function() {
             document.body.removeChild(toast);
@@ -103,4 +103,4 @@ function copyInvitationLink(token) {
         console.error('Failed to copy: ', err);
         alert('Failed to copy invitation link');
     });
-} 
+}

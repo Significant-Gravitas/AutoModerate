@@ -50,9 +50,9 @@
                                     <strong>{{ key.name }}</strong>
                                 </td>
                                 <td>
-                                    <code class="api-key-display" 
-                                          data-full-key="{{ key.key }}" 
-                                          style="cursor: pointer;" 
+                                    <code class="api-key-display"
+                                          data-full-key="{{ key.key }}"
+                                          style="cursor: pointer;"
                                           title="Click to view full key">
                                         {{ key.key[:20] }}...
                                     </code>
@@ -78,28 +78,28 @@
                                 <td>{{ key.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-primary btn-sm copy-key-btn" 
-                                                data-key="{{ key.key }}" 
+                                        <button class="btn btn-outline-primary btn-sm copy-key-btn"
+                                                data-key="{{ key.key }}"
                                                 title="Copy to clipboard">
                                             <i class="fas fa-copy"></i>
                                         </button>
                                         {% if key.is_active %}
-                                        <button class="btn btn-outline-warning btn-sm toggle-key-btn" 
-                                                data-key-id="{{ key.id }}" 
+                                        <button class="btn btn-outline-warning btn-sm toggle-key-btn"
+                                                data-key-id="{{ key.id }}"
                                                 data-action="deactivate"
                                                 title="Deactivate">
                                             <i class="fas fa-pause"></i>
                                         </button>
                                         {% else %}
-                                        <button class="btn btn-outline-success btn-sm toggle-key-btn" 
-                                                data-key-id="{{ key.id }}" 
+                                        <button class="btn btn-outline-success btn-sm toggle-key-btn"
+                                                data-key-id="{{ key.id }}"
                                                 data-action="activate"
                                                 title="Activate">
                                             <i class="fas fa-play"></i>
                                         </button>
                                         {% endif %}
-                                        <button class="btn btn-outline-danger btn-sm delete-key-btn" 
-                                                data-key-id="{{ key.id }}" 
+                                        <button class="btn btn-outline-danger btn-sm delete-key-btn"
+                                                data-key-id="{{ key.id }}"
                                                 data-key-name="{{ key.name }}"
                                                 title="Delete">
                                             <i class="fas fa-trash"></i>
@@ -135,7 +135,7 @@
                 <form method="POST" action="{{ url_for('dashboard.create_api_key', project_id=project.id) }}" id="createApiKeyForm">
                     <div class="mb-3">
                         <label for="apiKeyName" class="form-label">API Key Name *</label>
-                        <input type="text" class="form-control" id="apiKeyName" name="name" required 
+                        <input type="text" class="form-control" id="apiKeyName" name="name" required
                                placeholder="e.g., Production Key, Development Key">
                         <div class="form-text">Choose a descriptive name to identify this API key.</div>
                     </div>

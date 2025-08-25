@@ -10,22 +10,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const ruleId = this.getAttribute('data-rule-id');
             const ruleName = this.getAttribute('data-rule-name');
             const ruleType = this.getAttribute('data-rule-type');
-            
+
             // Get rule data from the store
             const ruleData = ruleDataStore[ruleId] || {};
             console.log('Rule data (view):', ruleData); // Debug log
-            
+
             const ruleAction = this.getAttribute('data-rule-action');
             const ruleDescription = this.getAttribute('data-rule-description');
             const rulePriority = this.getAttribute('data-rule-priority');
-            
+
             // Populate modal
             document.getElementById('modalRuleName').textContent = ruleName;
             document.getElementById('modalRuleType').innerHTML = `<span class="badge bg-info">${ruleType}</span>`;
             document.getElementById('modalRuleDescription').textContent = ruleDescription || 'No description provided';
             document.getElementById('modalRuleAction').innerHTML = `<span class="badge bg-primary">${ruleAction}</span>`;
             document.getElementById('modalRulePriority').textContent = rulePriority;
-            
+
             // Format rule configuration based on type
             let configHtml = '';
             if (ruleType === 'keyword') {
@@ -44,9 +44,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <pre class="mt-2">${ruleData.prompt || 'None'}</pre>
                 `;
             }
-            
+
             document.getElementById('modalRuleConfig').innerHTML = configHtml;
-            
+
             // Show modal
             const modal = new bootstrap.Modal(document.getElementById('ruleDetailsModal'));
             modal.show();
@@ -59,14 +59,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const ruleId = this.getAttribute('data-rule-id');
             const ruleName = this.getAttribute('data-rule-name');
             const ruleType = this.getAttribute('data-rule-type');
-            
+
             // Get rule data from the store
             const ruleData = ruleDataStore[ruleId] || {};
-            
+
             const ruleAction = this.getAttribute('data-rule-action');
             const ruleDescription = this.getAttribute('data-rule-description');
             const rulePriority = this.getAttribute('data-rule-priority');
-            
+
             // Populate edit form
             document.getElementById('editRuleId').value = ruleId;
             document.getElementById('editRuleName').value = ruleName;
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('editRulePriority').value = rulePriority;
             document.getElementById('editRuleType').value = ruleType;
             document.getElementById('editRuleTypeDisplay').value = ruleType.charAt(0).toUpperCase() + ruleType.slice(1);
-            
+
             // Populate rule-specific configuration
             let configHtml = '';
             if (ruleType === 'keyword') {
@@ -130,9 +130,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
             }
-            
+
             document.getElementById('editRuleConfig').innerHTML = configHtml;
-            
+
             // Show modal
             const modal = new bootstrap.Modal(document.getElementById('editRuleModal'));
             modal.show();
@@ -160,12 +160,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const ruleId = this.getAttribute('data-rule-id');
             const action = this.getAttribute('data-action');
             const projectId = window.projectId || document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
-            
+
             if (!projectId) {
                 console.error('Project ID not found');
                 return;
             }
-            
+
             fetch(`/dashboard/projects/${projectId}/rules/${ruleId}/toggle`, {
                 method: 'POST',
                 headers: {
@@ -193,10 +193,10 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', function() {
             const ruleId = this.getAttribute('data-rule-id');
             const ruleName = this.getAttribute('data-rule-name');
-            
+
             document.getElementById('deleteRuleName').textContent = ruleName;
             document.getElementById('confirmDeleteBtn').setAttribute('data-rule-id', ruleId);
-            
+
             const modal = new bootstrap.Modal(document.getElementById('deleteRuleModal'));
             modal.show();
         });
@@ -208,12 +208,12 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmDeleteBtn.addEventListener('click', function() {
             const ruleId = this.getAttribute('data-rule-id');
             const projectId = window.projectId || document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
-            
+
             if (!projectId) {
                 console.error('Project ID not found');
                 return;
             }
-            
+
             fetch(`/dashboard/projects/${projectId}/rules/${ruleId}/delete`, {
                 method: 'POST',
                 headers: {
@@ -240,20 +240,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (editRuleForm) {
         editRuleForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(this);
             const ruleId = formData.get('rule_id');
             const projectId = window.projectId || document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
-            
+
             if (!projectId) {
                 console.error('Project ID not found');
                 return;
             }
-            
+
             // Build rule data based on type
             const ruleType = formData.get('rule_type');
             let ruleData = {};
-            
+
             if (ruleType === 'keyword') {
                 const keywords = formData.get('keywords').split(/[,\n]/).map(k => k.trim()).filter(k => k);
                 ruleData = {
@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     prompt: formData.get('prompt')
                 };
             }
-            
+
             const updateData = {
                 name: formData.get('name'),
                 description: formData.get('description'),
@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 priority: parseInt(formData.get('priority')),
                 rule_data: ruleData
             };
-            
+
             fetch(`/dashboard/projects/${projectId}/rules/${ruleId}/update`, {
                 method: 'POST',
                 headers: {

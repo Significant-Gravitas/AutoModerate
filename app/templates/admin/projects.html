@@ -65,7 +65,7 @@
                                 <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('admin.project_detail', project_id=project.id) }}" 
+                                        <a href="{{ url_for('admin.project_detail', project_id=project.id) }}"
                                            class="btn btn-outline-primary" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
@@ -76,7 +76,7 @@
                         </tbody>
                     </table>
                 </div>
-                
+
                 <!-- Pagination -->
                 {% if projects.pages > 1 %}
                 <nav aria-label="Project pagination">
@@ -86,7 +86,7 @@
                                 <a class="page-link" href="{{ url_for('admin.projects', page=projects.prev_num) }}">Previous</a>
                             </li>
                         {% endif %}
-                        
+
                         {% for page_num in projects.iter_pages() %}
                             {% if page_num %}
                                 {% if page_num != projects.page %}
@@ -104,7 +104,7 @@
                                 </li>
                             {% endif %}
                         {% endfor %}
-                        
+
                         {% if projects.has_next %}
                             <li class="page-item">
                                 <a class="page-link" href="{{ url_for('admin.projects', page=projects.next_num) }}">Next</a>
@@ -113,7 +113,7 @@
                     </ul>
                 </nav>
                 {% endif %}
-                
+
                 {% else %}
                 <div class="text-center py-4">
                     <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
@@ -156,4 +156,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

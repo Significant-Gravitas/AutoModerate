@@ -9,17 +9,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize variables from the page
     projectId = document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
     currentStatusFilter = document.querySelector('[data-status-filter]')?.getAttribute('data-status-filter') || '';
-    
+
     // Check if projectId is available
     if (!projectId) {
         console.error('Project ID not found on page');
         return;
     }
-    
-    
+
+
     // Initialize WebSocket connection
     initializeWebSocket();
-    
+
     // Handle view content button clicks
     document.querySelectorAll('.view-content-btn').forEach(function(button) {
         button.addEventListener('click', function() {
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchContentDetails(contentId);
         });
     });
-    
+
     // Handle copy ID button clicks
     document.querySelectorAll('.copy-id-btn').forEach(function(button) {
         button.addEventListener('click', function() {
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
             copyToClipboard(contentId, this);
         });
     });
-    
+
     // Handle copy modal ID button clicks
     document.addEventListener('click', function(e) {
         if (e.target.closest('.copy-modal-id-btn')) {
@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-    
+
     // Calculate and display average processing time
     calculateAverageProcessingTime();
 });
@@ -60,53 +60,53 @@ function initializeWebSocket() {
     } else {
         socket = io();
         window.socket = socket; // Make it available globally
-        
+
         socket.on('connect', function() {
             // Update global connection status
             const statusDiv = document.getElementById('connection-status');
             if (statusDiv) {
                 statusDiv.innerHTML = '<span class="badge bg-success" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Live</span></span>';
             }
-            
+
             // Join the project room
             socket.emit('join_project', { project_id: projectId });
         });
     }
-    
+
     socket.on('joined_project', function(data) {
         // Project room joined successfully
     });
-    
+
     socket.on('moderation_update', function(data) {
         handleModerationUpdate(data);
     });
-    
+
     socket.on('disconnect', function() {
         const realtimeStatus = document.getElementById('realtimeStatus');
         if (realtimeStatus) {
             realtimeStatus.style.display = 'none';
         }
     });
-    
+
     socket.on('error', function(data) {
         console.error('WebSocket error:', data);
         console.error('Error details:', JSON.stringify(data, null, 2));
-        
+
         // Show user-friendly error message
         if (data && data.message) {
             console.error('WebSocket error message:', data.message);
-            
+
             // If it's a project access error, show a specific message
             if (data.message.includes('Project not found') || data.message.includes('access denied')) {
                 console.error('Project access denied - user may not own this project');
             }
         }
     });
-    
+
     socket.on('connect_error', function(error) {
         console.error('WebSocket connection error:', error);
     });
-    
+
     socket.on('reconnect_error', function(error) {
         console.error('WebSocket reconnection error:', error);
     });
@@ -121,13 +121,13 @@ function handleModerationUpdate(data) {
         updateStatistics(data);
         return;
     }
-    
+
     // Add new content row to the table
     addContentRow(data);
-    
+
     // Update statistics
     updateStatistics(data);
-    
+
     // Show notification
     // showNotification(`New ${data.content_type} content ${data.status}`, 'info');
 }
@@ -135,20 +135,20 @@ function handleModerationUpdate(data) {
 // Add new content row to the table
 function addContentRow(data) {
     const tbody = document.getElementById('contentTableBody');
-    
+
     if (!tbody) {
         return;
     }
-    
+
     const newRow = document.createElement('tr');
     newRow.setAttribute('data-content-id', data.content_id);
     newRow.classList.add('table-info'); // Highlight new content
-    
+
     // Remove highlight after 5 seconds
     setTimeout(() => {
         newRow.classList.remove('table-info');
     }, 5000);
-    
+
     // Create status badge
     let statusBadge = '';
     if (data.status === 'approved') {
@@ -160,17 +160,17 @@ function addContentRow(data) {
     } else {
         statusBadge = '<span class="badge bg-secondary">Pending</span>';
     }
-    
+
     // Create content type badge
     const contentTypeBadge = `<span class="badge bg-info">${data.content_type.charAt(0).toUpperCase() + data.content_type.slice(1)}</span>`;
-    
+
     // Create moderation results badges
     let resultsHtml = '';
     if (data.results_count > 0) {
         // Use the moderator information from the WebSocket update
         let badgeClass = 'bg-secondary';
         let moderatorText = 'Unknown';
-        
+
         if (data.moderator_type === 'rule') {
             badgeClass = 'bg-info';
             moderatorText = 'Rule';
@@ -183,12 +183,12 @@ function addContentRow(data) {
         } else if (data.moderator_name) {
             moderatorText = data.moderator_name;
         }
-        
+
         let title = moderatorText;
         if (data.rule_name) {
             title += `: ${data.rule_name}`;
         }
-        
+
         resultsHtml = `<span class="badge ${badgeClass}" title="${title}">${moderatorText}</span>`;
         if (data.results_count > 1) {
             resultsHtml += `<span class="badge bg-light text-dark">+${data.results_count - 1}</span>`;
@@ -196,15 +196,15 @@ function addContentRow(data) {
     } else {
         resultsHtml = '<span class="text-muted">No results</span>';
     }
-    
+
     // Format timestamp to match server format (YYYY-MM-DD HH:MM)
     const date = new Date(data.timestamp);
-    const timestamp = date.getFullYear() + '-' + 
-                     String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                     String(date.getDate()).padStart(2, '0') + ' ' + 
-                     String(date.getHours()).padStart(2, '0') + ':' + 
+    const timestamp = date.getFullYear() + '-' +
+                     String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                     String(date.getDate()).padStart(2, '0') + ' ' +
+                     String(date.getHours()).padStart(2, '0') + ':' +
                      String(date.getMinutes()).padStart(2, '0');
-    
+
     // Check if content has metadata (we'll need to fetch this)
     let metadataHtml = '';
     if (data.meta_data && Object.keys(data.meta_data).length > 0) {
@@ -214,7 +214,7 @@ function addContentRow(data) {
             </small>
         `;
     }
-    
+
     // Format processing time
     let processingTimeHtml = '<small class="text-muted">N/A</small>';
     if (data.processing_time !== null && data.processing_time !== undefined) {
@@ -224,13 +224,13 @@ function addContentRow(data) {
             processingTimeHtml = `<small class="text-primary">${data.processing_time.toFixed(2)}s</small>`;
         }
     }
-    
+
     newRow.innerHTML = `
         <td>
             <div class="d-flex align-items-center">
                 <code class="text-muted small me-2" style="font-size: 0.75em; word-break: break-all;">${data.content_id.substring(0, 8)}...</code>
-                <button class="btn btn-sm btn-outline-secondary copy-id-btn" 
-                        data-content-id="${data.content_id}" 
+                <button class="btn btn-sm btn-outline-secondary copy-id-btn"
+                        data-content-id="${data.content_id}"
                         title="Copy Content ID">
                     <i class="fas fa-copy"></i>
                 </button>
@@ -257,27 +257,27 @@ function addContentRow(data) {
             </div>
         </td>
     `;
-    
+
     // Add event listeners to the new buttons
     const viewBtn = newRow.querySelector('.view-content-btn');
     viewBtn.addEventListener('click', function() {
         const contentId = this.getAttribute('data-content-id');
         fetchContentDetails(contentId);
     });
-    
+
     const copyBtn = newRow.querySelector('.copy-id-btn');
     copyBtn.addEventListener('click', function() {
         const contentId = this.getAttribute('data-content-id');
         copyToClipboard(contentId, this);
     });
-    
+
     // Insert at the top of the table
     if (tbody.firstChild) {
         tbody.insertBefore(newRow, tbody.firstChild);
     } else {
         tbody.appendChild(newRow);
     }
-    
+
     // Limit to 25 items - remove excess rows from the bottom
     const maxItems = 25;
     const rows = tbody.querySelectorAll('tr');
@@ -287,7 +287,7 @@ function addContentRow(data) {
             rows[i].remove();
         }
     }
-    
+
     // Update showing count to reflect actual displayed items
     const showingCount = document.getElementById('showingCount');
     if (showingCount) {
@@ -303,18 +303,18 @@ function updateStatistics(data) {
     const rejectedElement = document.getElementById('rejectedContent');
     const flaggedElement = document.getElementById('flaggedContent');
     const totalCountElement = document.getElementById('totalCount');
-    
+
     // Check if required elements exist
     if (!totalElement || !totalCountElement) {
         return;
     }
-    
+
     try {
         // Update total
         const currentTotal = parseInt(totalElement.textContent) || 0;
         totalElement.textContent = currentTotal + 1;
         totalCountElement.textContent = currentTotal + 1;
-        
+
         // Update status-specific counts
         if (data.status === 'approved' && approvedElement) {
             const currentApproved = parseInt(approvedElement.textContent) || 0;
@@ -341,9 +341,9 @@ function showNotification(message, type = 'info') {
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     // Auto-remove after 5 seconds
     setTimeout(() => {
         if (notification.parentNode) {
@@ -363,14 +363,14 @@ function fetchContentDetails(contentId) {
     const modalModerationResults = document.getElementById('modalModerationResults');
     const modalContentCreated = document.getElementById('modalContentCreated');
     const modalElement = document.getElementById('contentDetailsModal');
-    
+
     // Check if all modal elements exist
-    if (!modalContentId || !modalContentType || !modalContentStatus || !modalContentData || 
+    if (!modalContentId || !modalContentType || !modalContentStatus || !modalContentData ||
         !modalContentMetadata || !modalModerationResults || !modalContentCreated || !modalElement) {
         alert('Error: Modal elements not found. Please refresh the page.');
         return;
     }
-    
+
     // Show loading state
     modalContentId.value = contentId; // Set content ID immediately
     modalContentType.innerHTML = '<span class="text-muted">Loading...</span>';
@@ -379,21 +379,21 @@ function fetchContentDetails(contentId) {
     modalContentMetadata.innerHTML = '<span class="text-muted">Loading...</span>';
     modalModerationResults.innerHTML = '<span class="text-muted">Loading...</span>';
     modalContentCreated.innerHTML = '<span class="text-muted">Loading...</span>';
-    
+
     // Show modal first
     const modal = new bootstrap.Modal(modalElement);
     modal.show();
-    
+
     // Fetch content details via AJAX
     fetch(`/dashboard/projects/${projectId}/content/${contentId}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const content = data.content;
-                
+
                 // Populate modal with fetched data
                 modalContentType.innerHTML = `<span class="badge bg-info">${content.content_type}</span>`;
-                
+
                 let statusBadge = '';
                 if (content.status === 'approved') {
                     statusBadge = '<span class="badge bg-success">Approved</span>';
@@ -405,40 +405,40 @@ function fetchContentDetails(contentId) {
                     statusBadge = '<span class="badge bg-secondary">Pending</span>';
                 }
                 modalContentStatus.innerHTML = statusBadge;
-                
+
                 modalContentData.textContent = content.content_data;
                 modalContentCreated.textContent = content.created_at;
-                
+
                 // Format metadata and handle user content button
                 const viewUserContentBtn = document.getElementById('viewUserContentBtn');
                 let hasUserInfo = false;
-                
+
                 if (content.meta_data && Object.keys(content.meta_data).length > 0) {
                     // Display formatted metadata
                     modalContentMetadata.innerHTML = `<pre style="font-size: 0.875rem; margin: 0;">${JSON.stringify(content.meta_data, null, 2)}</pre>`;
                 } else {
                     modalContentMetadata.innerHTML = '<em class="text-muted">No metadata available</em>';
                 }
-                
+
                 // Check if content has an associated external user for the button
                 // Only show for external users (no api_user_id but has user_id in metadata)
                 if (!content.api_user_id && content.meta_data && content.meta_data.user_id && viewUserContentBtn) {
                     hasUserInfo = true;
                     viewUserContentBtn.style.display = 'inline-block';
                     viewUserContentBtn.innerHTML = '<i class="fas fa-user"></i> View User Profile';
-                    
+
                     viewUserContentBtn.onclick = function() {
                         // Navigate to API user by external user ID
                         const userDetailsUrl = `/api-users/external/${encodeURIComponent(content.meta_data.user_id)}`;
                         window.location.href = userDetailsUrl;
                     };
                 }
-                
+
                 // Hide user content button if no user info found
                 if (!hasUserInfo && viewUserContentBtn) {
                     viewUserContentBtn.style.display = 'none';
                 }
-                
+
                 // Format moderation results
                 let resultsHtml = '';
                 if (content.moderation_results && content.moderation_results.length > 0) {
@@ -446,7 +446,7 @@ function fetchContentDetails(contentId) {
                         let badgeClass = 'bg-secondary';
                         if (result.moderator_type === 'ai') badgeClass = 'bg-primary';
                         else if (result.moderator_type === 'rule') badgeClass = 'bg-info';
-                        
+
                         // Format processing time
                         let processingTimeText = 'N/A';
                         if (result.processing_time !== null && result.processing_time !== undefined) {
@@ -456,7 +456,7 @@ function fetchContentDetails(contentId) {
                                 processingTimeText = result.processing_time.toFixed(2) + 's';
                             }
                         }
-                        
+
                         resultsHtml += `
                             <div class="border rounded p-3 mb-2">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -492,7 +492,7 @@ function calculateAverageProcessingTime() {
     const processingTimeElements = document.querySelectorAll('td:nth-child(6) small'); // Processing time column, 6th column (after adding Content ID), small tags
     let totalTime = 0;
     let count = 0;
-    
+
     processingTimeElements.forEach(function(element) {
         const text = element.textContent.trim();
         if (text && text !== 'N/A' && text !== '-' && text !== '') {
@@ -508,7 +508,7 @@ function calculateAverageProcessingTime() {
             }
         }
     });
-    
+
     const avgElement = document.getElementById('avgProcessingTime');
     if (avgElement && count > 0) {
         const avgTime = totalTime / count;
@@ -526,12 +526,12 @@ function copyToClipboard(text, button) {
         // Show success feedback
         const originalIcon = button.querySelector('i');
         const originalTitle = button.title;
-        
+
         originalIcon.className = 'fas fa-check';
         button.title = 'Copied!';
         button.classList.remove('btn-outline-secondary');
         button.classList.add('btn-success');
-        
+
         setTimeout(function() {
             originalIcon.className = 'fas fa-copy';
             button.title = originalTitle;

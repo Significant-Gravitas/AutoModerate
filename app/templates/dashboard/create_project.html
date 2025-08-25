@@ -24,18 +24,18 @@
                 <form method="POST">
                     <div class="mb-3">
                         <label for="name" class="form-label">Project Name *</label>
-                        <input type="text" class="form-control" id="name" name="name" required 
+                        <input type="text" class="form-control" id="name" name="name" required
                                placeholder="Enter project name">
                         <div class="form-text">Choose a descriptive name for your content moderation project.</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
                         <textarea class="form-control" id="description" name="description" rows="3"
                                   placeholder="Describe what type of content this project will moderate"></textarea>
                         <div class="form-text">Optional: Provide details about your moderation use case.</div>
                     </div>
-                    
+
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('dashboard.projects') }}" class="btn btn-secondary me-md-2">Cancel</a>
                         <button type="submit" class="btn btn-primary">
@@ -45,7 +45,7 @@
                 </form>
             </div>
         </div>
-        
+
         <div class="card mt-4">
             <div class="card-header">
                 <h5 class="card-title mb-0">What happens next?</h5>

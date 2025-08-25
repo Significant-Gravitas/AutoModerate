@@ -30,7 +30,7 @@
                     <dd class="col-sm-8">
                         <strong>{{ project.name }}</strong>
                     </dd>
-                    
+
                     <dt class="col-sm-4">Owner</dt>
                     <dd class="col-sm-8">
                         <span class="badge bg-primary">{{ project.owner.username }}</span>
@@ -40,18 +40,18 @@
                         <br>
                         <small class="text-muted">{{ project.owner.email }}</small>
                     </dd>
-                    
+
                     <dt class="col-sm-4">Description</dt>
                     <dd class="col-sm-8">
                         {{ project.description or 'No description provided' }}
                     </dd>
-                    
+
                     <dt class="col-sm-4">Created</dt>
                     <dd class="col-sm-8">{{ project.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
-                    
+
                     <dt class="col-sm-4">Last Updated</dt>
                     <dd class="col-sm-8">{{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</dd>
-                    
+
                     <dt class="col-sm-4">Project ID</dt>
                     <dd class="col-sm-8">
                         <code class="small">{{ project.id }}</code>
@@ -217,4 +217,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

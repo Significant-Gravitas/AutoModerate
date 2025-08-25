@@ -51,11 +51,11 @@
                 </div>
                 <div class="card-body">
                     <p>The AutoModerate API provides programmatic access to content moderation services. All endpoints require authentication via API keys.</p>
-                    
+
                     <div class="alert alert-info">
                         <strong>Base URL:</strong> <code>{{ request.host_url.rstrip('/') }}/api</code>
                     </div>
-                    
+
                     <h5>Features:</h5>
                     <ul>
                         <li>Real-time content moderation</li>
@@ -74,12 +74,12 @@
                 </div>
                 <div class="card-body">
                     <p>All API requests require authentication using an API key in the request headers.</p>
-                    
+
                     <h5>Header Format:</h5>
                     <div class="bg-dark text-light p-3 rounded">
                         <code>X-API-Key: your-api-key-here</code>
                     </div>
-                    
+
                     <h5 class="mt-3">Getting Your API Key:</h5>
                     <ol>
                         <li>Go to your project dashboard</li>
@@ -87,7 +87,7 @@
                         <li>Create a new API key</li>
                         <li>Copy the generated key (starts with <code>am_</code>)</li>
                     </ol>
-                    
+
                     <div class="alert alert-warning">
                         <strong>Security:</strong> Keep your API key secure and never share it publicly. API keys have full access to your project's moderation capabilities.
                     </div>
@@ -142,7 +142,7 @@
                 </div>
                 <div class="card-body">
                     <h5>Endpoint: <code>POST /api/moderate</code></h5>
-                    
+
                     <h6>Request Body:</h6>
                     <div class="bg-dark text-light p-3 rounded">
 <pre><code>{
@@ -154,7 +154,7 @@
     }
 }</code></pre>
                     </div>
-                    
+
                     <h6 class="mt-3">Parameters:</h6>
                     <ul>
                         <li><strong>type</strong> (string, required): Content type - "text", "image", "video"</li>
@@ -180,7 +180,7 @@
 }</code></pre>
                     </div>
                     <p class="mt-2 text-muted">Including <code>user_id</code> in the metadata enables user-specific moderation tracking, stats, and review in the dashboard.</p>
-                    
+
                     <h6>Response:</h6>
                     <div class="bg-dark text-light p-3 rounded">
 <pre><code>{
@@ -223,7 +223,7 @@
     "ai_rules_checked": 3
 }</code></pre>
                     </div>
-                    
+
                     <h5 class="mt-3">Error Response:</h5>
                     <div class="bg-dark text-light p-3 rounded">
 <pre><code>{
@@ -231,7 +231,7 @@
     "success": false
 }</code></pre>
                     </div>
-                    
+
                     <h5 class="mt-3">Status Values:</h5>
                     <ul>
                         <li><strong>approved</strong>: Content passed all moderation checks</li>
@@ -239,7 +239,7 @@
                         <li><strong>flagged</strong>: Content needs human review</li>
                         <li><strong>pending</strong>: Content is being processed</li>
                     </ul>
-                    
+
                     <h5 class="mt-3">User Tracking:</h5>
                     <p>Include a <code>user_id</code> in the metadata to track individual users and their moderation history:</p>
                     <div class="bg-dark text-light p-3 rounded">
@@ -328,7 +328,7 @@
   }' \
   http://your-domain.com/api/moderate</code></pre>
                     </div>
-                    
+
                     <h5 class="mt-3">JavaScript Example:</h5>
                     <div class="bg-dark text-light p-3 rounded">
 <pre><code>const response = await fetch('/api/moderate', {
@@ -347,7 +347,7 @@
 const result = await response.json();
 console.log(result);</code></pre>
                     </div>
-                    
+
                     <h5 class="mt-3">Python Example:</h5>
                     <div class="bg-dark text-light p-3 rounded">
 <pre><code>import requests
@@ -377,7 +377,7 @@ print(result)</code></pre>
                 </div>
                 <div class="card-body">
                     <p>Connect to WebSocket for real-time moderation updates:</p>
-                    
+
                     <h5>Connection:</h5>
                     <div class="bg-dark text-light p-3 rounded">
 <pre><code>const socket = io('http://your-domain.com');
@@ -390,7 +390,7 @@ socket.on('moderation_update', function(data) {
     console.log('New moderation result:', data);
 });</code></pre>
                     </div>
-                    
+
                     <h5 class="mt-3">Update Event Format:</h5>
                     <div class="bg-dark text-light p-3 rounded">
 <pre><code>{
@@ -405,7 +405,7 @@ socket.on('moderation_update', function(data) {
     "timestamp": "2025-01-01T12:00:00Z"
 }</code></pre>
                     </div>
-                    
+
                     <h5 class="mt-3">Event Fields:</h5>
                     <ul>
                         <li><strong>content_id</strong>: Unique identifier for the content</li>
@@ -433,7 +433,7 @@ socket.on('moderation_update', function(data) {
                         <li>1000 requests per hour per API key</li>
                         <li>Concurrent requests are supported</li>
                     </ul>
-                    
+
                     <h5 class="mt-3">Best Practices:</h5>
                     <ul>
                         <li>Store API keys securely</li>
@@ -442,7 +442,7 @@ socket.on('moderation_update', function(data) {
                         <li>Cache results when appropriate</li>
                         <li>Monitor your usage</li>
                     </ul>
-                    
+
                     <div class="alert alert-info">
                         <strong>Need Help?</strong> Check the dashboard for usage statistics and contact support if you need assistance.
                     </div>

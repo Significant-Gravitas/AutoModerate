@@ -7,19 +7,19 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.rule-config').forEach(function(config) {
                 config.style.display = 'none';
             });
-            
+
             // Remove active class from all cards
             document.querySelectorAll('.rule-type-card').forEach(function(card) {
                 card.classList.remove('border-primary', 'bg-light');
             });
-            
+
             // Show selected config section
             const selectedType = this.value;
             const configSection = document.getElementById(selectedType + '_config');
             if (configSection) {
                 configSection.style.display = 'block';
             }
-            
+
             // Highlight selected card
             const selectedCard = document.querySelector(`[data-rule-type="${selectedType}"]`);
             if (selectedCard) {
@@ -44,19 +44,19 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('ruleForm').addEventListener('submit', function(e) {
         const ruleType = document.querySelector('input[name="rule_type"]:checked');
         const action = document.querySelector('input[name="action"]:checked');
-        
+
         if (!ruleType) {
             e.preventDefault();
             alert('Please select a rule type.');
             return;
         }
-        
+
         if (!action) {
             e.preventDefault();
             alert('Please select an action.');
             return;
         }
-        
+
         // Validate rule-specific fields
         if (ruleType.value === 'keyword') {
             const keywords = document.getElementById('keywords').value.trim();
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Please enter a regex pattern.');
                 return;
             }
-            
+
             // Test regex validity
             try {
                 new RegExp(pattern);
@@ -103,4 +103,4 @@ document.addEventListener('DOMContentLoaded', function() {
             this.classList.remove('border-secondary');
         });
     });
-}); 
+});

@@ -14,27 +14,33 @@ DEFAULT_MODERATION_RULES = [
     },
     {
         "name": "Phishing & Unauthorized Data Collection",
-        "description": "Any attempt to collect user data unlawfully, including deceptive AI-generated content designed to steal credentials.",
+        "description": ("Any attempt to collect user data unlawfully, "
+                        "including deceptive AI-generated content designed to steal credentials."),
         "rule_type": "ai_prompt",
-        "rule_data": {"prompt": "Any attempt to collect user data unlawfully, including deceptive AI-generated content designed to steal credentials."},
+        "rule_data": {"prompt": ("Any attempt to collect user data unlawfully, "
+                                 "including deceptive AI-generated content designed to steal credentials.")},
         "action": "reject",
         "priority": 100,
         "is_active": True,
     },
     {
         "name": "Misleading AI Content",
-        "description": "AI-generated content that spreads false information, deepfakes, or impersonates individuals without disclosure.",
+        "description": ("AI-generated content that spreads false information, "
+                        "deepfakes, or impersonates individuals without disclosure."),
         "rule_type": "ai_prompt",
-        "rule_data": {"prompt": "AI-generated content that spreads false information, deepfakes, or impersonates individuals without disclosure."},
+        "rule_data": {"prompt": ("AI-generated content that spreads false information, "
+                                 "deepfakes, or impersonates individuals without disclosure.")},
         "action": "reject",
         "priority": 100,
         "is_active": True,
     },
     {
         "name": "Illegal Content",
-        "description": "Content that violates applicable laws, including terrorism, child exploitation, and financial crimes.",
+        "description": ("Content that violates applicable laws, "
+                        "including terrorism, child exploitation, and financial crimes."),
         "rule_type": "ai_prompt",
-        "rule_data": {"prompt": "Content that violates applicable laws, including terrorism, child exploitation, and financial crimes."},
+        "rule_data": {"prompt": ("Content that violates applicable laws, "
+                                 "including terrorism, child exploitation, and financial crimes.")},
         "action": "reject",
         "priority": 100,
         "is_active": True,

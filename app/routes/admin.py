@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import (Blueprint, flash, jsonify, redirect, render_template,
-                   request, url_for)
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import db
@@ -367,7 +366,9 @@ async def api_stats():
             'approved': ModerationResult.query.filter_by(decision='approved').count(),
             'rejected': ModerationResult.query.filter_by(decision='rejected').count(),
             'flagged': ModerationResult.query.filter_by(decision='flagged').count(),
-            'recent': ModerationResult.query.filter(ModerationResult.created_at >= datetime.utcnow() - timedelta(days=7)).count()
+            'recent': ModerationResult.query.filter(
+                ModerationResult.created_at >= datetime.utcnow() - timedelta(days=7)
+            ).count()
         }
     }
 

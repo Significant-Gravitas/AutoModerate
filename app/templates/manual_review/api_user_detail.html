@@ -15,7 +15,7 @@
                     <i class="fas fa-arrow-left"></i> Back to API Users
                 </a>
             </div>
-            
+
             <div class="row">
                 <!-- User Statistics -->
                 <div class="col-md-4">
@@ -40,7 +40,7 @@
                                     {% endif %}
                                 </div>
                             </div>
-                            
+
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <strong>First Seen:</strong><br>
@@ -51,7 +51,7 @@
                                     <small>{{ api_user.last_seen.strftime('%Y-%m-%d %H:%M') }}</small>
                                 </div>
                             </div>
-                            
+
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <strong>Total Requests:</strong><br>
@@ -62,9 +62,9 @@
                                     <h5>{{ ((api_user.last_seen - api_user.first_seen).days + 1) }}</h5>
                                 </div>
                             </div>
-                            
+
                             <hr>
-                            
+
                             <!-- Status Breakdown -->
                             <h6>Status Breakdown:</h6>
                             <div class="row text-center">
@@ -87,20 +87,20 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <!-- Progress Bars -->
                             {% if api_user.total_requests > 0 %}
                             <div class="mt-3">
                                 <div class="progress mb-2" style="height: 20px;">
-                                    <div class="progress-bar bg-success" 
+                                    <div class="progress-bar bg-success"
                                          style="width: {{ (api_user.approved_count / api_user.total_requests * 100) }}%">
                                         {{ api_user.approved_count }}
                                     </div>
-                                    <div class="progress-bar bg-danger" 
+                                    <div class="progress-bar bg-danger"
                                          style="width: {{ (api_user.rejected_count / api_user.total_requests * 100) }}%">
                                         {{ api_user.rejected_count }}
                                     </div>
-                                    <div class="progress-bar bg-warning" 
+                                    <div class="progress-bar bg-warning"
                                          style="width: {{ (api_user.flagged_count / api_user.total_requests * 100) }}%">
                                         {{ api_user.flagged_count }}
                                     </div>
@@ -110,7 +110,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Content History -->
                 <div class="col-md-8">
                     <div class="card">
@@ -157,7 +157,7 @@
                                                 </td>
                                                 <td>
                                                     {% if content.status == 'flagged' %}
-                                                        <a href="{{ url_for('manual_review.review_content', content_id=content.id) }}" 
+                                                        <a href="{{ url_for('manual_review.review_content', content_id=content.id) }}"
                                                            class="btn btn-sm btn-warning">
                                                             <i class="fas fa-flag"></i> Review
                                                         </a>
@@ -175,7 +175,7 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                
+
                                 <!-- Pagination Controls -->
                                 {% if pagination.pages > 1 %}
                                 <nav aria-label="Content pagination" class="mt-4">
@@ -231,7 +231,7 @@
                                     <p class="text-muted">This user hasn't submitted any content yet.</p>
                                 </div>
                             {% endif %}
-                            
+
                             <!-- Results Summary -->
                             {% if content_items %}
                             <div class="row mt-3">
@@ -273,22 +273,22 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Content:</strong></label>
                     <div id="modalContentData" class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Metadata:</strong></label>
                     <div id="modalContentMetadata" class="bg-light p-3 rounded"></div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Moderation Results:</strong></label>
                     <div id="modalModerationResults"></div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label class="form-label"><strong>Created:</strong></label>
                     <p id="modalContentCreated" class="form-control-plaintext"></p>
@@ -326,14 +326,14 @@ function fetchContentDetails(apiUserId, contentId) {
     const modalModerationResults = document.getElementById('modalModerationResults');
     const modalContentCreated = document.getElementById('modalContentCreated');
     const modalElement = document.getElementById('contentDetailsModal');
-    
+
     // Check if all modal elements exist
-    if (!modalContentType || !modalContentStatus || !modalContentData || 
+    if (!modalContentType || !modalContentStatus || !modalContentData ||
         !modalContentMetadata || !modalModerationResults || !modalContentCreated || !modalElement) {
         alert('Error: Modal elements not found. Please refresh the page.');
         return;
     }
-    
+
     // Show loading state
     modalContentType.innerHTML = '<span class="text-muted">Loading...</span>';
     modalContentStatus.innerHTML = '<span class="text-muted">Loading...</span>';
@@ -341,21 +341,21 @@ function fetchContentDetails(apiUserId, contentId) {
     modalContentMetadata.innerHTML = '<span class="text-muted">Loading...</span>';
     modalModerationResults.innerHTML = '<span class="text-muted">Loading...</span>';
     modalContentCreated.innerHTML = '<span class="text-muted">Loading...</span>';
-    
+
     // Show modal first
     const modal = new bootstrap.Modal(modalElement);
     modal.show();
-    
+
     // Fetch content details via AJAX
     fetch(`/manual-review/api-users/${apiUserId}/content/${contentId}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const content = data.content;
-                
+
                 // Populate modal with fetched data
                 modalContentType.innerHTML = `<span class="badge bg-info">${content.content_type}</span>`;
-                
+
                 let statusBadge = '';
                 if (content.status === 'approved') {
                     statusBadge = '<span class="badge bg-success">Approved</span>';
@@ -367,17 +367,17 @@ function fetchContentDetails(apiUserId, contentId) {
                     statusBadge = '<span class="badge bg-secondary">Pending</span>';
                 }
                 modalContentStatus.innerHTML = statusBadge;
-                
+
                 modalContentData.textContent = content.content_data;
                 modalContentCreated.textContent = content.created_at;
-                
+
                 // Format metadata
                 if (content.meta_data && Object.keys(content.meta_data).length > 0) {
                     modalContentMetadata.innerHTML = `<pre>${JSON.stringify(content.meta_data, null, 2)}</pre>`;
                 } else {
                     modalContentMetadata.innerHTML = '<em class="text-muted">No metadata</em>';
                 }
-                
+
                 // Format moderation results
                 let resultsHtml = '';
                 if (content.moderation_results && content.moderation_results.length > 0) {
@@ -386,18 +386,18 @@ function fetchContentDetails(apiUserId, contentId) {
                         if (result.moderator_type === 'ai') badgeClass = 'bg-primary';
                         else if (result.moderator_type === 'rule') badgeClass = 'bg-info';
                         else if (result.moderator_type === 'manual') badgeClass = 'bg-success';
-                        
+
                         // Format processing time - use total_request_time from details if available
                         let processingTimeText = 'N/A';
                         let timeToDisplay = null;
-                        
+
                         if (result.details && result.details.total_request_time !== null && result.details.total_request_time !== undefined) {
                             timeToDisplay = result.details.total_request_time;
                         } else if (result.processing_time !== null && result.processing_time !== undefined) {
                             // Fallback to processing_time for legacy records
                             timeToDisplay = result.processing_time;
                         }
-                        
+
                         if (timeToDisplay !== null) {
                             if (timeToDisplay < 1) {
                                 processingTimeText = (timeToDisplay * 1000).toFixed(0) + 'ms';
@@ -405,7 +405,7 @@ function fetchContentDetails(apiUserId, contentId) {
                                 processingTimeText = timeToDisplay.toFixed(2) + 's';
                             }
                         }
-                        
+
                         resultsHtml += `
                             <div class="border rounded p-3 mb-2">
                                 <div class="d-flex justify-content-between align-items-center mb-2">

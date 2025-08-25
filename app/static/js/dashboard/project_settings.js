@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
             button.innerHTML = '<i class="fas fa-check"></i>';
             button.classList.remove('btn-outline-secondary');
             button.classList.add('btn-success');
-            
+
             setTimeout(function() {
                 button.innerHTML = originalHTML;
                 button.classList.remove('btn-success');
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmProjectNameInput.addEventListener('input', function() {
             const confirmBtn = document.getElementById('confirmDeleteBtn');
             const projectName = this.getAttribute('data-project-name');
-            
+
             if (this.value === projectName) {
                 confirmBtn.disabled = false;
                 confirmBtn.classList.remove('btn-secondary');
@@ -36,4 +36,4 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-}); 
+});

@@ -30,10 +30,10 @@
                             <span class="badge bg-info">You</span>
                         {% endif %}
                     </dd>
-                    
+
                     <dt class="col-sm-4">Email</dt>
                     <dd class="col-sm-8">{{ user.email }}</dd>
-                    
+
                     <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8">
                         {% if user.is_active %}
@@ -42,7 +42,7 @@
                             <span class="badge bg-secondary">Inactive</span>
                         {% endif %}
                     </dd>
-                    
+
                     <dt class="col-sm-4">Role</dt>
                     <dd class="col-sm-8">
                         {% if user.is_admin %}
@@ -51,14 +51,14 @@
                             <span class="badge bg-primary">User</span>
                         {% endif %}
                     </dd>
-                    
+
                     <dt class="col-sm-4">Created</dt>
                     <dd class="col-sm-8">{{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
-                    
+
                     <dt class="col-sm-4">Last Updated</dt>
                     <dd class="col-sm-8">{{ user.updated_at.strftime('%Y-%m-%d %H:%M') }}</dd>
                 </dl>
-                
+
                 {% if user.id != current_user.id %}
                 <hr>
                 <div class="d-flex gap-2">
@@ -69,7 +69,7 @@
                             {% if user.is_admin %}Revoke Admin{% else %}Grant Admin{% endif %}
                         </button>
                     </form>
-                    
+
                     <form method="POST" action="{{ url_for('admin.toggle_active', user_id=user.id) }}" style="display: inline;">
                         <button type="submit" class="btn btn-{% if user.is_active %}danger{% else %}success{% endif %}"
                                 onclick="return confirm('{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}')">
@@ -78,7 +78,7 @@
                         </button>
                     </form>
                 </div>
-                
+
                 <!-- Danger Zone -->
                 <hr>
                 <div class="alert alert-danger">
@@ -92,12 +92,12 @@
                     {% if projects %}
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-circle"></i>
-                        <strong>Warning:</strong> This user has {{ projects|length }} project(s). 
+                        <strong>Warning:</strong> This user has {{ projects|length }} project(s).
                         All projects must be deleted before the user can be deleted.
                     </div>
                     {% endif %}
                     <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display: inline;">
-                        <button type="submit" class="btn btn-danger" 
+                        <button type="submit" class="btn btn-danger"
                                 onclick="return confirm('Are you absolutely sure you want to delete user {{ user.username }}? This action cannot be undone and will permanently delete all user data.')"
                                 {% if projects %}disabled{% endif %}>
                             <i class="fas fa-trash"></i> Delete User Account
@@ -192,11 +192,11 @@
                                 <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('admin.project_detail', project_id=project.id) }}" 
+                                        <a href="{{ url_for('admin.project_detail', project_id=project.id) }}"
                                            class="btn btn-outline-primary" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" 
+                                        <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}"
                                            class="btn btn-outline-info" title="View as User">
                                             <i class="fas fa-external-link-alt"></i>
                                         </a>
@@ -218,4 +218,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

@@ -70,7 +70,7 @@ class OpenAIClient:
             # Simple test with a minimal request and fast timeout
             model_name = current_app.config.get(
                 'OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
-            response = self.client.chat.completions.create(
+            self.client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": "hi"}],
                 max_tokens=1

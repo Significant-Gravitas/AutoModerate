@@ -7,42 +7,42 @@
     .bulk-actions-container {
         transition: all 0.3s ease;
     }
-    
+
     .content-checkbox {
         transform: scale(1.2);
         margin: 0;
     }
-    
+
     .table-row-selected {
         background-color: rgba(13, 110, 253, 0.1) !important;
     }
-    
+
     .bulk-action-buttons .btn {
         margin-right: 0.25rem;
         font-size: 0.875rem;
     }
-    
+
     .bulk-action-buttons .btn:last-child {
         margin-right: 0;
     }
-    
+
     .selected-count {
         font-weight: bold;
         color: inherit;
     }
-    
+
     .content-preview {
         max-width: 300px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    
+
     #bulkActionModal .modal-body {
         max-height: 70vh;
         overflow-y: auto;
     }
-    
+
     #selectedContentList {
         max-height: 200px;
         overflow-y: auto;
@@ -51,11 +51,11 @@
         border-radius: 0.375rem;
         border: 1px solid #dee2e6;
     }
-    
+
     .bulk-actions-fade-in {
         animation: fadeInUp 0.3s ease;
     }
-    
+
     @keyframes fadeInUp {
         from {
             opacity: 0;
@@ -79,7 +79,7 @@
                     <i class="fas fa-users"></i> View API Users
                 </a>
             </div>
-            
+
             <!-- Statistics Cards -->
             <div class="row mb-4">
                 <div class="col-md-3">
@@ -143,7 +143,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Flagged Content List -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -183,7 +183,7 @@
                                     {% for content in flagged_content %}
                                     <tr>
                                         <td>
-                                            <input type="checkbox" class="form-check-input content-checkbox" 
+                                            <input type="checkbox" class="form-check-input content-checkbox"
                                                    data-content-id="{{ content.id }}" data-project-name="{{ content.project.name }}">
                                         </td>
                                         <td>
@@ -208,7 +208,7 @@
                                             <small class="text-muted">{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                                         </td>
                                         <td>
-                                            <a href="{{ url_for('manual_review.review_content', content_id=content.id) }}" 
+                                            <a href="{{ url_for('manual_review.review_content', content_id=content.id) }}"
                                                class="btn btn-sm btn-primary">
                                                 <i class="fas fa-eye"></i> Review
                                             </a>
@@ -243,12 +243,12 @@
                 <p id="bulkActionMessage"></p>
                 <div class="mb-3">
                     <label for="bulkReason" class="form-label">Reason:</label>
-                    <textarea class="form-control" id="bulkReason" rows="3" 
+                    <textarea class="form-control" id="bulkReason" rows="3"
                               placeholder="Brief explanation for this bulk decision..." required></textarea>
                 </div>
                 <div class="mb-3">
                     <label for="bulkNotes" class="form-label">Notes (optional):</label>
-                    <textarea class="form-control" id="bulkNotes" rows="2" 
+                    <textarea class="form-control" id="bulkNotes" rows="2"
                               placeholder="Additional notes..."></textarea>
                 </div>
                 <div id="selectedContentList" class="small text-muted"></div>
@@ -280,13 +280,13 @@ function initializeBulkActions() {
     const bulkApproveBtn = document.getElementById('bulkApproveBtn');
     const bulkRejectBtn = document.getElementById('bulkRejectBtn');
     const bulkActionsContainer = document.getElementById('bulkActionsContainer');
-    
+
     // Show bulk actions container if there are items to select
     if (contentCheckboxes.length > 0) {
         bulkActionsContainer.classList.remove('d-none');
         bulkActionsContainer.classList.add('bulk-actions-fade-in');
     }
-    
+
     // Select all functionality
     selectAllCheckbox.addEventListener('change', function() {
         const isChecked = this.checked;
@@ -296,7 +296,7 @@ function initializeBulkActions() {
         });
         updateBulkActionButtons();
     });
-    
+
     // Select all button functionality
     selectAllBtn.addEventListener('click', function() {
         const allSelected = Array.from(contentCheckboxes).every(cb => cb.checked);
@@ -307,7 +307,7 @@ function initializeBulkActions() {
         selectAllCheckbox.checked = !allSelected;
         updateBulkActionButtons();
     });
-    
+
     // Individual checkbox functionality
     contentCheckboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
@@ -315,7 +315,7 @@ function initializeBulkActions() {
             updateRowSelection(this);
         });
     });
-    
+
     // Bulk action buttons
     bulkApproveBtn.addEventListener('click', () => showBulkActionModal('approved'));
     bulkRejectBtn.addEventListener('click', () => showBulkActionModal('rejected'));
@@ -325,21 +325,21 @@ function updateBulkActionButtons() {
     const contentCheckboxes = document.querySelectorAll('.content-checkbox');
     const selectedCheckboxes = document.querySelectorAll('.content-checkbox:checked');
     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-    
+
     selectedContentIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.contentId);
     const selectedCount = selectedContentIds.length;
-    
+
     // Update button states
     const bulkApproveBtn = document.getElementById('bulkApproveBtn');
     const bulkRejectBtn = document.getElementById('bulkRejectBtn');
-    
+
     bulkApproveBtn.disabled = selectedCount === 0;
     bulkRejectBtn.disabled = selectedCount === 0;
-    
+
     // Update counters
     document.getElementById('selectedCount').textContent = selectedCount;
     document.getElementById('selectedCountReject').textContent = selectedCount;
-    
+
     // Update select all checkbox state
     if (selectedCount === 0) {
         selectAllCheckbox.indeterminate = false;
@@ -365,15 +365,15 @@ function showBulkActionModal(action) {
     currentBulkAction = action;
     const selectedCheckboxes = document.querySelectorAll('.content-checkbox:checked');
     const selectedCount = selectedCheckboxes.length;
-    
+
     if (selectedCount === 0) return;
-    
+
     const modal = new bootstrap.Modal(document.getElementById('bulkActionModal'));
     const modalTitle = document.getElementById('bulkActionModalTitle');
     const modalMessage = document.getElementById('bulkActionMessage');
     const confirmBtn = document.getElementById('confirmBulkActionBtn');
     const selectedContentList = document.getElementById('selectedContentList');
-    
+
     // Set modal content based on action
     if (action === 'approved') {
         modalTitle.textContent = 'Bulk Approve Content';
@@ -386,7 +386,7 @@ function showBulkActionModal(action) {
         confirmBtn.className = 'btn btn-danger';
         confirmBtn.innerHTML = '<i class="fas fa-times"></i> Reject All';
     }
-    
+
     // Show selected content details
     let contentListHtml = '<strong>Selected content:</strong><br>';
     selectedCheckboxes.forEach(checkbox => {
@@ -396,33 +396,33 @@ function showBulkActionModal(action) {
         contentListHtml += `• ${project}: ${preview.substring(0, 50)}...<br>`;
     });
     selectedContentList.innerHTML = contentListHtml;
-    
+
     // Clear previous form data
     document.getElementById('bulkReason').value = '';
     document.getElementById('bulkNotes').value = '';
-    
+
     // Set up confirm button
     confirmBtn.onclick = performBulkAction;
-    
+
     modal.show();
 }
 
 function performBulkAction() {
     const reason = document.getElementById('bulkReason').value.trim();
     const notes = document.getElementById('bulkNotes').value.trim();
-    
+
     if (!reason) {
         alert('Please provide a reason for this bulk action.');
         return;
     }
-    
+
     const confirmBtn = document.getElementById('confirmBulkActionBtn');
     const originalText = confirmBtn.innerHTML;
-    
+
     // Disable button and show loading
     confirmBtn.disabled = true;
     confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    
+
     // Prepare request data
     const requestData = {
         content_ids: selectedContentIds,
@@ -430,7 +430,7 @@ function performBulkAction() {
         reason: reason,
         notes: notes
     };
-    
+
     // Send bulk action request
     fetch('/manual-review/bulk-decision', {
         method: 'POST',
@@ -444,10 +444,10 @@ function performBulkAction() {
         if (data.success) {
             // Close modal
             bootstrap.Modal.getInstance(document.getElementById('bulkActionModal')).hide();
-            
+
             // Show success message
             showMainToast(`Successfully ${currentBulkAction} ${data.processed_count} content item(s)!`);
-            
+
             // Reload page after short delay
             setTimeout(() => {
                 location.reload();
@@ -482,4 +482,4 @@ setTimeout(function() {
     location.reload();
 }, 30000);
 </script>
-{% endblock %} 
+{% endblock %}
