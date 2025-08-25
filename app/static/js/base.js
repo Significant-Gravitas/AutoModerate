@@ -48,20 +48,39 @@ function initializeWebSocket() {
     return socket;
 }
 
+// Apply saved theme immediately (before DOM loads)
+(function() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-bs-theme', savedTheme);
+})();
+
 // Dark mode functionality
 function initializeDarkMode() {
     const darkModeToggle = document.getElementById('dark-mode-toggle');
-    if (!darkModeToggle) return;
+    const darkModeToggleMobile = document.getElementById('dark-mode-toggle-mobile');
 
     // Get saved theme preference or default to 'light'
     const savedTheme = localStorage.getItem('theme') || 'light';
     
-    // Apply saved theme
-    document.documentElement.setAttribute('data-bs-theme', savedTheme);
-    updateToggleIcon(savedTheme);
+    // Update icons to match current theme
+    if (darkModeToggle) updateToggleIcon(savedTheme);
+    if (darkModeToggleMobile) updateMobileToggleIcon(savedTheme);
 
-    // Add click event listener
-    darkModeToggle.addEventListener('click', function() {
+    // Add click event listener for desktop toggle
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('click', function() {
+            toggleTheme();
+        });
+    }
+
+    // Add click event listener for mobile toggle
+    if (darkModeToggleMobile) {
+        darkModeToggleMobile.addEventListener('click', function() {
+            toggleTheme();
+        });
+    }
+
+    function toggleTheme() {
         const currentTheme = document.documentElement.getAttribute('data-bs-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         
@@ -71,9 +90,10 @@ function initializeDarkMode() {
         // Save preference
         localStorage.setItem('theme', newTheme);
         
-        // Update icon
-        updateToggleIcon(newTheme);
-    });
+        // Update both icons
+        if (darkModeToggle) updateToggleIcon(newTheme);
+        if (darkModeToggleMobile) updateMobileToggleIcon(newTheme);
+    }
 }
 
 function updateToggleIcon(theme) {
@@ -89,13 +109,28 @@ function updateToggleIcon(theme) {
     }
 }
 
+function updateMobileToggleIcon(theme) {
+    const icon = document.querySelector('#dark-mode-toggle-mobile i');
+    if (!icon) return;
+    
+    if (theme === 'dark') {
+        icon.className = 'fas fa-sun';
+        document.getElementById('dark-mode-toggle-mobile').title = 'Switch to light mode';
+    } else {
+        icon.className = 'fas fa-moon';
+        document.getElementById('dark-mode-toggle-mobile').title = 'Switch to dark mode';
+    }
+}
+
 // Sidebar collapse functionality
 function initializeSidebarToggle() {
     const sidebarToggle = document.getElementById('sidebar-toggle');
     const sidebar = document.getElementById('sidebar');
+    const mobileSidebar = document.getElementById('mobile-sidebar');
     const mainContent = document.getElementById('main-content');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
     
-    if (!sidebarToggle || !sidebar || !mainContent) return;
+    if (!sidebarToggle || !mainContent) return;
 
     // Get saved sidebar state or default to 'expanded'
     const savedSidebarState = localStorage.getItem('sidebarState') || 'expanded';
@@ -129,33 +164,59 @@ function initializeSidebarToggle() {
                 updateSidebarToggleIcon(true);
             }
         } else {
-            // Mobile behavior: use Bootstrap collapse
-            sidebar.classList.toggle('show');
+            // Mobile behavior: toggle overlay sidebar
+            if (mobileSidebar) {
+                const isVisible = mobileSidebar.classList.contains('show');
+                console.log('Mobile sidebar toggle - Current state:', isVisible ? 'visible' : 'hidden');
+                
+                if (isVisible) {
+                    mobileSidebar.classList.remove('show');
+                    if (sidebarOverlay) sidebarOverlay.classList.remove('show');
+                    console.log('Hiding mobile sidebar');
+                } else {
+                    mobileSidebar.classList.add('show');
+                    if (sidebarOverlay) sidebarOverlay.classList.add('show');
+                    console.log('Showing mobile sidebar');
+                }
+            }
         }
     });
+
+    // Close sidebar when clicking overlay (mobile)
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', function() {
+            if (mobileSidebar) {
+                mobileSidebar.classList.remove('show');
+                sidebarOverlay.classList.remove('show');
+            }
+        });
+    }
 
     // Handle window resize
     window.addEventListener('resize', function() {
         const isDesktop = window.innerWidth >= 768;
         
         if (isDesktop) {
-            // Remove mobile show class
-            sidebar.classList.remove('show');
+            // Remove mobile classes
+            if (mobileSidebar) mobileSidebar.classList.remove('show');
+            if (sidebarOverlay) sidebarOverlay.classList.remove('show');
             
             // Apply saved desktop state
-            if (localStorage.getItem('sidebarState') === 'collapsed') {
+            if (sidebar && localStorage.getItem('sidebarState') === 'collapsed') {
                 sidebar.classList.add('sidebar-collapsed');
                 mainContent.classList.add('content-expanded');
                 updateSidebarToggleIcon(true);
-            } else {
+            } else if (sidebar) {
                 sidebar.classList.remove('sidebar-collapsed');
                 mainContent.classList.remove('content-expanded');
                 updateSidebarToggleIcon(false);
             }
         } else {
             // Mobile: remove desktop classes
-            sidebar.classList.remove('sidebar-collapsed');
-            mainContent.classList.remove('content-expanded');
+            if (sidebar) {
+                sidebar.classList.remove('sidebar-collapsed');
+                mainContent.classList.remove('content-expanded');
+            }
             updateSidebarToggleIcon(false);
         }
     });
