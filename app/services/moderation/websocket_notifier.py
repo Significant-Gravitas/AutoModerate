@@ -76,7 +76,7 @@ class WebSocketNotifier:
         except Exception as e:
             try:
                 app.logger.error(f"WebSocket error: {str(e)}")
-            except:
+            except Exception:
                 print(f"WebSocket error: {str(e)}")
 
     def send_stats_update(self, project_id, stats):

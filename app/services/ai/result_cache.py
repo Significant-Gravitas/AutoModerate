@@ -43,7 +43,7 @@ class ResultCache:
             if time.time() - cached_data['timestamp'] < ResultCache._shared_cache_ttl:
                 # Cache hit - only log occasionally to reduce noise
                 if len(ResultCache._shared_cache) <= 5:
-                    current_app.logger.info(f"Cache HIT")
+                    current_app.logger.info("Cache HIT")
                 return cached_data['result']
             else:
                 # Remove expired cache entry

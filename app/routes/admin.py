@@ -367,7 +367,9 @@ async def api_stats():
             'approved': ModerationResult.query.filter_by(decision='approved').count(),
             'rejected': ModerationResult.query.filter_by(decision='rejected').count(),
             'flagged': ModerationResult.query.filter_by(decision='flagged').count(),
-            'recent': ModerationResult.query.filter(ModerationResult.created_at >= datetime.utcnow() - timedelta(days=7)).count()
+            'recent': ModerationResult.query.filter(
+                ModerationResult.created_at >= datetime.utcnow() - timedelta(days=7)
+            ).count()
         }
     }
 
