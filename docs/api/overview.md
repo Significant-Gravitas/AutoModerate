@@ -15,7 +15,7 @@ For production deployments, replace `localhost:6217` with your domain.
 AutoModerate provides the following API endpoints:
 
 - **POST /moderate** - Submit content for moderation
-- **GET /content/{content_id}** - Get specific content details
+- **GET /content/{id}** - Get specific content details
 - **GET /content** - List moderated content with pagination
 - **GET /stats** - Get basic project statistics
 - **GET /health** - API health check (no authentication required)

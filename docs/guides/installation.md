@@ -22,8 +22,8 @@ This guide will walk you through setting up AutoModerate on your local machine o
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/automoderate.git
-cd automoderate
+git clone https://github.com/your-username/AutoModerate.git
+cd AutoModerate
 ```
 
 ### 2. Create Virtual Environment
@@ -60,13 +60,16 @@ Required environment variables:
 ```env
 # OpenAI Configuration (Required)
 OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_CHAT_MODEL=gpt-5-nano-2025-08-07
+OPENAI_CONTEXT_WINDOW=400000
+OPENAI_MAX_OUTPUT_TOKENS=128000
 
 # Flask Configuration
 FLASK_ENV=development
 SECRET_KEY=your-secret-key-here
 
 # Database Configuration
-DATABASE_URL=sqlite:///automoderate.db
+DATABASE_URL=sqlite:///instance/automoderate.db
 
 # Admin User (Optional - uses defaults if not set)
 ADMIN_EMAIL=admin@example.com
@@ -89,8 +92,8 @@ Perfect for local development and testing.
 
 ```bash
 # 1. Clone and enter directory
-git clone https://github.com/your-username/automoderate.git
-cd automoderate
+git clone https://github.com/your-username/AutoModerate.git
+cd AutoModerate
 
 # 2. Create virtual environment
 python -m venv venv
@@ -127,8 +130,8 @@ sudo -u postgres psql -c "ALTER USER automoderate_user PASSWORD 'secure_password
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE automoderate TO automoderate_user;"
 
 # 3. Application setup
-git clone https://github.com/your-username/automoderate.git
-cd automoderate
+git clone https://github.com/your-username/AutoModerate.git
+cd AutoModerate
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -150,8 +153,8 @@ Easy containerized deployment.
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/your-username/automoderate.git
-cd automoderate
+git clone https://github.com/your-username/AutoModerate.git
+cd AutoModerate
 
 # 2. Create .env file
 cp .env.example .env
@@ -196,7 +199,7 @@ volumes:
 **Dockerfile**:
 
 ```dockerfile
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -301,11 +304,15 @@ OPENAI_API_KEY=sk-your-api-key-here
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `OPENAI_API_KEY` | Yes | - | OpenAI API key for AI moderation |
+| `OPENAI_CHAT_MODEL` | No | `gpt-5-nano-2025-08-07` | GPT model for analysis |
+| `OPENAI_CONTEXT_WINDOW` | No | `400000` | Model context window size |
+| `OPENAI_MAX_OUTPUT_TOKENS` | No | `128000` | Maximum output tokens |
 | `FLASK_ENV` | No | `development` | Flask environment mode |
 | `SECRET_KEY` | No | Generated | Flask secret key for sessions |
 | `DATABASE_URL` | No | SQLite | Database connection string |
 | `ADMIN_EMAIL` | No | `admin@example.com` | Default admin email |
 | `ADMIN_PASSWORD` | No | `admin123` | Default admin password |
+| `SQL_DEBUG` | No | `False` | Enable SQL query logging |
 
 ### Custom Configuration
 
@@ -418,7 +425,7 @@ sudo systemctl status postgresql
 sudo systemctl start postgresql
 
 # Check database exists
-sudo -u postgres psql -l | grep automoderate
+sudo -u postgres psql -l | grep AutoModerate
 ```
 
 #### 4. Permission Errors

@@ -112,14 +112,14 @@ Retrieve detailed information about previously moderated content.
 ### Endpoint
 
 ```http
-GET /api/content/{content_id}
+GET /api/content/{id}
 ```
 
 ### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `content_id` | string | Yes | The unique identifier of the content |
+| `id` | string | Yes | The unique identifier of the content |
 
 ### Response
 
@@ -225,7 +225,7 @@ curl -H "X-API-Key: your-api-key" \
 
 ## Get Project Statistics
 
-Retrieve basic statistics for your project's moderation activity.
+Retrieve basic statistics for your project's moderation activity. See [Project Statistics API](statistics.md) for detailed documentation.
 
 ### Endpoint
 
@@ -238,31 +238,6 @@ GET /api/stats
 ```http
 X-API-Key: your-api-key
 ```
-
-### Response
-
-```json
-{
-  "success": true,
-  "stats": {
-    "total_content": 1542,
-    "approved": 1293,
-    "rejected": 218,
-    "flagged": 31,
-    "pending": 0,
-    "approval_rate": 83.9
-  }
-}
-```
-
-### Statistics Fields
-
-- **total_content**: Total number of content items moderated
-- **approved**: Number of approved content items
-- **rejected**: Number of rejected content items  
-- **flagged**: Number of items flagged for manual review
-- **pending**: Number of items still being processed
-- **approval_rate**: Percentage of content approved
 
 ### Example Request
 

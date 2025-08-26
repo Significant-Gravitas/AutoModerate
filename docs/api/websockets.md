@@ -53,7 +53,7 @@ WebSocket connections require authentication. You must be logged in to the web d
 
 ### Session-based Authentication
 
-The WebSocket connection automatically uses your web dashboard session. If you're not authenticated, you'll receive an error message.
+WebSocket connections require authentication via the web dashboard session. Users must be logged in to establish a connection and can only join project rooms for projects they have access to.
 
 ## Project Rooms
 
@@ -173,9 +173,7 @@ socket.on('error', function(error) {
 
 #### Event: `moderation_update`
 
-**Note**: The actual moderation update events are sent from the `WebSocketNotifier` service, but the specific event structure would need to be verified by checking the service implementation.
-
-Based on the codebase structure, moderation updates are sent to project rooms when content is processed. To receive these updates:
+Receive real-time updates when content is moderated in your project.
 
 ```javascript
 // First, join a project room
@@ -184,8 +182,21 @@ socket.emit('join_project', {project_id: 'your-project-id'});
 // Then listen for moderation updates
 socket.on('moderation_update', function(data) {
     console.log('Content moderated:', data);
-    // Update your UI based on the moderation result
+    // data contains: content_id, status, decision, processing_time, etc.
+    updateUI(data);
 });
+```
+
+**Event Data Structure:**
+```json
+{
+  "content_id": "uuid-here",
+  "status": "approved|rejected|flagged",
+  "decision": "approved",
+  "confidence": 0.95,
+  "processing_time": 0.23,
+  "moderator_type": "rule|ai|manual"
+}
 ```
 
 ## Complete Implementation Example
