@@ -1,0 +1,274 @@
+/* Dark mode styles */
+[data-bs-theme="dark"] {
+    --bs-body-bg: #212529;
+    --bs-body-color: #dee2e6;
+}
+
+[data-bs-theme="dark"] .sidebar {
+    background-color: #343a40 !important;
+    border-right: 1px solid #495057;
+}
+
+[data-bs-theme="dark"] .nav-link {
+    color: #adb5bd !important;
+}
+
+[data-bs-theme="dark"] .nav-link:hover {
+    color: #fff !important;
+    background-color: #495057;
+}
+
+[data-bs-theme="dark"] .text-primary {
+    color: #0dcaf0 !important;
+}
+
+[data-bs-theme="dark"] .text-muted {
+    color: #6c757d !important;
+}
+
+[data-bs-theme="dark"] .card {
+    background-color: #343a40;
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .table {
+    --bs-table-bg: #343a40;
+    --bs-table-border-color: #495057;
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary {
+    border-color: #6c757d;
+    color: #6c757d;
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+[data-bs-theme="dark"] .alert {
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .modal-content {
+    background-color: #343a40;
+    border-color: #495057;
+}
+
+/* Dark mode toggle button styles */
+#dark-mode-toggle {
+    transition: all 0.3s ease;
+}
+
+[data-bs-theme="dark"] #dark-mode-toggle {
+    border-color: #0dcaf0;
+    color: #0dcaf0;
+}
+
+[data-bs-theme="dark"] #dark-mode-toggle:hover {
+    background-color: #0dcaf0;
+    border-color: #0dcaf0;
+    color: #000;
+}
+
+/* Additional dark mode text and component fixes */
+[data-bs-theme="dark"] body {
+    background-color: #212529 !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .text-dark {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .bg-light {
+    background-color: #343a40 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .bg-light .card-header {
+    background-color: #495057 !important;
+    color: #dee2e6 !important;
+    border-bottom-color: #6c757d !important;
+}
+
+[data-bs-theme="dark"] .badge {
+    color: #000 !important;
+}
+
+[data-bs-theme="dark"] .badge-secondary {
+    background-color: #6c757d !important;
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] pre {
+    background-color: #343a40 !important;
+    border-color: #495057 !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] code {
+    color: #e83e8c !important;
+    background-color: #343a40 !important;
+}
+
+[data-bs-theme="dark"] .table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.075) !important;
+}
+
+[data-bs-theme="dark"] .nav-link:hover {
+    background-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .api-key-display:hover {
+    background-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .form-control-plaintext {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .alert-info {
+    background-color: #0c4a6e !important;
+    border-color: #0369a1 !important;
+    color: #bae6fd !important;
+}
+
+[data-bs-theme="dark"] .alert-success {
+    background-color: #134e4a !important;
+    border-color: #047857 !important;
+    color: #a7f3d0 !important;
+}
+
+[data-bs-theme="dark"] .alert-warning {
+    background-color: #451a03 !important;
+    border-color: #92400e !important;
+    color: #fed7aa !important;
+}
+
+[data-bs-theme="dark"] .alert-danger {
+    background-color: #7f1d1d !important;
+    border-color: #dc2626 !important;
+    color: #fecaca !important;
+}
+
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3,
+[data-bs-theme="dark"] h4,
+[data-bs-theme="dark"] h5,
+[data-bs-theme="dark"] h6 {
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] p,
+[data-bs-theme="dark"] span,
+[data-bs-theme="dark"] div,
+[data-bs-theme="dark"] label,
+[data-bs-theme="dark"] small {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .btn-primary {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+}
+
+[data-bs-theme="dark"] .btn-success {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+}
+
+[data-bs-theme="dark"] .btn-danger {
+    background-color: #dc3545 !important;
+    border-color: #dc3545 !important;
+}
+
+[data-bs-theme="dark"] .btn-warning {
+    background-color: #fd7e14 !important;
+    border-color: #fd7e14 !important;
+    color: #000 !important;
+}
+
+[data-bs-theme="dark"] .btn-info {
+    background-color: #0dcaf0 !important;
+    border-color: #0dcaf0 !important;
+    color: #000 !important;
+}
+
+[data-bs-theme="dark"] .list-group-item {
+    background-color: #343a40 !important;
+    border-color: #495057 !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .dropdown-menu {
+    background-color: #343a40 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .dropdown-item {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .dropdown-item:hover {
+    background-color: #495057 !important;
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] #sidebar-toggle {
+    border-color: #495057;
+    color: #adb5bd;
+}
+
+[data-bs-theme="dark"] #sidebar-toggle:hover {
+    background-color: #495057;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+[data-bs-theme="dark"] #sidebar-toggle:focus {
+    box-shadow: 0 0 0 0.25rem rgba(173, 181, 189, 0.25);
+}
+
+[data-bs-theme="dark"] .page-header {
+    border-bottom-color: #495057;
+}
+
+/* Fix specific text elements in dark mode */
+[data-bs-theme="dark"] .card-text {
+    color: #dee2e6 !important;
+}
+
+/* Project detail page specific fixes */
+[data-bs-theme="dark"] .card-body p {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .card-body small {
+    color: #adb5bd !important;
+}
+
+[data-bs-theme="dark"] .card .text-center h4 {
+    color: inherit !important;
+}
+
+[data-bs-theme="dark"] .card .text-center small {
+    color: #adb5bd !important;
+}
+
+[data-bs-theme="dark"] .mobile-sidebar {
+    background-color: #343a40;
+    border-right: 1px solid #495057;
+}
+
+/* Dark mode fix for table-info flash animation */
+[data-bs-theme="dark"] .table-info {
+    background-color: rgba(13, 202, 240, 0.15) !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .table-info td {
+    background-color: rgba(13, 202, 240, 0.15) !important;
+    color: #dee2e6 !important;
+}

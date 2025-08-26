@@ -125,22 +125,26 @@ Located in `app/services/ai/`:
 ### 3. Data Models
 
 #### Core Models
-- **User**: Platform users with authentication
-- **Project**: Containers for moderation configurations
-- **APIKey**: Per-project authentication tokens
-- **Content**: Submitted content with moderation status
-- **ModerationRule**: Custom rules (keyword, regex, AI prompt)
-- **ModerationResult**: Moderation decisions and metadata
-- **APIUser**: External users tracked for statistics
+- **User**: Platform users with authentication and role management
+- **Project**: Containers for moderation configurations with multi-member support
+- **ProjectMember**: User-project relationships with roles (owner/admin/member)
+- **ProjectInvitation**: Token-based project invitation system
+- **APIKey**: Per-project authentication tokens with usage tracking
+- **APIUser**: External user tracking for statistics
+- **Content**: Submitted content with moderation status and metadata
+- **ModerationRule**: Custom rules (keyword, regex, AI prompt) with priority ordering
+- **ModerationResult**: Moderation decisions with confidence scores and timing
 
 #### Relationships
 ```sql
-User (1) → (∞) Project
+User (1) → (∞) Project [ownership]
+User (∞) ↔ (∞) Project [via ProjectMember with roles]
+Project (1) → (∞) ProjectInvitation
 Project (1) → (∞) APIKey
 Project (1) → (∞) ModerationRule
 Project (1) → (∞) Content
 Content (1) → (∞) ModerationResult
-Content (∞) → (1) APIUser
+APIUser (1) → (∞) Content
 ```
 
 ## Data Flow

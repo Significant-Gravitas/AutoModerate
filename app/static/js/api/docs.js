@@ -42,79 +42,105 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial navigation update
     updateActiveNavigation();
 
-    // Add copy functionality to code blocks
+    // Apply theme-appropriate code block styling
+    updateCodeBlockTheme();
+
+    // Add copy buttons to code blocks
     addCopyButtonsToCodeBlocks();
+
+    // Watch for theme changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
+                updateCodeBlockTheme();
+            }
+        });
+    });
+
+    observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-bs-theme']
+    });
 });
 
-// Add copy buttons to code blocks
+// Update code block theme based on current mode
+function updateCodeBlockTheme() {
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const codeBlocks = document.querySelectorAll('pre.code-block');
+
+    console.log('Updating code block theme. Dark mode:', isDark, 'Found blocks:', codeBlocks.length);
+
+    codeBlocks.forEach(block => {
+        // Remove existing theme classes
+        block.classList.remove('code-block-light', 'code-block-dark');
+
+        // Apply appropriate theme class
+        if (isDark) {
+            block.classList.add('code-block-dark');
+        } else {
+            block.classList.add('code-block-light');
+        }
+
+        console.log('Applied class to block:', isDark ? 'code-block-dark' : 'code-block-light');
+    });
+}
+
+// Add copy buttons to all code blocks
 function addCopyButtonsToCodeBlocks() {
-    const codeBlocks = document.querySelectorAll('pre code');
+    const codeContainers = document.querySelectorAll('.code-container');
 
-    codeBlocks.forEach((codeBlock, index) => {
-        const pre = codeBlock.parentElement;
-
-        // Skip if already has a copy button
-        if (pre.querySelector('.copy-btn')) return;
+    codeContainers.forEach(container => {
+        const pre = container.querySelector('pre');
+        if (!pre || pre.querySelector('.copy-btn')) return; // Skip if button already exists
 
         // Create copy button
         const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn btn-sm btn-outline-light copy-btn';
-        copyBtn.style.cssText = 'position: absolute; top: 0.5rem; right: 0.5rem; opacity: 0.7; transition: opacity 0.2s;';
-        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
-        copyBtn.title = 'Copy code';
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.onclick = function() { copyCode(this); };
 
-        // Style the pre element
-        pre.style.position = 'relative';
+        // Add button to container
+        container.appendChild(copyBtn);
+    });
+}
 
-        // Add hover effects
-        pre.addEventListener('mouseenter', () => {
-            copyBtn.style.opacity = '1';
-        });
+// Copy code functionality
+function copyCode(button) {
+    const container = button.parentElement;
+    const pre = container.querySelector('pre');
+    const code = pre.querySelector('code');
+    const text = code.textContent;
 
-        pre.addEventListener('mouseleave', () => {
-            copyBtn.style.opacity = '0.7';
-        });
+    navigator.clipboard.writeText(text).then(function() {
+        // Success feedback
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
 
-        // Add copy functionality
-        copyBtn.addEventListener('click', function() {
-            const text = codeBlock.textContent;
+        setTimeout(function() {
+            button.textContent = originalText;
+            button.classList.remove('copied');
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Failed to copy: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
 
-            navigator.clipboard.writeText(text).then(function() {
-                // Success feedback
-                const originalHTML = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-                copyBtn.classList.remove('btn-outline-light');
-                copyBtn.classList.add('btn-success');
+        // Success feedback
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
 
-                setTimeout(function() {
-                    copyBtn.innerHTML = originalHTML;
-                    copyBtn.classList.remove('btn-success');
-                    copyBtn.classList.add('btn-outline-light');
-                }, 2000);
-            }).catch(function(err) {
-                console.error('Failed to copy: ', err);
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-
-                // Success feedback
-                const originalHTML = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-                copyBtn.classList.remove('btn-outline-light');
-                copyBtn.classList.add('btn-success');
-
-                setTimeout(function() {
-                    copyBtn.innerHTML = originalHTML;
-                    copyBtn.classList.remove('btn-success');
-                    copyBtn.classList.add('btn-outline-light');
-                }, 2000);
-            });
-        });
-
-        pre.appendChild(copyBtn);
+        setTimeout(function() {
+            button.textContent = originalText;
+            button.classList.remove('copied');
+        }, 2000);
     });
 }

@@ -2,7 +2,7 @@
 
 Welcome to the AutoModerate documentation! This guide covers everything you need to know about the AutoModerate content moderation platform.
 
-## 📚 Documentation Overview
+## Documentation Overview
 
 ### Getting Started
 - [**Installation & Setup**](guides/installation.md) - Get AutoModerate running locally or in production
@@ -14,7 +14,7 @@ Welcome to the AutoModerate documentation! This guide covers everything you need
 - [**Project Statistics**](api/statistics.md) - Get basic moderation statistics
 - [**WebSocket Events**](api/websockets.md) - Real-time updates and notifications
 
-## 🚀 What is AutoModerate?
+## What is AutoModerate?
 
 AutoModerate is a Flask-based content moderation platform that uses OpenAI for intelligent content analysis with real-time WebSocket updates. It provides:
 
@@ -24,7 +24,7 @@ AutoModerate is a Flask-based content moderation platform that uses OpenAI for i
 - **RESTful API**: Complete API for integration with any application
 - **Scalable Architecture**: Modular design with parallel processing
 
-## 🔧 Core Features
+## Core Features
 
 ### Content Moderation
 - **Text Analysis**: Advanced text moderation with customizable rules
@@ -41,7 +41,7 @@ AutoModerate is a Flask-based content moderation platform that uses OpenAI for i
 - **Basic Statistics**: Track approval, rejection, and flagging rates
 - **Project Organization**: Multiple projects with isolated data
 
-## 🏗 Architecture Highlights
+## Architecture Highlights
 
 AutoModerate features a clean, modular architecture:
 
@@ -69,23 +69,23 @@ AutoModerate features a clean, modular architecture:
                     └─────────────────────────┘
 ```
 
-## 🔗 Quick Links
+## Quick Links
 
 - **API Base URL**: `http://localhost:6217/api` (development)
 - **Health Check**: `http://localhost:6217/api/health`
 - **Default Admin**: `admin@example.com` / `admin123`
 
-## 📖 Getting Help
+## Getting Help
 
 - Check the [Installation Guide](guides/installation.md) for setup issues
 - Review [API Documentation](api/overview.md) for integration questions
 - See [Architecture Guide](guides/architecture.md) for development questions
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our contributing guidelines and feel free to submit issues and pull requests.
 
-## 📝 Available API Endpoints
+## Available API Endpoints
 
 - **POST /api/moderate** - Submit content for moderation
 - **GET /api/content/{id}** - Get specific content details
@@ -94,7 +94,7 @@ We welcome contributions! Please see our contributing guidelines and feel free t
 - **GET /api/health** - API health check
 - **GET /api/docs** - API documentation page
 
-## 🌐 WebSocket Events
+## WebSocket Events
 
 - **connect** - Client connects to server
 - **disconnect** - Client disconnects from server
@@ -103,4 +103,4 @@ We welcome contributions! Please see our contributing guidelines and feel free t
 
 ---
 
-**Need help?** Start with the [Installation Guide](guides/installation.md) or check out the [API Overview](api/overview.md)!
+**Need help?** Start with the [Installation Guide](guides/installation.md) or check out the [API Overview](api/overview.md)

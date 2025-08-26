@@ -50,7 +50,7 @@
                                             <small>{{ user.last_seen.strftime('%Y-%m-%d %H:%M') }}</small>
                                         </td>
                                         <td>
-                                            <strong>{{ user.total_requests }}</strong>
+                                            <strong>{{ user.current_total_requests }}</strong>
                                         </td>
                                         <td>
                                             {% if user.approval_rate >= 80 %}
@@ -63,9 +63,9 @@
                                         </td>
                                         <td>
                                             <div class="d-flex gap-1">
-                                                <span class="badge bg-success" title="Approved">{{ user.approved_count }}</span>
-                                                <span class="badge bg-danger" title="Rejected">{{ user.rejected_count }}</span>
-                                                <span class="badge bg-warning" title="Flagged">{{ user.flagged_count }}</span>
+                                                <span class="badge bg-success" title="Approved">{{ user.current_approved_count }}</span>
+                                                <span class="badge bg-danger" title="Rejected">{{ user.current_rejected_count }}</span>
+                                                <span class="badge bg-warning" title="Flagged">{{ user.current_flagged_count }}</span>
                                             </div>
                                         </td>
                                         <td>

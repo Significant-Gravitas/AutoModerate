@@ -55,11 +55,11 @@
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <strong>Total Requests:</strong><br>
-                                    <h5>{{ api_user.total_requests }}</h5>
+                                    <h5>{{ api_user.current_total_requests }}</h5>
                                 </div>
                                 <div class="col-6">
                                     <strong>Days Active:</strong><br>
-                                    <h5>{{ ((api_user.last_seen - api_user.first_seen).days + 1) }}</h5>
+                                    <h5>{{ api_user.days_active }}</h5>
                                 </div>
                             </div>
 
@@ -70,39 +70,39 @@
                             <div class="row text-center">
                                 <div class="col-4">
                                     <div class="text-success">
-                                        <h4>{{ api_user.approved_count }}</h4>
+                                        <h4>{{ api_user.current_approved_count }}</h4>
                                         <small>Approved</small>
                                     </div>
                                 </div>
                                 <div class="col-4">
                                     <div class="text-danger">
-                                        <h4>{{ api_user.rejected_count }}</h4>
+                                        <h4>{{ api_user.current_rejected_count }}</h4>
                                         <small>Rejected</small>
                                     </div>
                                 </div>
                                 <div class="col-4">
                                     <div class="text-warning">
-                                        <h4>{{ api_user.flagged_count }}</h4>
+                                        <h4>{{ api_user.current_flagged_count }}</h4>
                                         <small>Flagged</small>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Progress Bars -->
-                            {% if api_user.total_requests > 0 %}
+                            {% if api_user.current_total_requests > 0 %}
                             <div class="mt-3">
                                 <div class="progress mb-2" style="height: 20px;">
                                     <div class="progress-bar bg-success"
-                                         style="width: {{ (api_user.approved_count / api_user.total_requests * 100) }}%">
-                                        {{ api_user.approved_count }}
+                                         style="width: {{ (api_user.current_approved_count / api_user.current_total_requests * 100) }}%">
+                                        {{ api_user.current_approved_count }}
                                     </div>
                                     <div class="progress-bar bg-danger"
-                                         style="width: {{ (api_user.rejected_count / api_user.total_requests * 100) }}%">
-                                        {{ api_user.rejected_count }}
+                                         style="width: {{ (api_user.current_rejected_count / api_user.current_total_requests * 100) }}%">
+                                        {{ api_user.current_rejected_count }}
                                     </div>
                                     <div class="progress-bar bg-warning"
-                                         style="width: {{ (api_user.flagged_count / api_user.total_requests * 100) }}%">
-                                        {{ api_user.flagged_count }}
+                                         style="width: {{ (api_user.current_flagged_count / api_user.current_total_requests * 100) }}%">
+                                        {{ api_user.current_flagged_count }}
                                     </div>
                                 </div>
                             </div>
