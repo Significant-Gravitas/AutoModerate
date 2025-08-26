@@ -1,0 +1,25 @@
+/* Form styling */
+[data-bs-theme="dark"] .form-control {
+    background-color: #495057;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+[data-bs-theme="dark"] .form-control:focus {
+    background-color: #495057;
+    border-color: #0dcaf0;
+    color: #fff;
+    box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.25);
+}
+
+[data-bs-theme="dark"] .form-select {
+    background-color: #495057;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+[data-bs-theme="dark"] .form-select:focus {
+    background-color: #495057;
+    border-color: #0dcaf0;
+    color: #fff;
+}

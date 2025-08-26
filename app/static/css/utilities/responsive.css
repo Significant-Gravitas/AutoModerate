@@ -1,0 +1,110 @@
+/* Responsive table improvements */
+@media (max-width: 1200px) {
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.5rem 0.25rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.8rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.4rem 0.2rem;
+    }
+
+    /* Hide less important columns on mobile */
+    #contentTable th:nth-child(6),
+    #contentTable td:nth-child(6) {
+        display: none; /* Hide Processing Time on mobile */
+    }
+
+    #contentTable th:nth-child(7),
+    #contentTable td:nth-child(7) {
+        display: none; /* Hide Created on mobile */
+    }
+}
+
+/* Mobile sidebar behavior */
+.mobile-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px;
+    z-index: 1050;
+    background-color: #f8f9fa;
+    overflow-y: auto;
+    padding: 1rem;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+
+.mobile-sidebar.show {
+    transform: translateX(0);
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1040;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    display: none;
+}
+
+.sidebar-overlay.show {
+    opacity: 1;
+    visibility: visible;
+    display: block;
+}
+
+@media (max-width: 767px) {
+    /* Make main content full width */
+    .row .col-md-9,
+    .row .col-lg-10 {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 0 0 100% !important;
+        margin-left: 0 !important;
+    }
+
+    /* Ensure main content takes full width on mobile */
+    #main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+}
+
+/* Desktop sidebar behavior */
+@media (min-width: 768px) {
+    .sidebar-collapsed {
+        display: none !important;
+    }
+
+    .content-expanded {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .sidebar-overlay {
+        display: none !important;
+    }
+}

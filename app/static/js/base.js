@@ -48,12 +48,6 @@ function initializeWebSocket() {
     return socket;
 }
 
-// Apply saved theme immediately (before DOM loads)
-(function() {
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-bs-theme', savedTheme);
-})();
-
 // Dark mode functionality
 function initializeDarkMode() {
     const darkModeToggle = document.getElementById('dark-mode-toggle');

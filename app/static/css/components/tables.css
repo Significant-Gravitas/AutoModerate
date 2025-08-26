@@ -1,0 +1,98 @@
+/* Table styling improvements */
+.table th {
+    white-space: nowrap;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.table td {
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+}
+
+/* Content table specific improvements */
+#contentTable th:first-child {
+    min-width: 120px; /* Content ID column */
+}
+
+#contentTable th:nth-child(2) {
+    min-width: 60px; /* Type column */
+}
+
+#contentTable th:nth-child(3) {
+    min-width: 200px; /* Content column */
+}
+
+#contentTable th:nth-child(4) {
+    min-width: 80px; /* Status column */
+}
+
+#contentTable th:nth-child(5) {
+    min-width: 120px; /* Moderation Results column */
+}
+
+#contentTable th:nth-child(6) {
+    min-width: 110px; /* Processing Time column */
+}
+
+#contentTable th:nth-child(7) {
+    min-width: 110px; /* Created column */
+}
+
+#contentTable th:nth-child(8) {
+    min-width: 80px; /* Actions column */
+}
+
+/* Dark mode table improvements */
+[data-bs-theme="dark"] .table th {
+    border-bottom-color: #495057;
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] .table td {
+    border-top-color: #495057;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .table tbody td {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .table-hover tbody tr:hover td {
+    background-color: rgba(255, 255, 255, 0.075) !important;
+}
+
+/* API key names and usage numbers */
+[data-bs-theme="dark"] .table td:first-child {
+    color: #fff !important; /* API key names */
+}
+
+[data-bs-theme="dark"] .table td:nth-child(3) {
+    color: #fff !important; /* Usage numbers */
+}
+
+/* Recent content text */
+[data-bs-theme="dark"] .table td:nth-child(2) {
+    color: #dee2e6 !important; /* Content text */
+}
+
+[data-bs-theme="dark"] .table td:nth-child(4) {
+    color: #adb5bd !important; /* Created dates */
+}
+
+/* Dashboard projects table fixes */
+[data-bs-theme="dark"] .table tbody tr td:nth-child(2) {
+    color: #adb5bd !important; /* Project descriptions */
+}
+
+[data-bs-theme="dark"] .table tbody tr td:nth-child(5) {
+    color: #adb5bd !important; /* Created dates in projects table */
+}
+
+/* Code elements in tables */
+[data-bs-theme="dark"] .table td code {
+    color: #e83e8c !important;
+    background-color: #343a40 !important;
+}
