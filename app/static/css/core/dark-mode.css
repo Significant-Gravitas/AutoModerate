@@ -261,3 +261,14 @@
     background-color: #343a40;
     border-right: 1px solid #495057;
 }
+
+/* Dark mode fix for table-info flash animation */
+[data-bs-theme="dark"] .table-info {
+    background-color: rgba(13, 202, 240, 0.15) !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .table-info td {
+    background-color: rgba(13, 202, 240, 0.15) !important;
+    color: #dee2e6 !important;
+}
