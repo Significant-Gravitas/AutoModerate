@@ -55,11 +55,62 @@ class APIUser(db.Model):
         elif status == 'flagged':
             self.flagged_count += 1
 
+    def get_current_stats(self):
+        """Get current stats by counting from database"""
+        from app.models.content import Content
+
+        # Count actual content records
+        total_content = Content.query.filter_by(api_user_id=self.id).count()
+        approved = Content.query.filter_by(api_user_id=self.id, status='approved').count()
+        rejected = Content.query.filter_by(api_user_id=self.id, status='rejected').count()
+        flagged = Content.query.filter_by(api_user_id=self.id, status='flagged').count()
+
+        return {
+            'total_requests': total_content,
+            'approved_count': approved,
+            'rejected_count': rejected,
+            'flagged_count': flagged,
+            'approval_rate': (approved / total_content * 100) if total_content > 0 else 0
+        }
+
     @property
     def approval_rate(self):
-        if self.total_requests > 0:
-            return (self.approved_count / self.total_requests) * 100
-        return 0
+        stats = self.get_current_stats()
+        return stats['approval_rate']
+
+    @property
+    def current_total_requests(self):
+        stats = self.get_current_stats()
+        return stats['total_requests']
+
+    @property
+    def current_approved_count(self):
+        stats = self.get_current_stats()
+        return stats['approved_count']
+
+    @property
+    def current_rejected_count(self):
+        stats = self.get_current_stats()
+        return stats['rejected_count']
+
+    @property
+    def current_flagged_count(self):
+        stats = self.get_current_stats()
+        return stats['flagged_count']
+
+    @property
+    def days_active(self):
+        """Calculate days active more accurately"""
+        if not self.last_seen or not self.first_seen:
+            return 0
+
+        # Get date components only (ignore time)
+        first_date = self.first_seen.date()
+        last_date = self.last_seen.date()
+
+        # Calculate difference in days and add 1 (inclusive)
+        delta = (last_date - first_date).days + 1
+        return max(1, delta)  # Minimum 1 day
 
     def __repr__(self):
         return f'<APIUser {self.external_user_id}>'
