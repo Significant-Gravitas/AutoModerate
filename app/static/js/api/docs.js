@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add copy buttons to code blocks
     addCopyButtonsToCodeBlocks();
 
+    // Initialize language switcher
+    initializeLanguageSwitcher();
+
     // Watch for theme changes
     const observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
@@ -142,5 +145,31 @@ function copyCode(button) {
             button.textContent = originalText;
             button.classList.remove('copied');
         }, 2000);
+    });
+}
+
+// Initialize language switcher functionality
+function initializeLanguageSwitcher() {
+    const languageButtons = document.querySelectorAll('[data-lang]');
+    const codeExamples = document.querySelectorAll('.code-example[data-lang]');
+
+    languageButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const selectedLang = this.getAttribute('data-lang');
+
+            // Update button states
+            languageButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+
+            // Show/hide appropriate code examples
+            codeExamples.forEach(example => {
+                const exampleLang = example.getAttribute('data-lang');
+                if (exampleLang === selectedLang) {
+                    example.style.display = 'block';
+                } else {
+                    example.style.display = 'none';
+                }
+            });
+        });
     });
 }

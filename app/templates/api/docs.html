@@ -4,7 +4,7 @@
 
 {% block scripts %}
 <link href="{{ url_for('static', filename='css/api/docs.css') }}?v=2.1" rel="stylesheet">
-<script src="{{ url_for('static', filename='js/api/docs.js') }}?v=2.1"></script>
+<script src="{{ url_for('static', filename='js/api/docs.js') }}?v=2.2"></script>
 {% endblock %}
 
 {% block content %}
@@ -318,66 +318,27 @@
                 <div class="card-body">
                     <p>Here are examples of how to integrate with the AutoModerate API using different programming languages and tools:</p>
 
-                    <div class="row">
-                        <!-- cURL Example -->
-                        <div class="col-lg-4 mb-4">
-                            <div class="card h-100 example-card">
-                                <div class="card-header bg-primary text-white">
-                                    <h6 class="mb-0"><i class="fas fa-terminal me-2"></i>cURL</h6>
-                                </div>
-                                <div class="card-body p-0">
-                                    <div class="code-container">
-                                        <pre class="code-block mb-0"><code>curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: am_your-api-key-here" \
-  -d '{
-    "type": "text",
-    "content": "Hello world!",
-    "metadata": {"user": "test123"}
-  }' \
-  http://your-domain.com/api/moderate</code></pre>
-                                    </div>
-                                </div>
-                            </div>
+                    <!-- Language Selector Buttons -->
+                    <div class="mb-3">
+                        <div class="btn-group" role="group" aria-label="Language selector">
+                            <button type="button" class="btn btn-outline-success active" data-lang="python">
+                                <i class="fab fa-python me-2"></i>Python
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" data-lang="curl">
+                                <i class="fas fa-terminal me-2"></i>cURL
+                            </button>
+                            <button type="button" class="btn btn-outline-warning" data-lang="javascript">
+                                <i class="fab fa-js-square me-2"></i>JavaScript
+                            </button>
                         </div>
+                    </div>
 
-                        <!-- JavaScript Example -->
-                        <div class="col-lg-4 mb-4">
-                            <div class="card h-100 example-card">
-                                <div class="card-header bg-warning text-dark">
-                                    <h6 class="mb-0"><i class="fab fa-js-square me-2"></i>JavaScript</h6>
-                                </div>
-                                <div class="card-body p-0">
-                                    <div class="code-container">
-                                        <pre class="code-block mb-0"><code>const response = await fetch('/api/moderate', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': 'am_your-api-key-here'
-    },
-    body: JSON.stringify({
-        type: 'text',
-        content: 'Hello world!',
-        metadata: { user: 'test123' }
-    })
-});
-
-const result = await response.json();
-console.log(result);</code></pre>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Python Example -->
-                        <div class="col-lg-4 mb-4">
-                            <div class="card h-100 example-card">
-                                <div class="card-header bg-success text-white">
-                                    <h6 class="mb-0"><i class="fab fa-python me-2"></i>Python</h6>
-                                </div>
-                                <div class="card-body p-0">
-                                    <div class="code-container">
-                                        <pre class="code-block mb-0"><code>import requests
+                    <!-- Code Examples -->
+                    <div class="code-examples">
+                        <!-- Python Example (shown by default) -->
+                        <div class="code-example" data-lang="python" style="display: block;">
+                            <div class="code-container">
+                                <pre class="code-block"><code>import requests
 
 url = "http://your-domain.com/api/moderate"
 headers = {
@@ -393,8 +354,42 @@ data = {
 response = requests.post(url, headers=headers, json=data)
 result = response.json()
 print(result)</code></pre>
-                                    </div>
-                                </div>
+                            </div>
+                        </div>
+
+                        <!-- cURL Example -->
+                        <div class="code-example" data-lang="curl" style="display: none;">
+                            <div class="code-container">
+                                <pre class="code-block"><code>curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: am_your-api-key-here" \
+  -d '{
+    "type": "text",
+    "content": "Hello world!",
+    "metadata": {"user": "test123"}
+  }' \
+  http://your-domain.com/api/moderate</code></pre>
+                            </div>
+                        </div>
+
+                        <!-- JavaScript Example -->
+                        <div class="code-example" data-lang="javascript" style="display: none;">
+                            <div class="code-container">
+                                <pre class="code-block"><code>const response = await fetch('/api/moderate', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': 'am_your-api-key-here'
+    },
+    body: JSON.stringify({
+        type: 'text',
+        content: 'Hello world!',
+        metadata: { user: 'test123' }
+    })
+});
+
+const result = await response.json();
+console.log(result);</code></pre>
                             </div>
                         </div>
                     </div>
