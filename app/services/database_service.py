@@ -188,14 +188,23 @@ class DatabaseService:
         return result is not None and result is not False
 
     # Project Operations
-    async def create_project(self, name: str, description: str, user_id: str) -> Optional[Project]:
+    async def create_project(self, name: str, description: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Create a new project"""
         def _create_project():
             project = Project(
                 name=name, description=description, user_id=user_id)
             db.session.add(project)
             db.session.commit()
-            return project
+            # Return the needed data as a dictionary to avoid detached instance issues
+            return {
+                'id': project.id,
+                'name': project.name,
+                'description': project.description,
+                'user_id': project.user_id,
+                'is_active': project.is_active,
+                'created_at': project.created_at,
+                'updated_at': project.updated_at
+            }
 
         return await self._safe_execute(_create_project)
 
@@ -350,20 +359,35 @@ class DatabaseService:
 
     # Moderation Rule Operations
     async def create_moderation_rule(self, project_id: str, name: str, rule_type: str,
-                                     rule_content: str, action: str, priority: int = 0) -> Optional[ModerationRule]:
+                                     rule_data: dict, action: str, priority: int = 0,
+                                     description: str = '') -> Optional[Dict[str, Any]]:
         """Create new moderation rule"""
         def _create_rule():
             rule = ModerationRule(
                 project_id=project_id,
                 name=name,
+                description=description,
                 rule_type=rule_type,
-                rule_content=rule_content,
+                rule_data=rule_data,
                 action=action,
                 priority=priority
             )
             db.session.add(rule)
             db.session.commit()
-            return rule
+            # Return the needed data as a dictionary to avoid detached instance issues
+            return {
+                'id': rule.id,
+                'project_id': rule.project_id,
+                'name': rule.name,
+                'description': rule.description,
+                'rule_type': rule.rule_type,
+                'rule_data': rule.rule_data,
+                'action': rule.action,
+                'priority': rule.priority,
+                'is_active': rule.is_active,
+                'created_at': rule.created_at,
+                'updated_at': rule.updated_at
+            }
 
         return await self._safe_execute(_create_rule)
 

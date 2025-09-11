@@ -69,8 +69,9 @@ async def create_default_rules(db_service, project_id):
         await db_service.create_moderation_rule(
             project_id=project_id,
             name=rule["name"],
+            description=rule["description"],
             rule_type=rule["rule_type"],
-            rule_content=str(rule["rule_data"]),
+            rule_data=rule["rule_data"],
             action=rule["action"],
             priority=rule["priority"]
         )

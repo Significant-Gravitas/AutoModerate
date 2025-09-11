@@ -24,7 +24,7 @@ class APIUser(db.Model):
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    project = db.relationship('Project', backref='api_users')
+    project = db.relationship('Project', backref=db.backref('api_users', cascade='all, delete-orphan'))
     content_items = db.relationship('Content', backref='api_user', lazy=True)
 
     def to_dict(self):

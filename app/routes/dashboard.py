@@ -89,19 +89,19 @@ async def create_project():
             return render_template('dashboard/create_project.html')
 
         # Add default moderation rules
-        await create_default_rules(db_service, project.id)
+        await create_default_rules(db_service, project['id'])
 
         # Create default API key
         import secrets
         key_value = f"ak_{secrets.token_urlsafe(32)}"
         await db_service.create_api_key(
-            project_id=project.id,
+            project_id=project['id'],
             name='Default Key',
             key_value=key_value
         )
 
         flash('Project created successfully!', 'success')
-        return redirect(url_for('dashboard.project_detail', project_id=project.id))
+        return redirect(url_for('dashboard.project_detail', project_id=project['id']))
 
     return render_template('dashboard/create_project.html')
 
