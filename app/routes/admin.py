@@ -236,6 +236,33 @@ async def projects():
     # Get projects using database service with eager loading
     all_projects = await db_service.get_all_projects_for_admin(page=page, per_page=per_page)
 
+    # Add counts for each project efficiently
+    project_stats = {}
+    if all_projects:
+        project_ids = [p.id for p in all_projects]
+
+        # Get counts for all projects in bulk
+        from sqlalchemy import func
+        content_counts = dict(db.session.query(
+            Content.project_id, func.count(Content.id)
+        ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
+
+        rules_counts = dict(db.session.query(
+            ModerationRule.project_id, func.count(ModerationRule.id)
+        ).filter(ModerationRule.project_id.in_(project_ids)).group_by(ModerationRule.project_id).all())
+
+        keys_counts = dict(db.session.query(
+            APIKey.project_id, func.count(APIKey.id)
+        ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
+
+        # Create stats dict for template
+        for project in all_projects:
+            project_stats[project.id] = {
+                'content_count': content_counts.get(project.id, 0),
+                'rules_count': rules_counts.get(project.id, 0),
+                'keys_count': keys_counts.get(project.id, 0)
+            }
+
     # Create a simple pagination object
     class SimplePagination:
         def __init__(self, items, page, per_page, total):
@@ -261,12 +288,13 @@ async def projects():
     projects = SimplePagination(
         all_projects, page, per_page, len(all_projects))
 
-    # Calculate statistics
-    total_content = sum(len(project.content) for project in projects.items)
+    # Calculate statistics efficiently without loading related data
+    total_content = Content.query.count()
     unique_owners = len(set(project.user_id for project in projects.items))
 
     return render_template('admin/projects.html',
                            projects=projects,
+                           project_stats=project_stats,
                            total_content=total_content,
                            unique_owners=unique_owners)
 
@@ -289,67 +317,129 @@ async def project_detail(project_id):
     return render_template('admin/project_detail.html', project=project, stats=stats)
 
 
-@admin_bp.route('/logs')
+@admin_bp.route('/analytics')
 @login_required
 @admin_required
-async def logs():
-    """System logs page"""
-    # This would typically connect to a logging system
-    # For now, we'll show recent activity from the database
-    recent_content = Content.query.order_by(
-        Content.created_at.desc()).limit(50).all()
-    recent_moderations = ModerationResult.query.order_by(
-        ModerationResult.created_at.desc()).limit(50).all()
-
-    return render_template('admin/logs.html',
-                           recent_content=recent_content,
-                           recent_moderations=recent_moderations)
-
-
-@admin_bp.route('/statistics')
-@login_required
-@admin_required
-async def statistics():
-    """Detailed statistics page"""
+async def analytics():
+    """Comprehensive analytics dashboard"""
     # Get date range for statistics
     days = request.args.get('days', 30, type=int)
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
 
-    # User registration statistics
-    user_stats = db.session.query(
+    # Overall system stats
+    system_stats = {
+        'total_users': User.query.count(),
+        'active_users': User.query.filter_by(is_active=True).count(),
+        'total_projects': Project.query.count(),
+        'total_content': Content.query.count(),
+        'total_moderations': ModerationResult.query.count(),
+        'total_api_keys': APIKey.query.filter_by(is_active=True).count(),
+    }
+
+    # Time series data for charts
+    user_registrations = db.session.query(
         db.func.date(User.created_at).label('date'),
         db.func.count(User.id).label('count')
     ).filter(
         User.created_at >= start_date
     ).group_by(
         db.func.date(User.created_at)
-    ).all()
+    ).order_by('date').all()
 
-    # Content creation statistics
-    content_stats = db.session.query(
+    content_submissions = db.session.query(
         db.func.date(Content.created_at).label('date'),
         db.func.count(Content.id).label('count')
     ).filter(
         Content.created_at >= start_date
     ).group_by(
         db.func.date(Content.created_at)
-    ).all()
+    ).order_by('date').all()
 
-    # Moderation statistics
-    moderation_stats = db.session.query(
-        db.func.date(ModerationResult.created_at).label('date'),
+    # Moderation decision breakdown
+    moderation_decisions = db.session.query(
+        ModerationResult.decision,
         db.func.count(ModerationResult.id).label('count')
     ).filter(
         ModerationResult.created_at >= start_date
-    ).group_by(
-        db.func.date(ModerationResult.created_at)
-    ).all()
+    ).group_by(ModerationResult.decision).all()
 
-    return render_template('admin/statistics.html',
-                           user_stats=user_stats,
-                           content_stats=content_stats,
-                           moderation_stats=moderation_stats,
+    # API usage by project
+    api_usage = db.session.query(
+        Project.name,
+        db.func.count(Content.id).label('requests')
+    ).select_from(Project).join(
+        Content, Project.id == Content.project_id
+    ).filter(
+        Content.created_at >= start_date
+    ).group_by(Project.id).order_by(db.func.count(Content.id).desc()).limit(10).all()
+
+    # Content type distribution
+    content_types = db.session.query(
+        Content.content_type,
+        db.func.count(Content.id).label('count')
+    ).filter(
+        Content.created_at >= start_date
+    ).group_by(Content.content_type).all()
+
+    # Processing time stats
+    processing_stats = db.session.query(
+        db.func.avg(ModerationResult.processing_time).label('avg_time'),
+        db.func.min(ModerationResult.processing_time).label('min_time'),
+        db.func.max(ModerationResult.processing_time).label('max_time')
+    ).filter(
+        ModerationResult.created_at >= start_date,
+        ModerationResult.processing_time.isnot(None)
+    ).first()
+
+    # Top active users (by content submissions)
+    from app.models.api_user import APIUser
+    top_users = db.session.query(
+        APIUser.external_user_id,
+        db.func.count(Content.id).label('submissions'),
+        db.func.sum(db.case(
+            (ModerationResult.decision == 'approved', 1),
+            else_=0
+        )).label('approved'),
+        db.func.sum(db.case(
+            (ModerationResult.decision == 'rejected', 1),
+            else_=0
+        )).label('rejected')
+    ).select_from(APIUser).join(
+        Content, APIUser.id == Content.api_user_id
+    ).join(
+        ModerationResult, Content.id == ModerationResult.content_id
+    ).filter(
+        Content.created_at >= start_date
+    ).group_by(APIUser.external_user_id).order_by(
+        db.func.count(Content.id).desc()
+    ).limit(10).all()
+
+    # Rule effectiveness - simplified approach
+    rule_stats = db.session.query(
+        ModerationRule.name,
+        db.func.count(ModerationResult.id).label('triggered'),
+        ModerationRule.rule_type
+    ).select_from(ModerationRule).join(
+        ModerationResult, ModerationRule.id == ModerationResult.moderator_id
+    ).filter(
+        ModerationResult.created_at >= start_date,
+        ModerationResult.moderator_type == 'rule',
+        ModerationResult.moderator_id.isnot(None)
+    ).group_by(ModerationRule.id).order_by(
+        db.func.count(ModerationResult.id).desc()
+    ).limit(10).all()
+
+    return render_template('admin/analytics.html',
+                           system_stats=system_stats,
+                           user_registrations=user_registrations,
+                           content_submissions=content_submissions,
+                           moderation_decisions=moderation_decisions,
+                           api_usage=api_usage,
+                           content_types=content_types,
+                           processing_stats=processing_stats,
+                           top_users=top_users,
+                           rule_stats=rule_stats,
                            days=days)
 
 

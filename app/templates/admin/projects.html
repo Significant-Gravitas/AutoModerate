@@ -54,13 +54,13 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="badge bg-info">{{ project.content|length }}</span>
+                                    <span class="badge bg-info">{{ project_stats[project.id].content_count }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-warning">{{ project.moderation_rules|length }}</span>
+                                    <span class="badge bg-warning">{{ project_stats[project.id].rules_count }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-secondary">{{ project.api_keys|length }}</span>
+                                    <span class="badge bg-secondary">{{ project_stats[project.id].keys_count }}</span>
                                 </td>
                                 <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>

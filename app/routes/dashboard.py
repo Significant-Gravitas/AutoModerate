@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload
 from app import db
 from app.models.api_key import APIKey
 from app.models.content import Content
+from app.models.moderation_result import ModerationResult
 from app.models.moderation_rule import ModerationRule
 from app.models.project import Project, ProjectInvitation, ProjectMember
 from app.models.user import User
@@ -615,6 +616,151 @@ async def delete_project(project_id):
 
     flash('Project deleted successfully!', 'success')
     return redirect(url_for('dashboard.projects'))
+
+
+@dashboard_bp.route('/projects/<project_id>/analytics')
+@login_required
+async def project_analytics(project_id):
+    """Project-specific analytics dashboard"""
+    from datetime import datetime, timedelta
+
+    project = Project.query.filter_by(id=project_id).first_or_404()
+
+    # Check if user has access to this project
+    if not project.is_member(current_user.id):
+        flash('You do not have access to this project', 'error')
+        return redirect(url_for('dashboard.projects'))
+
+    # Get date range for statistics
+    days = request.args.get('days', 30, type=int)
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Project overview stats
+    project_stats = {
+        'total_content': Content.query.filter_by(project_id=project_id).count(),
+        'total_moderations': ModerationResult.query.select_from(ModerationResult).join(
+            Content, ModerationResult.content_id == Content.id
+        ).filter(Content.project_id == project_id).count(),
+        'total_rules': ModerationRule.query.filter_by(project_id=project_id).count(),
+        'total_api_keys': APIKey.query.filter_by(project_id=project_id).count(),
+        'active_api_keys': APIKey.query.filter_by(
+            project_id=project_id, is_active=True
+        ).count(),
+    }
+
+    # Content submissions over time
+    content_submissions = db.session.query(
+        db.func.date(Content.created_at).label('date'),
+        db.func.count(Content.id).label('count')
+    ).filter(
+        Content.project_id == project_id,
+        Content.created_at >= start_date
+    ).group_by(
+        db.func.date(Content.created_at)
+    ).order_by('date').all()
+
+    # Moderation decisions breakdown
+    moderation_decisions = db.session.query(
+        ModerationResult.decision,
+        db.func.count(ModerationResult.id).label('count')
+    ).select_from(ModerationResult).join(
+        Content, ModerationResult.content_id == Content.id
+    ).filter(
+        Content.project_id == project_id,
+        ModerationResult.created_at >= start_date
+    ).group_by(ModerationResult.decision).all()
+
+    # Content type distribution
+    content_types = db.session.query(
+        Content.content_type,
+        db.func.count(Content.id).label('count')
+    ).filter(
+        Content.project_id == project_id,
+        Content.created_at >= start_date
+    ).group_by(Content.content_type).all()
+
+    # Processing time stats for this project
+    processing_stats = db.session.query(
+        db.func.avg(ModerationResult.processing_time).label('avg_time'),
+        db.func.min(ModerationResult.processing_time).label('min_time'),
+        db.func.max(ModerationResult.processing_time).label('max_time')
+    ).select_from(ModerationResult).join(
+        Content, ModerationResult.content_id == Content.id
+    ).filter(
+        Content.project_id == project_id,
+        ModerationResult.created_at >= start_date,
+        ModerationResult.processing_time.isnot(None)
+    ).first()
+
+    # API keys and their details for this project
+    api_usage = db.session.query(
+        APIKey.name,
+        APIKey.usage_count,
+        APIKey.last_used,
+        APIKey.is_active
+    ).filter(
+        APIKey.project_id == project_id
+    ).order_by(APIKey.usage_count.desc()).limit(10).all()
+
+    # Top users for this project
+    from app.models.api_user import APIUser
+    top_users = db.session.query(
+        APIUser.external_user_id,
+        db.func.count(Content.id).label('submissions'),
+        db.func.sum(db.case(
+            (ModerationResult.decision == 'approved', 1),
+            else_=0
+        )).label('approved'),
+        db.func.sum(db.case(
+            (ModerationResult.decision == 'rejected', 1),
+            else_=0
+        )).label('rejected')
+    ).select_from(APIUser).join(
+        Content, APIUser.id == Content.api_user_id
+    ).join(
+        ModerationResult, Content.id == ModerationResult.content_id
+    ).filter(
+        Content.project_id == project_id,
+        Content.created_at >= start_date
+    ).group_by(APIUser.external_user_id).order_by(
+        db.func.count(Content.id).desc()
+    ).limit(10).all()
+
+    # Rule effectiveness for this project
+    rule_stats = db.session.query(
+        ModerationRule.name,
+        db.func.count(ModerationResult.id).label('triggered'),
+        ModerationRule.rule_type
+    ).select_from(ModerationRule).join(
+        ModerationResult, ModerationRule.id == ModerationResult.moderator_id
+    ).join(Content, ModerationResult.content_id == Content.id).filter(
+        ModerationRule.project_id == project_id,
+        ModerationResult.created_at >= start_date,
+        ModerationResult.moderator_type == 'rule',
+        ModerationResult.moderator_id.isnot(None)
+    ).group_by(ModerationRule.id).order_by(
+        db.func.count(ModerationResult.id).desc()
+    ).limit(10).all()
+
+    # Recent activity summary
+    recent_content = Content.query.filter_by(
+        project_id=project_id
+    ).order_by(Content.created_at.desc()).limit(5).all()
+
+    return render_template('dashboard/project_analytics.html',
+                           project=project,
+                           project_stats=project_stats,
+                           content_submissions=content_submissions,
+                           moderation_decisions=moderation_decisions,
+                           content_types=content_types,
+                           processing_stats=processing_stats,
+                           api_usage=api_usage,
+                           top_users=top_users,
+                           rule_stats=rule_stats,
+                           recent_content=recent_content,
+                           days=days)
+
 
 # Project Member Management Routes
 

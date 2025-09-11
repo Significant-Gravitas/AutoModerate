@@ -25,6 +25,9 @@
             <a href="{{ url_for('dashboard.project_content', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
                 <i class="fas fa-list"></i> Content
             </a>
+            <a href="{{ url_for('dashboard.project_analytics', project_id=project.id) }}" class="btn btn-sm btn-outline-success">
+                <i class="fas fa-chart-line"></i> Analytics
+            </a>
             <a href="{{ url_for('dashboard.project_settings', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-cog"></i> Settings
             </a>

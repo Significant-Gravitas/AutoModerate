@@ -621,15 +621,13 @@ class DatabaseService:
         return await self._safe_execute(_get_projects) or []
 
     async def get_all_projects_for_admin(self, page: int = 1, per_page: int = 20) -> List[Project]:
-        """Get all projects for admin view with pagination"""
+        """Get all projects for admin view with pagination (lightweight)"""
         def _get_projects():
             from sqlalchemy.orm import joinedload
             offset = (page - 1) * per_page
+            # Only load owner data, not all content/rules/keys which can be huge
             return Project.query.options(
-                joinedload(Project.owner),
-                joinedload(Project.content),
-                joinedload(Project.moderation_rules),
-                joinedload(Project.api_keys)
+                joinedload(Project.owner)
             ).offset(offset).limit(per_page).all()
 
         return await self._safe_execute(_get_projects) or []

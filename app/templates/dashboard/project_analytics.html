@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} Analytics - AutoModerate{% endblock %}
+
+{% block page_title %}{{ project.name }} Analytics{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group me-2">
+    <a href="{{ url_for('dashboard.project_detail', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Project
+    </a>
+</div>
+<div class="btn-group">
+    <a href="?days=7" class="btn btn-sm btn-outline-primary {{ 'active' if days == 7 else '' }}">7 Days</a>
+    <a href="?days=30" class="btn btn-sm btn-outline-primary {{ 'active' if days == 30 else '' }}">30 Days</a>
+    <a href="?days=90" class="btn btn-sm btn-outline-primary {{ 'active' if days == 90 else '' }}">90 Days</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.stat-card {
+    transition: transform 0.2s;
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin-bottom: 20px;
+}
+.project-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Project Header -->
+<div class="project-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h2 class="mb-1">{{ project.name }}</h2>
+            <p class="mb-0 opacity-75">{{ project.description or 'No description provided' }}</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <div class="d-flex justify-content-md-end align-items-center">
+                <div class="text-center">
+                    <div class="fs-4 fw-bold">{{ days }}</div>
+                    <div class="small">Day Analysis</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Project Overview Cards -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card stat-card text-center">
+            <div class="card-body">
+                <i class="fas fa-file-alt fa-2x text-success mb-2"></i>
+                <h4 class="text-success">{{ project_stats.total_content }}</h4>
+                <p class="card-text small">Total Content</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card text-center">
+            <div class="card-body">
+                <i class="fas fa-shield-alt fa-2x text-warning mb-2"></i>
+                <h4 class="text-warning">{{ project_stats.total_moderations }}</h4>
+                <p class="card-text small">Moderations</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card text-center">
+            <div class="card-body">
+                <i class="fas fa-cogs fa-2x text-info mb-2"></i>
+                <h4 class="text-info">{{ project_stats.total_rules }}</h4>
+                <p class="card-text small">Active Rules</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card text-center">
+            <div class="card-body">
+                <i class="fas fa-key fa-2x text-primary mb-2"></i>
+                <h4 class="text-primary">{{ project_stats.active_api_keys }}</h4>
+                <p class="card-text small">Active Keys</p>
+                <small class="text-muted">{{ project_stats.total_api_keys }} total</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card text-center">
+            <div class="card-body">
+                <i class="fas fa-clock fa-2x text-secondary mb-2"></i>
+                <h4 class="text-secondary">
+                    {% if processing_stats and processing_stats.avg_time %}
+                        {{ "%.2f"|format(processing_stats.avg_time) }}s
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </h4>
+                <p class="card-text small">Avg Processing</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-danger mb-2"></i>
+                <h4 class="text-danger">{{ top_users|length }}</h4>
+                <p class="card-text small">Active Users</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <!-- Content Submissions Over Time -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Content Submissions Over Time ({{ days }} days)</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="contentChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Moderation Decisions Pie Chart -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Moderation Decisions</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="decisionsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Second Charts Row -->
+<div class="row mb-4">
+    <!-- API Keys Overview -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">API Keys Usage</h5>
+            </div>
+            <div class="card-body">
+                {% if api_usage %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Key Name</th>
+                                <th>Total Usage</th>
+                                <th>Status</th>
+                                <th>Last Used</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key in api_usage %}
+                            <tr>
+                                <td>{{ key.name or "Unnamed Key" }}</td>
+                                <td>{{ key.usage_count or 0 }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if key.is_active else 'secondary' }}">
+                                        {{ 'Active' if key.is_active else 'Inactive' }}
+                                    </span>
+                                </td>
+                                <td class="text-muted small">
+                                    {% if key.last_used %}
+                                        {{ key.last_used.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        Never
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No API keys found for this project.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Types -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Content Type Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="contentTypesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Tables Row -->
+<div class="row mb-4">
+    <!-- Top Users -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Top Active Users</h5>
+            </div>
+            <div class="card-body">
+                {% if top_users %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Submissions</th>
+                                <th>Approved</th>
+                                <th>Rejected</th>
+                                <th>Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in top_users %}
+                            <tr>
+                                <td><code class="small">{{ user.external_user_id }}</code></td>
+                                <td>{{ user.submissions }}</td>
+                                <td class="text-success">{{ user.approved or 0 }}</td>
+                                <td class="text-danger">{{ user.rejected or 0 }}</td>
+                                <td>
+                                    {% if user.submissions > 0 %}
+                                        {% set rate = ((user.approved or 0) / user.submissions * 100) %}
+                                        <span class="badge bg-{{ 'success' if rate > 80 else 'warning' if rate > 50 else 'danger' }}">
+                                            {{ "%.1f"|format(rate) }}%
+                                        </span>
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No user activity found for this period.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Rule Effectiveness -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Most Triggered Rules</h5>
+            </div>
+            <div class="card-body">
+                {% if rule_stats %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Rule Name</th>
+                                <th>Type</th>
+                                <th>Triggered</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rule in rule_stats %}
+                            <tr>
+                                <td>{{ rule.name }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if rule.rule_type == 'keyword' else 'info' if rule.rule_type == 'regex' else 'warning' }}">
+                                        {{ rule.rule_type }}
+                                    </span>
+                                </td>
+                                <td>{{ rule.triggered }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No rule activity found for this period.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_content %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Content</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>User</th>
+                                <th>Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for content in recent_content %}
+                            <tr>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 200px;">
+                                        {{ content.content_data[:100] }}{% if content.content_data|length > 100 %}...{% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ content.content_type }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if content.status == 'approved' else 'danger' if content.status == 'rejected' else 'warning' }}">
+                                        {{ content.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if content.api_user and content.api_user.external_user_id %}
+                                        <code class="small">{{ content.api_user.external_user_id }}</code>
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No recent activity found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Chart.js default configuration
+    Chart.defaults.responsive = true;
+    Chart.defaults.maintainAspectRatio = false;
+
+    // Content Submissions Chart
+    const contentCtx = document.getElementById('contentChart').getContext('2d');
+    new Chart(contentCtx, {
+        type: 'line',
+        data: {
+            labels: [
+                {% for item in content_submissions %}
+                '{{ item.date.strftime("%m-%d") }}'{{ "," if not loop.last else "" }}
+                {% endfor %}
+            ],
+            datasets: [{
+                label: 'Content Submissions',
+                data: [
+                    {% for item in content_submissions %}
+                    {{ item.count }}{{ "," if not loop.last else "" }}
+                    {% endfor %}
+                ],
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Moderation Decisions Chart
+    const decisionsCtx = document.getElementById('decisionsChart').getContext('2d');
+    new Chart(decisionsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [
+                {% for decision in moderation_decisions %}
+                '{{ decision.decision.title() }}'{{ "," if not loop.last else "" }}
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for decision in moderation_decisions %}
+                    {{ decision.count }}{{ "," if not loop.last else "" }}
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    '#28a745', // approved - green
+                    '#dc3545', // rejected - red
+                    '#ffc107', // flagged - yellow
+                    '#6c757d'  // other - gray
+                ]
+            }]
+        }
+    });
+
+    // Content Types Chart
+    const typesCtx = document.getElementById('contentTypesChart').getContext('2d');
+    new Chart(typesCtx, {
+        type: 'pie',
+        data: {
+            labels: [
+                {% for type in content_types %}
+                '{{ type.content_type.title() }}'{{ "," if not loop.last else "" }}
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for type in content_types %}
+                    {{ type.count }}{{ "," if not loop.last else "" }}
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    '#17a2b8', // text - teal
+                    '#fd7e14', // image - orange
+                    '#e83e8c', // video - pink
+                    '#6f42c1'  // other - purple
+                ]
+            }]
+        }
+    });
+});
+</script>
+{% endblock %}
