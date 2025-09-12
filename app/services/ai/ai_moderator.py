@@ -333,13 +333,20 @@ Does content violate this rule? JSON only:"""
 
                 # Validate required fields
                 if 'decision' not in result or result['decision'] not in ['approved', 'rejected']:
-                    result['decision'] = 'rejected'
+                    result['decision'] = 'approved'  # Default to approve if unclear
 
                 if 'confidence' not in result or not isinstance(result['confidence'], (int, float)):
-                    result['confidence'] = 0.5
+                    result['confidence'] = 0.3  # Low confidence for malformed response
 
                 if 'reason' not in result:
-                    result['reason'] = 'Custom AI analysis completed'
+                    result['reason'] = 'Malformed AI response - defaulting to approval'
+
+                # Apply confidence threshold - reject only if sufficiently confident
+                MIN_CONFIDENCE_FOR_REJECTION = 0.55
+                if result['decision'] == 'rejected' and result['confidence'] < MIN_CONFIDENCE_FOR_REJECTION:
+                    result['decision'] = 'approved'
+                    result['reason'] = f"Low confidence rejection ({result['confidence']:.2f} < {
+                        MIN_CONFIDENCE_FOR_REJECTION}) - approved instead. Original reason: {result['reason']}"
 
                 # Add metadata
                 result['moderator_type'] = 'ai'
@@ -355,19 +362,32 @@ Does content violate this rule? JSON only:"""
                 return result
 
             except json.JSONDecodeError:
-                # Fallback parsing if JSON is malformed
+                # Fallback parsing if JSON is malformed - be conservative and approve
+                current_app.logger.warning(f"Malformed JSON from AI: {result_text}")
                 result_lower = result_text.lower()
-                if 'approved' in result_lower or 'approve' in result_lower:
-                    decision = 'approved'
-                elif 'rejected' in result_lower or 'reject' in result_lower:
+
+                # Only reject if there's a clear rejection signal AND high confidence indicators
+                if ('rejected' in result_lower or 'reject' in result_lower) and any(
+                        word in result_lower for word in ['explicit', 'inappropriate', 'harmful', 'violates']):
                     decision = 'rejected'
+                    confidence = 0.6  # Lower confidence for malformed responses
                 else:
-                    decision = 'rejected'
+                    decision = 'approved'  # Default to approve when unclear
+                    confidence = 0.3
+
+                # Apply confidence threshold even for fallback parsing
+                MIN_CONFIDENCE_FOR_REJECTION = 0.55
+                if decision == 'rejected' and confidence < MIN_CONFIDENCE_FOR_REJECTION:
+                    decision = 'approved'
+                    reason = f"Malformed AI response with low confidence ({
+                        confidence:.2f}) - approved. Raw response: {result_text[:100]}"
+                else:
+                    reason = f"Parsed from malformed response: {result_text[:200]}"
 
                 return {
                     'decision': decision,
-                    'reason': result_text[:200],  # Truncate if too long
-                    'confidence': 0.7,
+                    'reason': reason,
+                    'confidence': confidence,
                     'moderator_type': 'ai',
                     'categories': {'custom_rule': decision != 'approved'},
                     'category_scores': {'custom_rule': 0.7},

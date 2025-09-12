@@ -76,9 +76,9 @@ async def register():
                 flash('Username already taken', 'error')
                 return render_template('auth/register.html')
 
-        # Create new user
-        user = await db_service.create_user(username=username, email=email, password=password)
-        if not user:
+        # Create new user and get fresh instance immediately
+        created_user = await db_service.create_user(username=username, email=email, password=password)
+        if not created_user:
             if request.is_json:
                 return jsonify({
                     'success': False,
@@ -88,13 +88,15 @@ async def register():
                 flash('Failed to create user account', 'error')
                 return render_template('auth/register.html')
 
-        login_user(user)
+        # Get fresh user by email to avoid detached session error
+        fresh_user = await db_service.get_user_by_email(email)
+        login_user(fresh_user)
 
         if request.is_json:
             return jsonify({
                 'success': True,
                 'message': 'Registration successful',
-                'user': user.to_dict()
+                'user': fresh_user.to_dict()
             })
         else:
             flash('Registration successful!', 'success')

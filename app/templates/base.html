@@ -23,12 +23,12 @@
     <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
     <!-- Modular CSS Files -->
-    <link href="{{ url_for('static', filename='css/core/layout.css') }}?v=20250125-006" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/core/dark-mode.css') }}?v=20250126-001" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/components/tables.css') }}?v=20250125-006" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/components/forms.css') }}?v=20250125-006" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/components/modals.css') }}?v=20250125-006" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/utilities/responsive.css') }}?v=20250125-006" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/core/layout.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/core/dark-mode.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/components/tables.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/components/forms.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/components/modals.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/utilities/responsive.css') }}" rel="stylesheet">
 </head>
 <body>
     <!-- Real-time connection indicator -->
@@ -217,7 +217,7 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Base JS -->
-    <script src="{{ url_for('static', filename='js/base.js') }}?v=20250125-004"></script>
+    <script src="{{ url_for('static', filename='js/base.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>

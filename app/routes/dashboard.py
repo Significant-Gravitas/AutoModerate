@@ -907,10 +907,13 @@ async def remove_member(project_id, membership_id):
         flash('Cannot remove the project owner', 'error')
         return redirect(url_for('dashboard.project_members', project_id=project_id))
 
+    # Store username before deletion
+    username = membership.user.username
+
     db.session.delete(membership)
     db.session.commit()
 
-    flash(f'Member {membership.user.username} removed from project', 'success')
+    flash(f'Member {username} removed from project', 'success')
     return redirect(url_for('dashboard.project_members', project_id=project_id))
 
 

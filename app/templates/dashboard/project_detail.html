@@ -3,12 +3,12 @@
 {% block title %}{{ project.name }} - AutoModerate{% endblock %}
 
 {% block scripts %}
-<link href="{{ url_for('static', filename='css/dashboard/project_detail.css') }}?v={{ range(1000, 9999) | random }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/dashboard/project_detail.css') }}" rel="stylesheet">
 <script>
     // Make project ID available to JavaScript
     window.projectId = '{{ project.id }}';
 </script>
-<script src="{{ url_for('static', filename='js/dashboard/project_detail.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard/project_detail.js') }}"></script>
 {% endblock %}
 
 {% block content %}

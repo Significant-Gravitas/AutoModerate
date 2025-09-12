@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Get project ID from URL
     const urlParts = window.location.pathname.split('/');
-    const projectId = urlParts[2]; // /dashboard/projects/{projectId}/members
+    const projectId = urlParts[3]; // /dashboard/projects/{projectId}/members
 });
 
 // Copy invitation link to clipboard
