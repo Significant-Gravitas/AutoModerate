@@ -76,13 +76,16 @@ async def users():
 async def user_detail(user_id):
     """User detail page"""
     user = await db_service.get_user_by_id(user_id)
+    if not user:
+        from flask import abort
+        abort(404)
+
     user_projects = await db_service.get_user_projects_for_admin(user_id)
 
-    # Calculate user statistics
-    total_content = sum(len(project.content) for project in user_projects)
-    total_rules = sum(len(project.moderation_rules)
-                      for project in user_projects)
-    total_api_keys = sum(len(project.api_keys) for project in user_projects)
+    # Calculate user statistics from the optimized data
+    total_content = sum(project_data['content_count'] for project_data in user_projects)
+    total_rules = sum(project_data['rules_count'] for project_data in user_projects)
+    total_api_keys = sum(project_data['api_keys_count'] for project_data in user_projects)
 
     return render_template('admin/user_detail.html',
                            user=user,

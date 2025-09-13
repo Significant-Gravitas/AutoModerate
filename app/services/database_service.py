@@ -8,6 +8,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
@@ -607,16 +608,40 @@ class DatabaseService:
 
         return await self._safe_execute(_get_stats) or {}
 
-    async def get_user_projects_for_admin(self, user_id: str) -> List[Project]:
-        """Get user projects for admin view"""
+    async def get_user_projects_for_admin(self, user_id: str) -> List[Dict]:
+        """Get user projects for admin view with counts instead of loading all related data"""
         def _get_projects():
-            from sqlalchemy.orm import joinedload
-            return Project.query.options(
-                joinedload(Project.owner),
-                joinedload(Project.content),
-                joinedload(Project.moderation_rules),
-                joinedload(Project.api_keys)
+            # Get projects with counts using subqueries to avoid N+1 problem
+            content_count = db.session.query(func.count(Content.id)).filter(
+                Content.project_id == Project.id
+            ).scalar_subquery()
+
+            rules_count = db.session.query(func.count(ModerationRule.id)).filter(
+                ModerationRule.project_id == Project.id
+            ).scalar_subquery()
+
+            api_keys_count = db.session.query(func.count(APIKey.id)).filter(
+                APIKey.project_id == Project.id
+            ).scalar_subquery()
+
+            projects = db.session.query(
+                Project,
+                content_count.label('content_count'),
+                rules_count.label('rules_count'),
+                api_keys_count.label('api_keys_count')
             ).filter_by(user_id=user_id).all()
+
+            # Convert to dict format for template
+            result = []
+            for project, content_count, rules_count, api_keys_count in projects:
+                result.append({
+                    'project': project,
+                    'content_count': content_count or 0,
+                    'rules_count': rules_count or 0,
+                    'api_keys_count': api_keys_count or 0
+                })
+
+            return result
 
         return await self._safe_execute(_get_projects) or []
 
