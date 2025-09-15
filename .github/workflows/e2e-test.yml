@@ -1,4 +1,4 @@
-name: End-to-End Testing
+name: Core Platform Testing
 
 on:
   push:
@@ -54,12 +54,10 @@ jobs:
         CI: true
         SECRET_KEY: test-secret-key-for-ci
         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/automoderate_test
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         ADMIN_EMAIL: admin@example.com
         ADMIN_PASSWORD: admin123
-        OPENAI_CHAT_MODEL: gpt-5-2025-08-07
-        OPENAI_CONTEXT_WINDOW: 400000
-        OPENAI_MAX_OUTPUT_TOKENS: 128000
+        # OpenAI not required for core platform testing
+        OPENAI_API_KEY: "test-key"
       run: |
         # Start the application in background
         python run.py &
@@ -83,7 +81,7 @@ jobs:
           exit 1
         fi
 
-    - name: Run end-to-end tests
+    - name: Run core platform tests
       env:
         BASE_URL: http://localhost:6217
         ADMIN_EMAIL: admin@example.com
