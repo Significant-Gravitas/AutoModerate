@@ -61,7 +61,7 @@ class AutoModerateE2ETest:
         """Register a new user account"""
         try:
             response = self.session.post(
-                f"{self.base_url}/register",
+                f"{self.base_url}/auth/register",
                 json=self.test_user,
                 timeout=30
             )
@@ -86,7 +86,7 @@ class AutoModerateE2ETest:
         """Login with the test user"""
         try:
             response = self.session.post(
-                f"{self.base_url}/login",
+                f"{self.base_url}/auth/login",
                 json={
                     'email': self.test_user['email'],
                     'password': self.test_user['password']
@@ -119,7 +119,7 @@ class AutoModerateE2ETest:
             }
 
             response = self.session.post(
-                f"{self.base_url}/projects/create",
+                f"{self.base_url}/dashboard/projects/create",
                 data=project_data,
                 timeout=30
             )
@@ -128,8 +128,8 @@ class AutoModerateE2ETest:
             if response.status_code in [302, 301]:
                 # Extract project ID from Location header
                 location = response.headers.get('Location', '')
-                if '/projects/' in location:
-                    self.created_project_id = location.split('/projects/')[-1].split('/')[0]
+                if '/dashboard/projects/' in location:
+                    self.created_project_id = location.split('/dashboard/projects/')[-1].split('/')[0]
                     self.log(f"✅ Project created successfully: {project_data['name']} (ID: {self.created_project_id})")
                     return True
                 else:
@@ -151,7 +151,7 @@ class AutoModerateE2ETest:
                 return False
 
             response = self.session.get(
-                f"{self.base_url}/projects/{self.created_project_id}/api-keys",
+                f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys",
                 timeout=30
             )
 
@@ -176,7 +176,7 @@ class AutoModerateE2ETest:
 
             # Create API key via form submission
             response = self.session.post(
-                f"{self.base_url}/projects/{self.created_project_id}/api-keys/create",
+                f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys/create",
                 data={'name': f'E2E Test Key {self.test_suffix}'},
                 timeout=30
             )
@@ -184,7 +184,7 @@ class AutoModerateE2ETest:
             if response.status_code in [302, 301]:
                 # API key was created, now get it from the API keys page
                 response = self.session.get(
-                    f"{self.base_url}/projects/{self.created_project_id}/api-keys",
+                    f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys",
                     timeout=30
                 )
 
