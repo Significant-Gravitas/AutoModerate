@@ -60,6 +60,7 @@ jobs:
         OPENAI_CHAT_MODEL: gpt-4o-mini
         OPENAI_CONTEXT_WINDOW: 128000
         OPENAI_MAX_OUTPUT_TOKENS: 4096
+        SQL_DEBUG: false
       run: |
         # Start the application in background
         python run.py &
