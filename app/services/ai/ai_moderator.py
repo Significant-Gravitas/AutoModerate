@@ -1,5 +1,6 @@
 import json
 
+import openai
 import tiktoken
 from flask import current_app
 
@@ -24,7 +25,7 @@ class AIModerator:
         # Initialize tokenizer; prefer model-specific, fallback to cl100k_base
         try:
             self.tokenizer = tiktoken.encoding_for_model(self.model_name)
-        except Exception:
+        except (KeyError, ValueError):
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
         # Reserve tokens for system+user prompts and model output
@@ -40,7 +41,7 @@ class AIModerator:
         """Count the number of tokens in a text string"""
         try:
             return len(self.tokenizer.encode(text))
-        except Exception as e:
+        except (UnicodeDecodeError, ValueError, TypeError) as e:
             current_app.logger.error(f"Token counting error: {str(e)}")
             # Fallback: rough estimation (1 token ≈ 4 characters)
             return len(text) // 4
@@ -279,11 +280,23 @@ class AIModerator:
 
                 return self._combine_chunk_results(chunk_results, len(content))
 
-        except Exception as e:
-            current_app.logger.error(f"OpenAI moderation error: {str(e)}")
+        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
+                openai.RateLimitError, openai.APITimeoutError) as e:
+            current_app.logger.error(f"OpenAI API error: {str(e)}")
             return {
                 'decision': 'rejected',
-                'reason': f'Moderation service error: {str(e)}',
+                'reason': f'OpenAI API error: {str(e)}',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {},
+                'category_scores': {},
+                'openai_flagged': False
+            }
+        except (ValueError, TypeError, KeyError) as e:
+            current_app.logger.error(f"Data processing error in moderation: {str(e)}")
+            return {
+                'decision': 'rejected',
+                'reason': f'Content processing error: {str(e)}',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
                 'categories': {},
@@ -394,11 +407,23 @@ Does content violate this rule? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except Exception as e:
-            current_app.logger.error(f"Custom prompt analysis error: {str(e)}")
+        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
+                openai.RateLimitError, openai.APITimeoutError) as e:
+            current_app.logger.error(f"OpenAI API error in custom prompt: {str(e)}")
             return {
                 'decision': 'rejected',
-                'reason': f'Custom analysis error: {str(e)}',
+                'reason': f'OpenAI API error: {str(e)}',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'error': True},
+                'category_scores': {'error': 1.0},
+                'openai_flagged': False
+            }
+        except (ValueError, TypeError, KeyError, json.JSONDecodeError) as e:
+            current_app.logger.error(f"Data processing error in custom prompt: {str(e)}")
+            return {
+                'decision': 'rejected',
+                'reason': f'Content processing error: {str(e)}',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
                 'categories': {'error': True},
@@ -464,12 +489,23 @@ Does content violate this rule? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except Exception as e:
-            current_app.logger.error(f"Baseline moderation error: {str(e)}")
-            # If baseline fails, be conservative and reject
+        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
+                openai.RateLimitError, openai.APITimeoutError) as e:
+            current_app.logger.error(f"OpenAI API error in baseline moderation: {str(e)}")
             return {
                 'decision': 'rejected',
-                'reason': f'Baseline moderation failed: {str(e)}',
+                'reason': f'OpenAI API error: {str(e)}',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'error': True},
+                'category_scores': {'error': 1.0},
+                'openai_flagged': False
+            }
+        except (ValueError, TypeError, AttributeError) as e:
+            current_app.logger.error(f"Data processing error in baseline moderation: {str(e)}")
+            return {
+                'decision': 'rejected',
+                'reason': f'Content processing error: {str(e)}',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
                 'categories': {'error': True},
@@ -558,13 +594,23 @@ Is this harmful? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except Exception as e:
-            current_app.logger.error(
-                f"Enhanced default moderation error: {str(e)}")
-            # If enhanced moderation fails, be conservative and reject
+        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
+                openai.RateLimitError, openai.APITimeoutError) as e:
+            current_app.logger.error(f"OpenAI API error in enhanced moderation: {str(e)}")
             return {
                 'decision': 'rejected',
-                'reason': f'Enhanced moderation failed: {str(e)}',
+                'reason': f'OpenAI API error: {str(e)}',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'error': True},
+                'category_scores': {'error': 1.0},
+                'openai_flagged': False
+            }
+        except (ValueError, TypeError, KeyError, json.JSONDecodeError) as e:
+            current_app.logger.error(f"Data processing error in enhanced moderation: {str(e)}")
+            return {
+                'decision': 'rejected',
+                'reason': f'Content processing error: {str(e)}',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
                 'categories': {'error': True},

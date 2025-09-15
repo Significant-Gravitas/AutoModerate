@@ -1,6 +1,7 @@
 import time
 
 from flask import current_app
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.moderation_result import ModerationResult
 
@@ -94,10 +95,14 @@ class ModerationOrchestrator:
                 'content_id': content.id
             }
 
-        except Exception as e:
-            current_app.logger.error(f"Moderation error: {str(e)}")
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error during moderation: {str(e)}")
             await db_service.rollback_transaction()
-            return {'error': str(e), 'decision': 'rejected', 'results': []}
+            return {'error': f'Database error: {str(e)}', 'decision': 'rejected', 'results': []}
+        except (ValueError, TypeError, AttributeError) as e:
+            current_app.logger.error(f"Data processing error during moderation: {str(e)}")
+            await db_service.rollback_transaction()
+            return {'error': f'Processing error: {str(e)}', 'decision': 'rejected', 'results': []}
 
     def _process_rules(self, content, fast_rules, ai_rules):
         """Process both fast and AI rules, returning first match"""

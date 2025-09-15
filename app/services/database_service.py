@@ -63,14 +63,14 @@ class DatabaseService:
                             logger.error(f"Database error in thread: {str(e)}")
                             try:
                                 db.session.rollback()
-                            except Exception as rollback_error:
+                            except SQLAlchemyError as rollback_error:
                                 logger.error(f"Rollback error: {str(rollback_error)}")
                             raise
-                        except Exception as e:
-                            logger.error(f"Unexpected error in thread: {str(e)}")
+                        except (ValueError, TypeError, AttributeError) as e:
+                            logger.error(f"Data processing error in thread: {str(e)}")
                             try:
                                 db.session.rollback()
-                            except Exception as rollback_error:
+                            except SQLAlchemyError as rollback_error:
                                 logger.error(f"Rollback error: {str(rollback_error)}")
                             raise
 
@@ -79,8 +79,8 @@ class DatabaseService:
             except SQLAlchemyError as e:
                 logger.error(f"Database error: {str(e)}")
                 return None
-            except Exception as e:
-                logger.error(f"Unexpected error: {str(e)}")
+            except (ValueError, TypeError, RuntimeError) as e:
+                logger.error(f"Runtime error: {str(e)}")
                 return None
         else:
             # No app context, run directly (shouldn't happen in normal operation)
@@ -92,11 +92,11 @@ class DatabaseService:
                         logger.error(f"Database error (no context): {str(e)}")
                         try:
                             db.session.rollback()
-                        except Exception:
+                        except SQLAlchemyError:
                             pass
                         raise
-                    except Exception as e:
-                        logger.error(f"Unexpected error (no context): {str(e)}")
+                    except (ValueError, TypeError, AttributeError) as e:
+                        logger.error(f"Data processing error (no context): {str(e)}")
                         raise
 
             try:
@@ -104,8 +104,8 @@ class DatabaseService:
             except SQLAlchemyError as e:
                 logger.error(f"Database error: {str(e)}")
                 return None
-            except Exception as e:
-                logger.error(f"Unexpected error: {str(e)}")
+            except (ValueError, TypeError, RuntimeError) as e:
+                logger.error(f"Runtime error: {str(e)}")
                 return None
 
     # User Operations
@@ -121,7 +121,7 @@ class DatabaseService:
                 # Refresh the user to ensure it's attached to the session
                 db.session.refresh(user)
                 return user
-            except Exception:
+            except SQLAlchemyError:
                 db.session.rollback()
                 raise
 

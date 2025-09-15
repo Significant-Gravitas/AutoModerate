@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from app import db
@@ -584,7 +585,7 @@ async def update_project(project_id):
         db.session.commit()
 
         flash('Project updated successfully!', 'success')
-    except Exception:
+    except SQLAlchemyError:
         db.session.rollback()
         flash('Error updating project', 'error')
 

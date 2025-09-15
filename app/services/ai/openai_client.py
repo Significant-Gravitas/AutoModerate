@@ -19,8 +19,8 @@ class OpenAIClient:
             else:
                 self.api_key = api_key
                 self.client = self._get_or_create_client(api_key)
-        except Exception as e:
-            current_app.logger.error(f"Failed to configure OpenAI: {str(e)}")
+        except (ValueError, TypeError, KeyError) as e:
+            current_app.logger.error(f"Configuration error for OpenAI: {str(e)}")
             self.api_key = None
             self.client = None
 
@@ -76,14 +76,16 @@ class OpenAIClient:
                 max_tokens=1
             )
             return True, "Connection successful"
-        except Exception as e:
-            return False, f"Connection failed: {str(e)}"
+        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError, openai.AuthenticationError) as e:
+            return False, f"OpenAI API error: {str(e)}"
+        except (ValueError, TypeError) as e:
+            return False, f"Configuration error: {str(e)}"
 
     def warmup_connection(self):
         """Warm up the connection pool by making a minimal request"""
         if self.is_configured():
             try:
                 self.test_connection()
-            except Exception:
+            except (openai.OpenAIError, ValueError, TypeError):
                 # Warmup failures are expected and should be ignored
                 pass
