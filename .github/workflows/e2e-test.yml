@@ -51,6 +51,7 @@ jobs:
     - name: Start AutoModerate application
       env:
         FLASK_ENV: testing
+        CI: true
         SECRET_KEY: test-secret-key-for-ci
         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/automoderate_test
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
