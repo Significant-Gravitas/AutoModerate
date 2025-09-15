@@ -1,4 +1,5 @@
 from functools import wraps
+from typing import Callable
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
@@ -16,7 +17,7 @@ from app.utils.error_handlers import (
 api_bp = Blueprint('api', __name__)
 
 
-def require_api_key(f):
+def require_api_key(f: Callable) -> Callable:
     """Decorator to require valid API key for API endpoints"""
     @wraps(f)
     async def decorated_function(*args, **kwargs):
@@ -180,6 +181,6 @@ async def health_check():
 
 
 @api_bp.route('/docs')
-def api_docs():
+def api_docs() -> str:
     """API Documentation page"""
     return render_template('api/docs.html')

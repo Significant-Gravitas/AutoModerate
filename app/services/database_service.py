@@ -485,6 +485,187 @@ class DatabaseService:
 
         return await self._safe_execute(_get_stats) or {}
 
+    async def get_analytics_stats(self) -> Dict[str, Any]:
+        """Get comprehensive analytics statistics"""
+        def _get_analytics_stats():
+            return {
+                'total_users': User.query.count(),
+                'active_users': User.query.filter_by(is_active=True).count(),
+                'total_projects': Project.query.count(),
+                'total_content': Content.query.count(),
+                'total_moderations': ModerationResult.query.count(),
+                'total_api_keys': APIKey.query.filter_by(is_active=True).count(),
+            }
+
+        return await self._safe_execute(_get_analytics_stats) or {}
+
+    async def get_api_stats(self) -> Dict[str, Any]:
+        """Get API statistics with user, project, content, and moderation breakdowns"""
+        def _get_api_stats():
+            from datetime import datetime, timedelta
+
+            week_ago = datetime.utcnow() - timedelta(days=7)
+
+            return {
+                'users': {
+                    'total': User.query.count(),
+                    'active': User.query.filter_by(is_active=True).count(),
+                    'admin': User.query.filter_by(is_admin=True).count(),
+                    'recent': User.query.filter(User.created_at >= week_ago).count()
+                },
+                'projects': {
+                    'total': Project.query.count(),
+                    'recent': Project.query.filter(Project.created_at >= week_ago).count()
+                },
+                'content': {
+                    'total': Content.query.count(),
+                    'recent': Content.query.filter(Content.created_at >= week_ago).count()
+                },
+                'moderations': {
+                    'total': ModerationResult.query.count(),
+                    'approved': ModerationResult.query.filter_by(decision='approved').count(),
+                    'rejected': ModerationResult.query.filter_by(decision='rejected').count(),
+                    'flagged': ModerationResult.query.filter_by(decision='flagged').count(),
+                    'recent': ModerationResult.query.filter(
+                        ModerationResult.created_at >= week_ago
+                    ).count()
+                }
+            }
+
+        return await self._safe_execute(_get_api_stats) or {}
+
+    async def get_project_analytics_stats(self, project_id: str, start_date, end_date) -> Dict[str, Any]:
+        """Get comprehensive analytics statistics for a specific project"""
+        def _get_project_analytics():
+            # Project overview stats
+            project_stats = {
+                'total_content': Content.query.filter_by(project_id=project_id).count(),
+                'total_moderations': ModerationResult.query.select_from(ModerationResult).join(
+                    Content, ModerationResult.content_id == Content.id
+                ).filter(Content.project_id == project_id).count(),
+                'total_rules': ModerationRule.query.filter_by(project_id=project_id).count(),
+                'total_api_keys': APIKey.query.filter_by(project_id=project_id).count(),
+                'active_api_keys': APIKey.query.filter_by(
+                    project_id=project_id, is_active=True
+                ).count(),
+            }
+
+            # Content submissions over time
+            content_submissions = db.session.query(
+                db.func.date(Content.created_at).label('date'),
+                db.func.count(Content.id).label('count')
+            ).filter(
+                Content.project_id == project_id,
+                Content.created_at >= start_date
+            ).group_by(
+                db.func.date(Content.created_at)
+            ).order_by('date').all()
+
+            # Moderation decisions breakdown
+            moderation_decisions = db.session.query(
+                ModerationResult.decision,
+                db.func.count(ModerationResult.id).label('count')
+            ).select_from(ModerationResult).join(
+                Content, ModerationResult.content_id == Content.id
+            ).filter(
+                Content.project_id == project_id,
+                ModerationResult.created_at >= start_date
+            ).group_by(ModerationResult.decision).all()
+
+            # Content type distribution
+            content_types = db.session.query(
+                Content.content_type,
+                db.func.count(Content.id).label('count')
+            ).filter(
+                Content.project_id == project_id,
+                Content.created_at >= start_date
+            ).group_by(Content.content_type).all()
+
+            # Processing time stats for this project
+            processing_stats = db.session.query(
+                db.func.avg(ModerationResult.processing_time).label('avg_time'),
+                db.func.min(ModerationResult.processing_time).label('min_time'),
+                db.func.max(ModerationResult.processing_time).label('max_time')
+            ).select_from(ModerationResult).join(
+                Content, ModerationResult.content_id == Content.id
+            ).filter(
+                Content.project_id == project_id,
+                ModerationResult.created_at >= start_date,
+                ModerationResult.processing_time.isnot(None)
+            ).first()
+
+            # API keys and their details for this project
+            api_usage = db.session.query(
+                APIKey.name,
+                APIKey.usage_count,
+                APIKey.last_used,
+                APIKey.is_active
+            ).filter(
+                APIKey.project_id == project_id
+            ).order_by(APIKey.usage_count.desc()).limit(10).all()
+
+            # Top users for this project
+            from app.models.api_user import APIUser
+            top_users = db.session.query(
+                APIUser.external_user_id,
+                db.func.count(Content.id).label('submissions'),
+                db.func.sum(db.case(
+                    (ModerationResult.decision == 'approved', 1),
+                    else_=0
+                )).label('approved'),
+                db.func.sum(db.case(
+                    (ModerationResult.decision == 'rejected', 1),
+                    else_=0
+                )).label('rejected')
+            ).select_from(APIUser).join(
+                Content, APIUser.id == Content.api_user_id
+            ).join(
+                ModerationResult, Content.id == ModerationResult.content_id
+            ).filter(
+                Content.project_id == project_id,
+                Content.created_at >= start_date
+            ).group_by(APIUser.external_user_id).order_by(
+                db.func.count(Content.id).desc()
+            ).limit(10).all()
+
+            # Rule effectiveness for this project
+            rule_stats = db.session.query(
+                ModerationRule.name,
+                db.func.count(ModerationResult.id).label('triggered'),
+                ModerationRule.rule_type
+            ).select_from(ModerationRule).join(
+                ModerationResult, ModerationRule.id == ModerationResult.moderator_id
+            ).join(Content, ModerationResult.content_id == Content.id).filter(
+                ModerationRule.project_id == project_id,
+                ModerationResult.created_at >= start_date,
+                ModerationResult.moderator_type == 'rule',
+                ModerationResult.moderator_id.isnot(None)
+            ).group_by(ModerationRule.id).order_by(
+                db.func.count(ModerationResult.id).desc()
+            ).limit(10).all()
+
+            # Recent activity summary
+            from app.models.api_user import APIUser
+            recent_content = Content.query.options(
+                joinedload(Content.api_user)
+            ).filter_by(
+                project_id=project_id
+            ).order_by(Content.created_at.desc()).limit(5).all()
+
+            return {
+                'project_stats': project_stats,
+                'content_submissions': content_submissions,
+                'moderation_decisions': moderation_decisions,
+                'content_types': content_types,
+                'processing_stats': processing_stats,
+                'api_usage': api_usage,
+                'top_users': top_users,
+                'rule_stats': rule_stats,
+                'recent_content': recent_content
+            }
+
+        return await self._safe_execute(_get_project_analytics) or {}
+
     # API User Operations
     async def get_or_create_api_user(self, external_user_id: str, project_id: str) -> Optional[APIUser]:
         """Get existing API user or create new one"""

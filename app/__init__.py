@@ -1,5 +1,6 @@
 import os
 import time
+from typing import Any, List, Union
 
 from flask import Flask
 from flask_login import LoginManager
@@ -14,7 +15,7 @@ login_manager = LoginManager()
 socketio = SocketIO(cors_allowed_origins="*")
 
 
-def create_app(config_name='default'):
+def create_app(config_name: str = 'default') -> Flask:
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
@@ -88,7 +89,7 @@ def create_app(config_name='default'):
 
     # Add custom Jinja2 filters
     @app.template_filter('to_dict_list')
-    def to_dict_list_filter(items):
+    def to_dict_list_filter(items: List[Any]) -> List[Union[dict, Any]]:
         """Convert a list of objects with to_dict() method to a list of dictionaries"""
         if not items:
             return []
@@ -97,7 +98,7 @@ def create_app(config_name='default'):
     return app
 
 
-def _initialize_database_with_retry(app, max_retries=3, delay=5):
+def _initialize_database_with_retry(app: Flask, max_retries: int = 3, delay: int = 5) -> None:
     """Initialize database with retry logic for connection pool issues"""
     for attempt in range(max_retries):
         try:
@@ -133,7 +134,7 @@ def _initialize_database_with_retry(app, max_retries=3, delay=5):
                     break
 
 
-def _create_default_admin(app):
+def _create_default_admin(app: Flask) -> None:
     """Create default admin user"""
     try:
         import asyncio

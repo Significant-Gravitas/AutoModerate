@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any, Dict
 
 from flask import Blueprint
 from flask_login import current_user
@@ -11,7 +12,7 @@ websocket_bp = Blueprint('websocket', __name__)
 
 
 @socketio.on('connect')
-def handle_connect():
+def handle_connect() -> None:
     """Handle client connection"""
     if current_user.is_authenticated:
         emit('connected', {'message': 'Connected to AutoModerate'})
@@ -20,13 +21,13 @@ def handle_connect():
 
 
 @socketio.on('disconnect')
-def handle_disconnect():
+def handle_disconnect() -> None:
     """Handle client disconnection"""
     pass
 
 
 @socketio.on('join_project')
-def handle_join_project(data):
+def handle_join_project(data: Dict[str, Any]) -> None:
     """Join a project room for real-time updates"""
     try:
         if not current_user.is_authenticated:
@@ -68,7 +69,7 @@ def handle_join_project(data):
 
 
 @socketio.on('leave_project')
-def handle_leave_project(data):
+def handle_leave_project(data: Dict[str, Any]) -> None:
     """Leave a project room"""
     if not current_user.is_authenticated:
         return

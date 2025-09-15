@@ -2,6 +2,7 @@
 Project access validation utilities
 """
 from functools import wraps
+from typing import Any, Callable, Optional, Tuple
 
 from flask import flash, redirect, url_for
 from flask_login import current_user
@@ -9,7 +10,7 @@ from flask_login import current_user
 from app.services.database_service import db_service
 
 
-async def validate_project_access(project_id: str, user_id: str = None):
+async def validate_project_access(project_id: str, user_id: Optional[str] = None) -> Tuple[Any, bool]:
     """
     Validate user access to a project
 
@@ -33,7 +34,7 @@ async def validate_project_access(project_id: str, user_id: str = None):
     return project, is_member
 
 
-def require_project_access(f):
+def require_project_access(f: Callable) -> Callable:
     """
     Decorator to require project access for routes that take project_id parameter
     Adds 'project' to the route function's keyword arguments
@@ -62,7 +63,7 @@ def require_project_access(f):
     return decorated_function
 
 
-def require_project_owner(f):
+def require_project_owner(f: Callable) -> Callable:
     """
     Decorator to require project ownership for routes that take project_id parameter
     Adds 'project' to the route function's keyword arguments

@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from functools import wraps
+from typing import Callable
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import db
-from app.models.api_key import APIKey
 from app.models.content import Content
 from app.models.moderation_result import ModerationResult
 from app.models.moderation_rule import ModerationRule
@@ -16,7 +16,7 @@ from app.services.database_service import db_service
 admin_bp = Blueprint('admin', __name__)
 
 
-def admin_required(f):
+def admin_required(f: Callable) -> Callable:
     """Decorator to require admin access"""
     @wraps(f)
     async def decorated_function(*args, **kwargs):
@@ -303,14 +303,7 @@ async def analytics():
     start_date = end_date - timedelta(days=days)
 
     # Overall system stats
-    system_stats = {
-        'total_users': User.query.count(),
-        'active_users': User.query.filter_by(is_active=True).count(),
-        'total_projects': Project.query.count(),
-        'total_content': Content.query.count(),
-        'total_moderations': ModerationResult.query.count(),
-        'total_api_keys': APIKey.query.filter_by(is_active=True).count(),
-    }
+    system_stats = await db_service.get_analytics_stats()
 
     # Time series data for charts
     user_registrations = db.session.query(
@@ -423,30 +416,6 @@ async def analytics():
 @admin_required
 async def api_stats():
     """API endpoint for admin statistics"""
-    stats = {
-        'users': {
-            'total': User.query.count(),
-            'active': User.query.filter_by(is_active=True).count(),
-            'admin': User.query.filter_by(is_admin=True).count(),
-            'recent': User.query.filter(User.created_at >= datetime.utcnow() - timedelta(days=7)).count()
-        },
-        'projects': {
-            'total': Project.query.count(),
-            'recent': Project.query.filter(Project.created_at >= datetime.utcnow() - timedelta(days=7)).count()
-        },
-        'content': {
-            'total': Content.query.count(),
-            'recent': Content.query.filter(Content.created_at >= datetime.utcnow() - timedelta(days=7)).count()
-        },
-        'moderations': {
-            'total': ModerationResult.query.count(),
-            'approved': ModerationResult.query.filter_by(decision='approved').count(),
-            'rejected': ModerationResult.query.filter_by(decision='rejected').count(),
-            'flagged': ModerationResult.query.filter_by(decision='flagged').count(),
-            'recent': ModerationResult.query.filter(
-                ModerationResult.created_at >= datetime.utcnow() - timedelta(days=7)
-            ).count()
-        }
-    }
+    stats = await db_service.get_api_stats()
 
     return jsonify(stats)
