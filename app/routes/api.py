@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from app.services.database_service import db_service
 from app.services.moderation_orchestrator import ModerationOrchestrator
+from app.utils.error_handlers import api_error_response, api_success_response, handle_api_error, validate_required_fields
 
 api_bp = Blueprint('api', __name__)
 
@@ -16,11 +17,11 @@ def require_api_key(f):
             'X-API-Key') or request.args.get('api_key')
 
         if not api_key:
-            return jsonify({'error': 'API key required'}), 401
+            return api_error_response('API key required', 401)
 
         key_obj = await db_service.get_api_key_by_value(api_key)
         if not key_obj or not key_obj.is_active:
-            return jsonify({'error': 'Invalid API key'}), 401
+            return api_error_response('Invalid API key', 401)
 
         # Increment usage counter
         await db_service.update_api_key_usage(key_obj)
@@ -35,6 +36,7 @@ def require_api_key(f):
 
 @api_bp.route('/moderate', methods=['POST'])
 @require_api_key
+@handle_api_error
 async def moderate_content():
     """
     Main API endpoint for content moderation
@@ -44,58 +46,51 @@ async def moderate_content():
     # Start timing the entire request
     request_start_time = time.time()
 
-    try:
-        data = request.get_json()
+    data = request.get_json()
 
-        if not data:
-            return jsonify({'error': 'JSON data required'}), 400
+    if not data:
+        return api_error_response('JSON data required', 400)
 
-        content_type = data.get('type', 'text')
-        content_data = data.get('content')
-        meta_data = data.get('metadata', {})
+    validate_required_fields(data, ['content'])
 
-        if not content_data:
-            return jsonify({'error': 'Content data required'}), 400
+    content_type = data.get('type', 'text')
+    content_data = data.get('content')
+    meta_data = data.get('metadata', {})
 
-        # Track API user if user_id is provided in metadata
-        api_user = None
-        if meta_data and 'user_id' in meta_data:
-            external_user_id = meta_data['user_id']
+    # Track API user if user_id is provided in metadata
+    api_user = None
+    if meta_data and 'user_id' in meta_data:
+        external_user_id = meta_data['user_id']
 
-            # Find or create API user using centralized service
-            api_user = await db_service.get_or_create_api_user(
-                external_user_id=external_user_id,
-                project_id=request.project.id
-            )
-
-        # Create content record using database service
-        content_id = await db_service.create_content(
-            project_id=request.project.id,
-            content_text=str(content_data),
-            content_type=content_type,
-            api_user_id=api_user.id if api_user else None,
-            meta_data=meta_data if meta_data else None
+        # Find or create API user using centralized service
+        api_user = await db_service.get_or_create_api_user(
+            external_user_id=external_user_id,
+            project_id=request.project.id
         )
 
-        if not content_id:
-            current_app.logger.error("Failed to create content record")
-            return jsonify({'error': 'Failed to create content record'}), 500
+    # Create content record using database service
+    content_id = await db_service.create_content(
+        project_id=request.project.id,
+        content_text=str(content_data),
+        content_type=content_type,
+        api_user_id=api_user.id if api_user else None,
+        meta_data=meta_data if meta_data else None
+    )
 
-        # Start moderation process
-        moderation_orchestrator = ModerationOrchestrator()
-        result = await moderation_orchestrator.moderate_content(
-            content_id, request_start_time)
+    if not content_id:
+        current_app.logger.error("Failed to create content record")
+        return api_error_response('Failed to create content record', 500)
 
-        return jsonify({
-            'success': True,
-            'content_id': content_id,
-            'status': result.get('decision', 'pending'),
-            'moderation_results': result.get('results', [])
-        })
+    # Start moderation process
+    moderation_orchestrator = ModerationOrchestrator()
+    result = await moderation_orchestrator.moderate_content(
+        content_id, request_start_time)
 
-    except Exception as e:
-        current_app.logger.error(f"Error in content moderation: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+    return api_success_response({
+        'content_id': content_id,
+        'status': result.get('decision', 'pending'),
+        'moderation_results': result.get('results', [])
+    })
 
 
 @api_bp.route('/content/<content_id>', methods=['GET'])

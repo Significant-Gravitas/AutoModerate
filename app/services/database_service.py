@@ -28,7 +28,13 @@ class DatabaseService:
     """Async centralized database operations with consistent error handling"""
 
     def __init__(self):
-        self._executor = ThreadPoolExecutor(max_workers=20)
+        from flask import current_app
+        try:
+            max_workers = current_app.config.get('DB_THREAD_POOL_WORKERS', 8)
+        except RuntimeError:
+            # No app context available during initialization
+            max_workers = 8
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
     async def _safe_execute(self, operation_func, *args, **kwargs):
         """Execute database operation asynchronously in thread pool"""
@@ -70,10 +76,11 @@ class DatabaseService:
                 return None
 
     # User Operations
-    async def create_user(self, username: str, email: str, password: str, is_admin: bool = False) -> Optional[User]:
+    async def create_user(self, username: str, email: str, password: str,
+                          is_admin: bool = False, is_active: bool = True) -> Optional[User]:
         """Create a new user"""
         def _create_user():
-            user = User(username=username, email=email, is_admin=is_admin)
+            user = User(username=username, email=email, is_admin=is_admin, is_active=is_active)
             user.set_password(password)
             db.session.add(user)
             db.session.commit()
@@ -656,6 +663,30 @@ class DatabaseService:
             ).offset(offset).limit(per_page).all()
 
         return await self._safe_execute(_get_projects) or []
+
+    async def get_project_bulk_stats(self, project_ids: list) -> dict:
+        """Get bulk statistics for multiple projects"""
+        def _get_stats():
+            # Get counts for all projects in bulk
+            content_counts = dict(db.session.query(
+                Content.project_id, func.count(Content.id)
+            ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
+
+            rules_counts = dict(db.session.query(
+                ModerationRule.project_id, func.count(ModerationRule.id)
+            ).filter(ModerationRule.project_id.in_(project_ids)).group_by(ModerationRule.project_id).all())
+
+            keys_counts = dict(db.session.query(
+                APIKey.project_id, func.count(APIKey.id)
+            ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
+
+            return {
+                'content_counts': content_counts,
+                'rules_counts': rules_counts,
+                'keys_counts': keys_counts
+            }
+
+        return await self._safe_execute(_get_stats)
 
     async def bulk_save_objects(self, objects: List) -> bool:
         """Bulk save objects to database"""

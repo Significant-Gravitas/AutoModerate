@@ -174,9 +174,18 @@ async def create_api_key(project_id):
         flash('API key name is required', 'error')
         return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
 
-    api_key = APIKey(name=name, project_id=project.id)
-    db.session.add(api_key)
-    db.session.commit()
+    # Generate API key value
+    key_value = f"am_{secrets.token_urlsafe(32)}"
+
+    api_key = await db_service.create_api_key(
+        project_id=project.id,
+        name=name,
+        key_value=key_value
+    )
+
+    if not api_key:
+        flash('Failed to create API key.', 'error')
+        return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
 
     flash('API key created successfully!', 'success')
     return redirect(url_for('dashboard.project_api_keys', project_id=project_id))

@@ -3,7 +3,6 @@ from functools import wraps
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import func
 
 from app import db
 from app.models.api_key import APIKey
@@ -170,17 +169,18 @@ async def create_user():
             flash('Email address already exists.', 'error')
             return redirect(url_for('admin.users'))
 
-        # Create new user
-        new_user = User(
+        # Create new user using database service
+        new_user = await db_service.create_user(
             username=username,
             email=email,
+            password=password,
             is_admin=is_admin,
             is_active=is_active
         )
-        new_user.set_password(password)
 
-        db.session.add(new_user)
-        db.session.commit()
+        if not new_user:
+            flash('Failed to create user.', 'error')
+            return redirect(url_for('admin.users'))
 
         role = 'admin' if is_admin else 'user'
         status = 'active' if is_active else 'inactive'
@@ -240,30 +240,20 @@ async def projects():
     # Get projects using database service with eager loading
     all_projects = await db_service.get_all_projects_for_admin(page=page, per_page=per_page)
 
-    # Add counts for each project efficiently
+    # Add counts for each project efficiently using database service
     project_stats = {}
     if all_projects:
         project_ids = [p.id for p in all_projects]
 
-        # Get counts for all projects in bulk
-        content_counts = dict(db.session.query(
-            Content.project_id, func.count(Content.id)
-        ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
-
-        rules_counts = dict(db.session.query(
-            ModerationRule.project_id, func.count(ModerationRule.id)
-        ).filter(ModerationRule.project_id.in_(project_ids)).group_by(ModerationRule.project_id).all())
-
-        keys_counts = dict(db.session.query(
-            APIKey.project_id, func.count(APIKey.id)
-        ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
+        # Get bulk statistics using database service
+        bulk_stats = await db_service.get_project_bulk_stats(project_ids)
 
         # Create stats dict for template
         for project in all_projects:
             project_stats[project.id] = {
-                'content_count': content_counts.get(project.id, 0),
-                'rules_count': rules_counts.get(project.id, 0),
-                'keys_count': keys_counts.get(project.id, 0)
+                'content_count': bulk_stats['content_counts'].get(project.id, 0),
+                'rules_count': bulk_stats['rules_counts'].get(project.id, 0),
+                'keys_count': bulk_stats['keys_counts'].get(project.id, 0)
             }
 
     # Create a simple pagination object
