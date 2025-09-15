@@ -3,6 +3,7 @@ from functools import wraps
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import func
 
 from app import db
 from app.models.api_key import APIKey
@@ -245,7 +246,6 @@ async def projects():
         project_ids = [p.id for p in all_projects]
 
         # Get counts for all projects in bulk
-        from sqlalchemy import func
         content_counts = dict(db.session.query(
             Content.project_id, func.count(Content.id)
         ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())

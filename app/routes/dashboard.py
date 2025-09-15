@@ -94,7 +94,7 @@ async def create_project():
 
         # Create default API key
         import secrets
-        key_value = f"ak_{secrets.token_urlsafe(32)}"
+        key_value = f"am_{secrets.token_urlsafe(32)}"
         await db_service.create_api_key(
             project_id=project['id'],
             name='Default Key',
