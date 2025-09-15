@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Callable
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user
 
 from app import db
 from app.models.content import Content
@@ -17,21 +17,45 @@ admin_bp = Blueprint('admin', __name__)
 
 
 def admin_required(f: Callable) -> Callable:
-    """Decorator to require admin access"""
+    """Enhanced decorator to require admin access with additional security checks"""
     @wraps(f)
     async def decorated_function(*args, **kwargs):
+        # Check if user is authenticated
         if not current_user.is_authenticated:
+            flash('Please log in to access admin area.', 'error')
             return redirect(url_for('auth.login'))
+
+        # Check if user is active (prevent deactivated admin accounts)
+        if not current_user.is_active:
+            flash('Your account has been deactivated. Contact support.', 'error')
+            return redirect(url_for('auth.logout'))
+
+        # Check if user has admin privileges
         if not current_user.is_admin:
             flash('Access denied. Admin privileges required.', 'error')
+            # Log unauthorized access attempt
+            current_app.logger.warning(
+                f"Unauthorized admin access attempt by user {current_user.id} ({current_user.email})"
+            )
             return redirect(url_for('dashboard.index'))
+
+        # Additional security: verify user still exists in database
+        try:
+            fresh_user = await db_service.get_user_by_id(current_user.id)
+            if not fresh_user or not fresh_user.is_admin or not fresh_user.is_active:
+                flash('Session invalid. Please log in again.', 'error')
+                return redirect(url_for('auth.logout'))
+        except Exception as e:
+            current_app.logger.error(f"Admin access verification error: {str(e)}")
+            flash('Access verification failed. Please log in again.', 'error')
+            return redirect(url_for('auth.logout'))
+
         return await f(*args, **kwargs)
     return decorated_function
 
 
 @admin_bp.route('/')
-@login_required
-@admin_required
+@admin_required  # admin_required includes login_required functionality
 async def index():
     """Admin dashboard overview"""
     # Get system statistics using centralized service
@@ -56,7 +80,6 @@ async def index():
 
 
 @admin_bp.route('/users')
-@login_required
 @admin_required
 async def users():
     """User management page"""
@@ -71,7 +94,6 @@ async def users():
 
 
 @admin_bp.route('/users/<user_id>')
-@login_required
 @admin_required
 async def user_detail(user_id):
     """User detail page"""
@@ -96,7 +118,6 @@ async def user_detail(user_id):
 
 
 @admin_bp.route('/users/<user_id>/toggle_admin', methods=['POST'])
-@login_required
 @admin_required
 async def toggle_admin(user_id):
     """Toggle admin status for a user"""
@@ -116,7 +137,6 @@ async def toggle_admin(user_id):
 
 
 @admin_bp.route('/users/<user_id>/toggle_active', methods=['POST'])
-@login_required
 @admin_required
 async def toggle_active(user_id):
     """Toggle active status for a user"""
@@ -135,7 +155,6 @@ async def toggle_active(user_id):
 
 
 @admin_bp.route('/users/create', methods=['POST'])
-@login_required
 @admin_required
 async def create_user():
     """Create a new user"""
@@ -196,7 +215,6 @@ async def create_user():
 
 
 @admin_bp.route('/users/<user_id>/delete', methods=['POST'])
-@login_required
 @admin_required
 async def delete_user(user_id):
     """Delete a user and all their data"""
@@ -230,7 +248,6 @@ async def delete_user(user_id):
 
 
 @admin_bp.route('/projects')
-@login_required
 @admin_required
 async def projects():
     """All projects overview"""
@@ -293,7 +310,6 @@ async def projects():
 
 
 @admin_bp.route('/analytics')
-@login_required
 @admin_required
 async def analytics():
     """Comprehensive analytics dashboard"""
@@ -412,7 +428,6 @@ async def analytics():
 
 
 @admin_bp.route('/api/stats')
-@login_required
 @admin_required
 async def api_stats():
     """API endpoint for admin statistics"""

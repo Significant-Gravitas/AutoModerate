@@ -5,6 +5,7 @@ High-performance async database operations with consistent error handling
 
 import asyncio
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
@@ -35,9 +36,10 @@ class DatabaseService:
             # No app context available during initialization
             max_workers = 8
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._operation_lock = threading.RLock()  # Reentrant lock for thread safety
 
     async def _safe_execute(self, operation_func, *args, **kwargs):
-        """Execute database operation asynchronously in thread pool"""
+        """Execute database operation asynchronously in thread pool with proper synchronization"""
         from flask import current_app, has_app_context
 
         loop = asyncio.get_event_loop()
@@ -47,29 +49,60 @@ class DatabaseService:
             app = current_app._get_current_object()
 
             def context_operation():
-                with app.app_context():
-                    return operation_func(*args, **kwargs)
+                # Use thread-safe operation with locking
+                with self._operation_lock:
+                    with app.app_context():
+                        try:
+                            result = operation_func(*args, **kwargs)
+                            # Ensure session is properly handled
+                            if hasattr(db.session, 'commit'):
+                                # Session will be committed by the operation if needed
+                                pass
+                            return result
+                        except SQLAlchemyError as e:
+                            logger.error(f"Database error in thread: {str(e)}")
+                            try:
+                                db.session.rollback()
+                            except Exception as rollback_error:
+                                logger.error(f"Rollback error: {str(rollback_error)}")
+                            raise
+                        except Exception as e:
+                            logger.error(f"Unexpected error in thread: {str(e)}")
+                            try:
+                                db.session.rollback()
+                            except Exception as rollback_error:
+                                logger.error(f"Rollback error: {str(rollback_error)}")
+                            raise
 
             try:
                 return await loop.run_in_executor(self._executor, context_operation)
             except SQLAlchemyError as e:
                 logger.error(f"Database error: {str(e)}")
-
-                def rollback_operation():
-                    with app.app_context():
-                        db.session.rollback()
-                await loop.run_in_executor(self._executor, rollback_operation)
                 return None
             except Exception as e:
                 logger.error(f"Unexpected error: {str(e)}")
                 return None
         else:
             # No app context, run directly (shouldn't happen in normal operation)
+            def safe_operation():
+                with self._operation_lock:
+                    try:
+                        return operation_func(*args, **kwargs)
+                    except SQLAlchemyError as e:
+                        logger.error(f"Database error (no context): {str(e)}")
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+                        raise
+                    except Exception as e:
+                        logger.error(f"Unexpected error (no context): {str(e)}")
+                        raise
+
             try:
-                return await loop.run_in_executor(self._executor, operation_func, *args, **kwargs)
+                return await loop.run_in_executor(self._executor, safe_operation)
             except SQLAlchemyError as e:
                 logger.error(f"Database error: {str(e)}")
-                await loop.run_in_executor(self._executor, db.session.rollback)
                 return None
             except Exception as e:
                 logger.error(f"Unexpected error: {str(e)}")
@@ -80,11 +113,17 @@ class DatabaseService:
                           is_admin: bool = False, is_active: bool = True) -> Optional[User]:
         """Create a new user"""
         def _create_user():
-            user = User(username=username, email=email, is_admin=is_admin, is_active=is_active)
-            user.set_password(password)
-            db.session.add(user)
-            db.session.commit()
-            return user
+            try:
+                user = User(username=username, email=email, is_admin=is_admin, is_active=is_active)
+                user.set_password(password)
+                db.session.add(user)
+                db.session.commit()
+                # Refresh the user to ensure it's attached to the session
+                db.session.refresh(user)
+                return user
+            except Exception:
+                db.session.rollback()
+                raise
 
         return await self._safe_execute(_create_user)
 
