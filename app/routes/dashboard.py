@@ -13,6 +13,7 @@ from app.models.moderation_rule import ModerationRule
 from app.models.project import Project, ProjectInvitation, ProjectMember
 from app.models.user import User
 from app.services.database_service import db_service
+from app.utils.project_access import require_project_access
 from config.default_rules import create_default_rules
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -109,27 +110,23 @@ async def create_project():
 
 @dashboard_bp.route('/projects/<project_id>')
 @login_required
-async def project_detail(project_id):
+@require_project_access
+async def project_detail(project_id, project=None):
     """Project detail page"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
+    # Get recent content using database service
+    recent_content = await db_service.get_project_content(project_id, limit=10)
 
-    # Get recent content
-    recent_content = Content.query.filter_by(project_id=project.id).order_by(
-        Content.created_at.desc()).limit(10).all()
+    # Get API keys to avoid DetachedInstanceError in template
+    api_keys = await db_service.get_project_api_keys(project_id)
 
-    # Get stats
-    total_content = Content.query.filter_by(project_id=project.id).count()
-    approved_content = Content.query.filter_by(
-        project_id=project.id, status='approved').count()
-    rejected_content = Content.query.filter_by(
-        project_id=project.id, status='rejected').count()
-    flagged_content = Content.query.filter_by(
-        project_id=project.id, status='flagged').count()
+    # Get stats using database service
+    content_counts = await db_service.get_content_counts_by_status(project_id)
+
+    total_content = sum(content_counts.values())
+    approved_content = content_counts.get('approved', 0)
+    rejected_content = content_counts.get('rejected', 0)
+    flagged_content = content_counts.get('flagged', 0)
 
     stats = {
         'total': total_content,
@@ -142,32 +139,25 @@ async def project_detail(project_id):
     return render_template('dashboard/project_detail.html',
                            project=project,
                            recent_content=recent_content,
+                           api_keys=api_keys,
                            stats=stats)
 
 
 @dashboard_bp.route('/projects/<project_id>/api-keys')
 @login_required
-async def project_api_keys(project_id):
+@require_project_access
+async def project_api_keys(project_id, project=None):
     """Manage project API keys"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
-
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
-    return render_template('dashboard/api_keys.html', project=project)
+    # Get API keys to avoid DetachedInstanceError in template
+    api_keys = await db_service.get_project_api_keys(project_id)
+    return render_template('dashboard/api_keys.html', project=project, api_keys=api_keys)
 
 
 @dashboard_bp.route('/projects/<project_id>/api-keys/create', methods=['POST'])
 @login_required
-async def create_api_key(project_id):
+@require_project_access
+async def create_api_key(project_id, project=None):
     """Create new API key"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
-
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
 
     name = request.form.get('name')
     if not name:
@@ -193,16 +183,10 @@ async def create_api_key(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/rules')
 @login_required
-async def project_rules(project_id):
+@require_project_access
+async def project_rules(project_id, project=None):
     """Manage project moderation rules"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
-
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
-    rules = ModerationRule.query.filter_by(project_id=project.id).order_by(
-        ModerationRule.priority.desc()).all()
+    rules = await db_service.get_project_rules(project_id)
     return render_template('dashboard/rules.html', project=project, rules=rules)
 
 

@@ -33,7 +33,6 @@
                                 <th>Rules Count</th>
                                 <th>API Keys</th>
                                 <th>Created</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -63,14 +62,6 @@
                                     <span class="badge bg-secondary">{{ project_stats[project.id].keys_count }}</span>
                                 </td>
                                 <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
-                                <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('admin.project_detail', project_id=project.id) }}"
-                                           class="btn btn-outline-primary" title="View Details">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                    </div>
-                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -292,24 +292,6 @@ async def projects():
                            unique_owners=unique_owners)
 
 
-@admin_bp.route('/projects/<project_id>')
-@login_required
-@admin_required
-async def project_detail(project_id):
-    """Project detail page"""
-    project = Project.query.get_or_404(project_id)
-
-    # Get project statistics
-    stats = {
-        'content_count': Content.query.filter_by(project_id=project_id).count(),
-        'rules_count': ModerationRule.query.filter_by(project_id=project_id).count(),
-        'api_keys_count': APIKey.query.filter_by(project_id=project_id).count(),
-        'moderations_count': ModerationResult.query.join(Content).filter(Content.project_id == project_id).count(),
-    }
-
-    return render_template('admin/project_detail.html', project=project, stats=stats)
-
-
 @admin_bp.route('/analytics')
 @login_required
 @admin_required

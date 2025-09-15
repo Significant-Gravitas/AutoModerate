@@ -112,7 +112,6 @@ class DatabaseService:
     async def get_user_with_projects(self, user_id: str) -> Optional[User]:
         """Get user by ID with projects and related data loaded"""
         def _get_user():
-            from sqlalchemy.orm import joinedload
             return User.query.options(
                 joinedload(User.projects)
                 .joinedload(Project.api_keys),
@@ -230,9 +229,11 @@ class DatabaseService:
         return await self._safe_execute(_get_projects) or []
 
     async def get_project_by_id(self, project_id: str) -> Optional[Project]:
-        """Get project by ID"""
+        """Get project by ID with owner relationship loaded"""
         def _get_project():
-            return Project.query.get(project_id)
+            return Project.query.options(
+                joinedload(Project.owner)
+            ).filter_by(id=project_id).first()
 
         return await self._safe_execute(_get_project)
 
@@ -307,9 +308,10 @@ class DatabaseService:
         return await self._safe_execute(_create_content)
 
     async def get_project_content(self, project_id: str, limit: int = 100, offset: int = 0) -> List[Content]:
-        """Get content for a project with pagination"""
+        """Get content for a project with pagination and moderation results"""
         def _get_content():
             return Content.query.filter_by(project_id=project_id)\
+                .options(joinedload(Content.moderation_results))\
                 .order_by(Content.created_at.desc())\
                 .limit(limit).offset(offset).all()
 
@@ -317,9 +319,10 @@ class DatabaseService:
 
     async def get_project_content_with_filters(self, project_id: str, status: str = None, limit: int = 50,
                                                offset: int = 0) -> List[Content]:
-        """Get content for a project with optional status filter"""
+        """Get content for a project with optional status filter and moderation results"""
         def _get_content():
-            query = Content.query.filter_by(project_id=project_id)
+            query = Content.query.filter_by(project_id=project_id)\
+                .options(joinedload(Content.moderation_results))
             if status:
                 query = query.filter_by(status=status)
             return query.order_by(Content.created_at.desc()).limit(limit).offset(offset).all()
@@ -327,16 +330,20 @@ class DatabaseService:
         return await self._safe_execute(_get_content) or []
 
     async def get_content_by_id(self, content_id: str) -> Optional[Content]:
-        """Get content by ID"""
+        """Get content by ID with moderation results"""
         def _get_content():
-            return Content.query.get(content_id)
+            return Content.query.options(
+                joinedload(Content.moderation_results)
+            ).filter_by(id=content_id).first()
 
         return await self._safe_execute(_get_content)
 
     async def get_content_by_id_and_project(self, content_id: str, project_id: str) -> Optional[Content]:
-        """Get content by ID and project ID"""
+        """Get content by ID and project ID with moderation results"""
         def _get_content():
-            return Content.query.filter_by(id=content_id, project_id=project_id).first()
+            return Content.query.options(
+                joinedload(Content.moderation_results)
+            ).filter_by(id=content_id, project_id=project_id).first()
 
         return await self._safe_execute(_get_content)
 
@@ -586,7 +593,6 @@ class DatabaseService:
     async def get_recent_projects(self, limit: int = 5) -> List[Project]:
         """Get recent projects for admin dashboard"""
         def _get_recent():
-            from sqlalchemy.orm import joinedload
             return Project.query.options(
                 joinedload(Project.owner)
             ).order_by(Project.created_at.desc()).limit(limit).all()
@@ -596,7 +602,6 @@ class DatabaseService:
     async def get_recent_content_admin(self, limit: int = 10) -> List[Content]:
         """Get recent content for admin dashboard"""
         def _get_recent():
-            from sqlalchemy.orm import joinedload
             return Content.query.options(
                 joinedload(Content.project).joinedload(Project.owner)
             ).order_by(Content.created_at.desc()).limit(limit).all()
@@ -655,7 +660,6 @@ class DatabaseService:
     async def get_all_projects_for_admin(self, page: int = 1, per_page: int = 20) -> List[Project]:
         """Get all projects for admin view with pagination (lightweight)"""
         def _get_projects():
-            from sqlalchemy.orm import joinedload
             offset = (page - 1) * per_page
             # Only load owner data, not all content/rules/keys which can be huge
             return Project.query.options(
@@ -687,6 +691,29 @@ class DatabaseService:
             }
 
         return await self._safe_execute(_get_stats)
+
+    async def get_flagged_content_for_projects(self, project_ids: list, page: int = 1, per_page: int = 50) -> tuple:
+        """Get flagged content for multiple projects with pagination"""
+        def _get_flagged_content():
+            if not project_ids:
+                return [], 0
+
+            query = Content.query.filter(
+                Content.project_id.in_(project_ids),
+                Content.status == 'flagged'
+            ).options(joinedload(Content.moderation_results))\
+             .order_by(Content.created_at.desc())
+
+            # Get total count
+            total = query.count()
+
+            # Apply pagination
+            offset = (page - 1) * per_page
+            items = query.offset(offset).limit(per_page).all()
+
+            return items, total
+
+        return await self._safe_execute(_get_flagged_content)
 
     async def bulk_save_objects(self, objects: List) -> bool:
         """Bulk save objects to database"""

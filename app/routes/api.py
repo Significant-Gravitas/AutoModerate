@@ -2,9 +2,16 @@ from functools import wraps
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from app.schemas import ContentListRequest, ModerateContentRequest
 from app.services.database_service import db_service
 from app.services.moderation_orchestrator import ModerationOrchestrator
-from app.utils.error_handlers import api_error_response, api_success_response, handle_api_error, validate_required_fields
+from app.utils.error_handlers import (
+    api_error_response,
+    api_success_response,
+    handle_api_error,
+    validate_json_request,
+    validate_query_params,
+)
 
 api_bp = Blueprint('api', __name__)
 
@@ -36,8 +43,9 @@ def require_api_key(f):
 
 @api_bp.route('/moderate', methods=['POST'])
 @require_api_key
+@validate_json_request(ModerateContentRequest)
 @handle_api_error
-async def moderate_content():
+async def moderate_content(validated_data=None):
     """
     Main API endpoint for content moderation
     """
@@ -46,16 +54,10 @@ async def moderate_content():
     # Start timing the entire request
     request_start_time = time.time()
 
-    data = request.get_json()
-
-    if not data:
-        return api_error_response('JSON data required', 400)
-
-    validate_required_fields(data, ['content'])
-
-    content_type = data.get('type', 'text')
-    content_data = data.get('content')
-    meta_data = data.get('metadata', {})
+    # Extract validated data
+    content_type = validated_data.type
+    content_data = validated_data.content
+    meta_data = validated_data.metadata or {}
 
     # Track API user if user_id is provided in metadata
     api_user = None
@@ -112,13 +114,14 @@ async def get_content(content_id):
 
 @api_bp.route('/content', methods=['GET'])
 @require_api_key
-async def list_content():
+@validate_query_params(ContentListRequest)
+async def list_content(validated_params=None):
     """
     List content for the project with pagination
     """
-    page = request.args.get('page', 1, type=int)
-    per_page = min(request.args.get('per_page', 20, type=int), 100)
-    status = request.args.get('status')
+    page = validated_params.page
+    per_page = validated_params.per_page
+    status = validated_params.status
 
     offset = (page - 1) * per_page
     content_items = await db_service.get_project_content_with_filters(

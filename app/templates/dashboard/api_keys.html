@@ -29,7 +29,7 @@
                 <h5 class="card-title mb-0">Existing API Keys</h5>
             </div>
             <div class="card-body">
-                {% if project.api_keys %}
+                {% if api_keys %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -44,7 +44,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for key in project.api_keys %}
+                            {% for key in api_keys %}
                             <tr>
                                 <td>
                                     <strong>{{ key.name }}</strong>

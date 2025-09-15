@@ -4,7 +4,8 @@ Error handling utilities for consistent error responses
 import logging
 from functools import wraps
 
-from flask import flash, jsonify, redirect, url_for
+from flask import flash, jsonify, redirect, request, url_for
+from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -99,3 +100,99 @@ def validate_required_fields(data, required_fields):
             error_code="MISSING_REQUIRED_FIELDS",
             details={"missing_fields": missing_fields}
         )
+
+
+def validate_json_request(schema_class: BaseModel):
+    """
+    Decorator to validate JSON request data against a Pydantic schema
+    Adds 'validated_data' to the route function's keyword arguments
+    """
+    def decorator(f):
+        @wraps(f)
+        async def decorated_function(*args, **kwargs):
+            try:
+                # Get JSON data from request
+                json_data = request.get_json()
+                if json_data is None:
+                    return api_error_response(
+                        "JSON data required",
+                        400,
+                        "MISSING_JSON_DATA"
+                    )
+
+                # Validate against schema
+                validated_data = schema_class(**json_data)
+
+                # Add validated data to kwargs
+                kwargs['validated_data'] = validated_data
+
+                return await f(*args, **kwargs)
+
+            except ValidationError as e:
+                # Format Pydantic validation errors
+                error_details = []
+                for error in e.errors():
+                    field = '.'.join(str(loc) for loc in error['loc'])
+                    error_details.append(f"{field}: {error['msg']}")
+
+                return api_error_response(
+                    "Invalid input data",
+                    400,
+                    "VALIDATION_ERROR",
+                    {"field_errors": error_details}
+                )
+            except Exception as e:
+                logger.error(f"Validation error in {f.__name__}: {str(e)}")
+                return api_error_response("Internal server error", 500)
+
+        return decorated_function
+    return decorator
+
+
+def validate_query_params(schema_class: BaseModel):
+    """
+    Decorator to validate query parameters against a Pydantic schema
+    Adds 'validated_params' to the route function's keyword arguments
+    """
+    def decorator(f):
+        @wraps(f)
+        async def decorated_function(*args, **kwargs):
+            try:
+                # Get query parameters
+                query_data = request.args.to_dict()
+
+                # Convert common query param types
+                for key, value in query_data.items():
+                    # Try to convert numbers
+                    if value.isdigit():
+                        query_data[key] = int(value)
+                    elif value.lower() in ('true', 'false'):
+                        query_data[key] = value.lower() == 'true'
+
+                # Validate against schema
+                validated_params = schema_class(**query_data)
+
+                # Add validated params to kwargs
+                kwargs['validated_params'] = validated_params
+
+                return await f(*args, **kwargs)
+
+            except ValidationError as e:
+                # Format Pydantic validation errors
+                error_details = []
+                for error in e.errors():
+                    field = '.'.join(str(loc) for loc in error['loc'])
+                    error_details.append(f"{field}: {error['msg']}")
+
+                return api_error_response(
+                    "Invalid query parameters",
+                    400,
+                    "VALIDATION_ERROR",
+                    {"field_errors": error_details}
+                )
+            except Exception as e:
+                logger.error(f"Query param validation error in {f.__name__}: {str(e)}")
+                return api_error_response("Internal server error", 500)
+
+        return decorated_function
+    return decorator

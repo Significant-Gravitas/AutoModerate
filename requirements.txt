@@ -12,11 +12,12 @@ openai>=1.55.3
 tiktoken==0.5.2
 httpx[http2]
 
-# Security and utilities  
+# Security and utilities
 bcrypt==4.0.1
 python-dotenv==1.0.0
 requests==2.31.0
 pre-commit==3.6.0
+pydantic==2.5.0
 
 # Database support
 psycopg2-binary==2.9.9
