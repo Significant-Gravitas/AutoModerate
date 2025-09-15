@@ -113,6 +113,17 @@ class AutoModerateE2ETest:
     def create_project(self) -> bool:
         """Create a new project"""
         try:
+            # First get the form page to ensure we have the session
+            form_response = self.session.get(
+                f"{self.base_url}/dashboard/projects/create",
+                timeout=30
+            )
+
+            if form_response.status_code != 200:
+                self.log(f"❌ Failed to access project creation form: HTTP {form_response.status_code}", "ERROR")
+                return False
+
+            # Now submit the form data
             project_data = {
                 'name': f'Test Project {self.test_suffix}',
                 'description': f'E2E test project created at {time.strftime("%Y-%m-%d %H:%M:%S")}'
@@ -121,20 +132,44 @@ class AutoModerateE2ETest:
             response = self.session.post(
                 f"{self.base_url}/dashboard/projects/create",
                 data=project_data,
-                timeout=30
+                timeout=30,
+                allow_redirects=False  # Handle redirects manually
             )
 
             # Handle redirect response
             if response.status_code in [302, 301]:
                 # Extract project ID from Location header
                 location = response.headers.get('Location', '')
-                if '/dashboard/projects/' in location:
-                    self.created_project_id = location.split('/dashboard/projects/')[-1].split('/')[0]
-                    self.log(f"✅ Project created successfully: {project_data['name']} (ID: {self.created_project_id})")
-                    return True
-                else:
-                    self.log(f"❌ Project creation failed: Redirect location unclear - {location}", "ERROR")
-                    return False
+                self.log(f"Redirect location: {location}")
+
+                if '/dashboard/projects/' in location and location != f"{self.base_url}/dashboard/projects/create":
+                    # Extract project ID from URL like /dashboard/projects/uuid-here
+                    path_parts = location.split('/dashboard/projects/')
+                    if len(path_parts) > 1:
+                        project_part = path_parts[1].split('/')[0]  # Get first part after projects/
+                        if project_part and len(project_part) > 10:  # Should be a UUID
+                            self.created_project_id = project_part
+                            self.log(f"✅ Project created successfully: {project_data['name']} (ID: {self.created_project_id})")
+                            return True
+
+                # If we get redirected back to projects list, try to find the project there
+                if '/dashboard/projects' in location:
+                    # Follow the redirect to see if project was created
+                    projects_response = self.session.get(location, timeout=30)
+                    if projects_response.status_code == 200 and project_data['name'] in projects_response.text:
+                        # Try to extract project ID from the HTML
+                        import re
+
+                        # Look for project links in the HTML
+                        uuid_pattern = r'/dashboard/projects/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
+                        matches = re.findall(uuid_pattern, projects_response.text)
+                        if matches:
+                            self.created_project_id = matches[-1]  # Get the last (newest) project
+                            self.log(f"✅ Project created successfully: {project_data['name']} (ID: {self.created_project_id})")
+                            return True
+
+                self.log(f"❌ Project creation: Redirect location unclear - {location}", "ERROR")
+                return False
             else:
                 self.log(f"❌ Project creation failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
                 return False
@@ -168,17 +203,49 @@ class AutoModerateE2ETest:
             return False
 
     def create_api_key(self) -> bool:
-        """Create a new API key"""
+        """Get the default API key (created automatically with project)"""
         try:
             if not self.created_project_id:
-                self.log("❌ No project ID available to create API key", "ERROR")
+                self.log("❌ No project ID available to get API key", "ERROR")
                 return False
 
+            # First try to get the default API key that should already exist
+            response = self.session.get(
+                f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys",
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                # Extract API key from HTML (look for pattern am_xxxx)
+                import re
+                api_key_pattern = r'am_[a-zA-Z0-9_-]+'
+                matches = re.findall(api_key_pattern, response.text)
+
+                if matches:
+                    self.api_key = matches[0]  # Get the first (default) key
+                    self.log(f"✅ Default API key retrieved: {self.api_key[:10]}...")
+                    return True
+                else:
+                    self.log("❌ No API keys found, trying to create one", "WARNING")
+                    # If no default key exists, create one
+                    return self.create_additional_api_key()
+            else:
+                self.log(f"❌ Failed to access API keys page: HTTP {response.status_code}", "ERROR")
+                return False
+
+        except Exception as e:
+            self.log(f"❌ API key retrieval failed: {str(e)}", "ERROR")
+            return False
+
+    def create_additional_api_key(self) -> bool:
+        """Create an additional API key if default doesn't exist"""
+        try:
             # Create API key via form submission
             response = self.session.post(
                 f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys/create",
                 data={'name': f'E2E Test Key {self.test_suffix}'},
-                timeout=30
+                timeout=30,
+                allow_redirects=False
             )
 
             if response.status_code in [302, 301]:
@@ -199,10 +266,10 @@ class AutoModerateE2ETest:
                         self.log(f"✅ API key created and retrieved: {self.api_key[:10]}...")
                         return True
                     else:
-                        self.log("❌ API key not found in response", "ERROR")
+                        self.log("❌ API key not found in response after creation", "ERROR")
                         return False
                 else:
-                    self.log(f"❌ Failed to retrieve API key: HTTP {response.status_code}", "ERROR")
+                    self.log(f"❌ Failed to retrieve API key after creation: HTTP {response.status_code}", "ERROR")
                     return False
             else:
                 self.log(f"❌ API key creation failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
