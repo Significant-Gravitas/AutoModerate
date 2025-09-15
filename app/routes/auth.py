@@ -2,7 +2,6 @@ import re
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
-from werkzeug.utils import escape
 
 from app.services.database_service import db_service
 
@@ -50,8 +49,8 @@ async def login():
                 flash(error_msg, 'error')
                 return render_template('auth/login.html')
 
-        # Sanitize inputs
-        email = escape(email.lower())
+        # Normalize inputs
+        email = email.lower()
 
         # Rate limiting check (basic implementation)
         if len(password) > 200:  # Prevent excessive password lengths
@@ -160,9 +159,9 @@ async def register():
                 flash(error_msg, 'error')
                 return render_template('auth/register.html')
 
-        # Sanitize inputs
-        username = escape(username)
-        email = escape(email.lower())
+        # Normalize inputs
+        username = username
+        email = email.lower()
 
         # Check if user already exists
         if await db_service.get_user_by_email(email):

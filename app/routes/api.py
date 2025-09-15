@@ -3,7 +3,6 @@ from functools import wraps
 from typing import Callable
 
 from flask import Blueprint, current_app, jsonify, render_template, request
-from werkzeug.utils import escape
 
 from app.schemas import ContentListRequest, ModerateContentRequest
 from app.services.database_service import db_service
@@ -33,8 +32,8 @@ def require_api_key(f: Callable) -> Callable:
         if not _is_valid_api_key_format(api_key):
             return api_error_response('Invalid API key format', 401)
 
-        # Sanitize API key
-        api_key = escape(api_key.strip())
+        # Clean API key (already validated by regex)
+        api_key = api_key.strip()
 
         key_obj = await db_service.get_api_key_by_value(api_key)
         if not key_obj or not key_obj.is_active:
@@ -101,8 +100,8 @@ async def moderate_content(validated_data=None):
         if not _is_valid_user_id(external_user_id):
             return api_error_response('Invalid user_id format', 400)
 
-        # Sanitize user_id
-        external_user_id = escape(external_user_id)
+        # User ID already validated by regex, no HTML escaping needed for database storage
+        external_user_id = external_user_id
 
         # Find or create API user using centralized service
         api_user = await db_service.get_or_create_api_user(
@@ -145,7 +144,7 @@ async def get_content(content_id):
     if not content_id or not _is_valid_uuid(content_id):
         return api_error_response('Invalid content ID format', 400)
 
-    content_id = escape(content_id.strip())
+    content_id = content_id.strip()
 
     content = await db_service.get_content_by_id_and_project(content_id, request.project.id)
 
