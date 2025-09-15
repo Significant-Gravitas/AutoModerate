@@ -1,6 +1,7 @@
 """
 Pydantic schemas for API request/response validation
 """
+import re
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -33,12 +34,35 @@ class ModerateContentRequest(BaseModel):
     def validate_content(cls, v):
         if not v or not v.strip():
             raise ValueError('Content cannot be empty or only whitespace')
+        # Check for potential XSS or injection attempts
+        suspicious_patterns = [
+            r'<script[^>]*>.*?</script>',
+            r'javascript:',
+            r'vbscript:',
+            r'onload=',
+            r'onerror=',
+            r'onclick='
+        ]
+        content_lower = v.lower()
+        for pattern in suspicious_patterns:
+            if re.search(pattern, content_lower, re.IGNORECASE | re.DOTALL):
+                raise ValueError('Content contains potentially malicious scripts')
         return v.strip()
 
     @validator('metadata')
     def validate_metadata(cls, v):
-        if v is not None and not isinstance(v, dict):
-            raise ValueError('Metadata must be a dictionary')
+        if v is not None:
+            if not isinstance(v, dict):
+                raise ValueError('Metadata must be a dictionary')
+            # Validate metadata keys and values
+            for key, value in v.items():
+                if not isinstance(key, str) or len(key) > 50:
+                    raise ValueError('Metadata keys must be strings with max length 50')
+                if isinstance(value, str) and len(value) > 1000:
+                    raise ValueError('Metadata string values must be max 1000 characters')
+                # Prevent nested objects beyond reasonable depth
+                if isinstance(value, (dict, list)) and str(value).count('{') + str(value).count('[') > 10:
+                    raise ValueError('Metadata objects too deeply nested')
         return v
 
     class Config:

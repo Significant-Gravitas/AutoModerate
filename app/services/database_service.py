@@ -360,11 +360,22 @@ class DatabaseService:
                                                offset: int = 0) -> List[Content]:
         """Get content for a project with optional status filter and moderation results"""
         def _get_content():
+            # Validate inputs to prevent any potential issues
+            validated_limit = limit
+            validated_offset = offset
+            if not isinstance(limit, int) or limit < 1 or limit > 1000:
+                validated_limit = 50
+            if not isinstance(offset, int) or offset < 0:
+                validated_offset = 0
+
             query = Content.query.filter_by(project_id=project_id)\
                 .options(joinedload(Content.moderation_results))
-            if status:
-                query = query.filter_by(status=status)
-            return query.order_by(Content.created_at.desc()).limit(limit).offset(offset).all()
+            if status and isinstance(status, str):
+                # Validate status against known values
+                valid_statuses = {'approved', 'rejected', 'flagged', 'pending'}
+                if status in valid_statuses:
+                    query = query.filter_by(status=status)
+            return query.order_by(Content.created_at.desc()).limit(validated_limit).offset(validated_offset).all()
 
         return await self._safe_execute(_get_content) or []
 
@@ -576,6 +587,13 @@ class DatabaseService:
     async def get_project_analytics_stats(self, project_id: str, start_date, end_date) -> Dict[str, Any]:
         """Get comprehensive analytics statistics for a specific project"""
         def _get_project_analytics():
+            # Validate date parameters to prevent issues
+            validated_start_date = start_date
+            validated_end_date = end_date
+            if not start_date or not end_date:
+                from datetime import datetime, timedelta
+                validated_end_date = datetime.utcnow()
+                validated_start_date = validated_end_date - timedelta(days=30)
             # Project overview stats
             project_stats = {
                 'total_content': Content.query.filter_by(project_id=project_id).count(),
@@ -589,47 +607,51 @@ class DatabaseService:
                 ).count(),
             }
 
-            # Content submissions over time
+            # Content submissions over time - using parameterized queries
             content_submissions = db.session.query(
-                db.func.date(Content.created_at).label('date'),
-                db.func.count(Content.id).label('count')
+                func.date(Content.created_at).label('date'),
+                func.count(Content.id).label('count')
             ).filter(
                 Content.project_id == project_id,
-                Content.created_at >= start_date
+                Content.created_at >= validated_start_date,
+                Content.created_at <= validated_end_date
             ).group_by(
-                db.func.date(Content.created_at)
+                func.date(Content.created_at)
             ).order_by('date').all()
 
-            # Moderation decisions breakdown
+            # Moderation decisions breakdown - using parameterized queries
             moderation_decisions = db.session.query(
                 ModerationResult.decision,
-                db.func.count(ModerationResult.id).label('count')
+                func.count(ModerationResult.id).label('count')
             ).select_from(ModerationResult).join(
                 Content, ModerationResult.content_id == Content.id
             ).filter(
                 Content.project_id == project_id,
-                ModerationResult.created_at >= start_date
+                ModerationResult.created_at >= validated_start_date,
+                ModerationResult.created_at <= validated_end_date
             ).group_by(ModerationResult.decision).all()
 
             # Content type distribution
             content_types = db.session.query(
                 Content.content_type,
-                db.func.count(Content.id).label('count')
+                func.count(Content.id).label('count')
             ).filter(
                 Content.project_id == project_id,
-                Content.created_at >= start_date
+                Content.created_at >= validated_start_date,
+                Content.created_at <= validated_end_date
             ).group_by(Content.content_type).all()
 
             # Processing time stats for this project
             processing_stats = db.session.query(
-                db.func.avg(ModerationResult.processing_time).label('avg_time'),
-                db.func.min(ModerationResult.processing_time).label('min_time'),
-                db.func.max(ModerationResult.processing_time).label('max_time')
+                func.avg(ModerationResult.processing_time).label('avg_time'),
+                func.min(ModerationResult.processing_time).label('min_time'),
+                func.max(ModerationResult.processing_time).label('max_time')
             ).select_from(ModerationResult).join(
                 Content, ModerationResult.content_id == Content.id
             ).filter(
                 Content.project_id == project_id,
-                ModerationResult.created_at >= start_date,
+                ModerationResult.created_at >= validated_start_date,
+                ModerationResult.created_at <= validated_end_date,
                 ModerationResult.processing_time.isnot(None)
             ).first()
 
@@ -644,15 +666,17 @@ class DatabaseService:
             ).order_by(APIKey.usage_count.desc()).limit(10).all()
 
             # Top users for this project
+            from sqlalchemy import case
+
             from app.models.api_user import APIUser
             top_users = db.session.query(
                 APIUser.external_user_id,
-                db.func.count(Content.id).label('submissions'),
-                db.func.sum(db.case(
+                func.count(Content.id).label('submissions'),
+                func.sum(case(
                     (ModerationResult.decision == 'approved', 1),
                     else_=0
                 )).label('approved'),
-                db.func.sum(db.case(
+                func.sum(case(
                     (ModerationResult.decision == 'rejected', 1),
                     else_=0
                 )).label('rejected')
@@ -662,25 +686,27 @@ class DatabaseService:
                 ModerationResult, Content.id == ModerationResult.content_id
             ).filter(
                 Content.project_id == project_id,
-                Content.created_at >= start_date
+                Content.created_at >= validated_start_date,
+                Content.created_at <= validated_end_date
             ).group_by(APIUser.external_user_id).order_by(
-                db.func.count(Content.id).desc()
+                func.count(Content.id).desc()
             ).limit(10).all()
 
             # Rule effectiveness for this project
             rule_stats = db.session.query(
                 ModerationRule.name,
-                db.func.count(ModerationResult.id).label('triggered'),
+                func.count(ModerationResult.id).label('triggered'),
                 ModerationRule.rule_type
             ).select_from(ModerationRule).join(
                 ModerationResult, ModerationRule.id == ModerationResult.moderator_id
             ).join(Content, ModerationResult.content_id == Content.id).filter(
                 ModerationRule.project_id == project_id,
-                ModerationResult.created_at >= start_date,
+                ModerationResult.created_at >= validated_start_date,
+                ModerationResult.created_at <= validated_end_date,
                 ModerationResult.moderator_type == 'rule',
                 ModerationResult.moderator_id.isnot(None)
             ).group_by(ModerationRule.id).order_by(
-                db.func.count(ModerationResult.id).desc()
+                func.count(ModerationResult.id).desc()
             ).limit(10).all()
 
             # Recent activity summary

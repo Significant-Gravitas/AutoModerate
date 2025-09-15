@@ -72,9 +72,9 @@ async def moderate_content(validated_data=None):
     if not content_data or not isinstance(content_data, str):
         return api_error_response('Content is required and must be text', 400)
 
-    # Content size limits
-    if len(content_data) > 1000000:  # 1MB limit
-        return api_error_response('Content too large (max 1MB)', 400)
+    max_content_size = 1000000  # 1MB limit
+    if len(content_data) > max_content_size:
+        return api_error_response(f'Content too large (max {max_content_size // 1000}KB)', 400)
 
     if len(content_data.strip()) == 0:
         return api_error_response('Content cannot be empty', 400)
@@ -87,9 +87,18 @@ async def moderate_content(validated_data=None):
     if meta_data and not isinstance(meta_data, dict):
         return api_error_response('Metadata must be a dictionary', 400)
 
-    # Validate metadata size
-    if meta_data and len(str(meta_data)) > 10000:  # 10KB limit
-        return api_error_response('Metadata too large (max 10KB)', 400)
+    # Validate metadata size (defense in depth - also validated in schema)
+    max_metadata_size = 10000  # 10KB limit
+    if meta_data and len(str(meta_data)) > max_metadata_size:
+        return api_error_response(f'Metadata too large (max {max_metadata_size // 1000}KB)', 400)
+
+    # Additional metadata security checks
+    if meta_data:
+        # Prevent metadata keys that could cause issues
+        forbidden_keys = ['__class__', '__module__', 'password', 'token', 'secret', 'key']
+        for key in meta_data.keys():
+            if any(forbidden in key.lower() for forbidden in forbidden_keys):
+                return api_error_response(f'Forbidden metadata key: {key}', 400)
 
     # Track API user if user_id is provided in metadata
     api_user = None
@@ -244,10 +253,13 @@ def _is_valid_uuid(uuid_string):
 
 def _is_valid_user_id(user_id):
     """Validate external user ID format"""
-    if not user_id or len(user_id) > 255:
+    if not user_id or len(user_id) < 1 or len(user_id) > 255:
         return False
-    # Allow alphanumeric, hyphens, underscores, dots
-    return re.match(r'^[a-zA-Z0-9._-]+$', user_id) is not None
+    # Allow alphanumeric, hyphens, underscores, dots - but not starting with special chars
+    if user_id[0] in '._-':
+        return False
+    # More restrictive pattern to prevent injection
+    return re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._-]*$', user_id) is not None
 
 
 @api_bp.route('/docs')
