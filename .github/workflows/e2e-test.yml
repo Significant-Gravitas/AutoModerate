@@ -57,10 +57,9 @@ jobs:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         ADMIN_EMAIL: admin@example.com
         ADMIN_PASSWORD: admin123
-        OPENAI_CHAT_MODEL: gpt-4o-mini
-        OPENAI_CONTEXT_WINDOW: 128000
-        OPENAI_MAX_OUTPUT_TOKENS: 4096
-        SQL_DEBUG: false
+        OPENAI_CHAT_MODEL: gpt-5-2025-08-07
+        OPENAI_CONTEXT_WINDOW: 400000
+        OPENAI_MAX_OUTPUT_TOKENS: 128000
       run: |
         # Start the application in background
         python run.py &

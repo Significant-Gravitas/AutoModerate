@@ -286,10 +286,10 @@ class AutoModerateE2ETest:
                 self.log("❌ No API key available for content moderation", "ERROR")
                 return False
 
-            # Try a simpler, shorter safe content first
+            # Use clear, unambiguously safe content
             safe_content = {
                 "type": "text",
-                "content": "Thank you for this helpful information!",
+                "content": "I appreciate your help with this project. The documentation is very clear and well-written. Thank you for the excellent customer service!",
                 "metadata": {
                     "source": "e2e_test",
                     "user_id": f"safe_user_{self.test_suffix}",
@@ -308,38 +308,44 @@ class AutoModerateE2ETest:
                 f"{self.base_url}/api/moderate",
                 json=safe_content,
                 headers=headers,
-                timeout=60  # Increased timeout for AI processing
+                timeout=120  # Longer timeout for GPT-5 processing
             )
 
             self.log(f"Safe content response: {response.status_code}")
 
             if response.status_code == 200:
                 data = response.json()
-                self.log(f"Safe content response data: {data}")
+                self.log(f"Safe content response: success={data.get('success')}, status={data.get('status')}")
 
                 if data.get('success'):
                     status = data.get('status')
                     if status == 'approved':
                         self.log(f"✅ Safe content moderation passed: {status}")
                         self.log(f"   Content ID: {data.get('content_id')}")
+                        moderation_results = data.get('moderation_results', [])
+                        if moderation_results:
+                            self.log(f"   Moderation details: {moderation_results[0].get('reason', 'No reason')}")
                         return True
                     else:
-                        # Even if not approved, if the API worked, that's partially successful
-                        self.log(f"⚠️  Safe content was not approved but API worked: {status}", "WARNING")
+                        self.log(f"❌ Safe content was incorrectly {status}", "ERROR")
                         self.log(f"   Content ID: {data.get('content_id')}")
-                        self.log(f"   Details: {data.get('moderation_results', [])}")
-                        return True  # Count as success since the system is working
+                        moderation_results = data.get('moderation_results', [])
+                        if moderation_results:
+                            self.log(f"   Reason: {moderation_results[0].get('reason', 'No reason')}", "ERROR")
+                        return False
                 else:
                     self.log(f"❌ Safe content API returned success=false: {data}", "ERROR")
                     return False
             else:
-                error_text = response.text
-                self.log(f"❌ Safe content moderation failed: HTTP {response.status_code}", "ERROR")
-                self.log(f"   Error details: {error_text[:500]}", "ERROR")
+                try:
+                    error_data = response.json()
+                    error_detail = error_data.get('error', 'Unknown error')
+                except:
+                    error_detail = response.text[:500]
 
-                # If it's a 500 error but other tests passed, this might be transient
-                if response.status_code == 500:
-                    self.log("⚠️  500 error might be transient - other moderation tests passed", "WARNING")
+                self.log(f"❌ Safe content moderation failed: HTTP {response.status_code}", "ERROR")
+                self.log(f"   Error: {error_detail}", "ERROR")
+
                 return False
 
         except Exception as e:
@@ -353,13 +359,13 @@ class AutoModerateE2ETest:
                 self.log("❌ No API key available for content moderation", "ERROR")
                 return False
 
-            # Use content that should trigger the default AI rules
+            # Use content that should clearly trigger fraud/phishing detection
             suspicious_content = {
                 "type": "text",
-                "content": "URGENT! You've won $1,000,000! Click here to claim your prize now! Enter your credit card details to verify your identity. Limited time offer! Act fast before this amazing opportunity expires!",
+                "content": "🚨 URGENT SECURITY ALERT 🚨 Your account will be suspended in 24 hours! Click this link immediately: fake-bank-security.com/verify-now and enter your social security number, credit card details, and online banking password to prevent account closure. This is NOT a scam - we are your bank! Act now or lose access forever!",
                 "metadata": {
                     "source": "e2e_test",
-                    "user_id": f"test_user_{self.test_suffix}",
+                    "user_id": f"suspicious_user_{self.test_suffix}",
                     "test_type": "suspicious_content"
                 }
             }
@@ -369,31 +375,51 @@ class AutoModerateE2ETest:
                 'Content-Type': 'application/json'
             }
 
+            self.log(f"Submitting suspicious content with API key: {self.api_key[:10]}...")
+
             response = self.session.post(
                 f"{self.base_url}/api/moderate",
                 json=suspicious_content,
                 headers=headers,
-                timeout=60  # AI moderation may take longer
+                timeout=120  # Longer timeout for GPT-5 processing
             )
+
+            self.log(f"Suspicious content response: {response.status_code}")
 
             if response.status_code == 200:
                 data = response.json()
+                self.log(f"Suspicious content response: success={data.get('success')}, status={data.get('status')}")
+
                 if data.get('success'):
                     status = data.get('status')
                     if status in ['rejected', 'flagged']:
                         self.log(f"✅ Suspicious content was properly moderated: {status}")
                         self.log(f"   Content ID: {data.get('content_id')}")
-                        self.log(f"   Moderation details: {data.get('moderation_results', [])}")
+                        moderation_results = data.get('moderation_results', [])
+                        if moderation_results:
+                            self.log(f"   Rule triggered: {moderation_results[0].get('rule_name', 'Unknown')}")
+                            self.log(f"   Reason: {moderation_results[0].get('reason', 'No reason')}")
                         return True
                     else:
-                        self.log(f"⚠️  Suspicious content was not rejected (status: {status}). This may indicate the AI model didn't catch it or rules need adjustment.", "WARNING")
-                        # We'll count this as success since the API worked, just the AI didn't flag it
-                        return True
+                        self.log(f"❌ Suspicious content was incorrectly {status} - should have been rejected!", "ERROR")
+                        self.log(f"   Content ID: {data.get('content_id')}", "ERROR")
+                        moderation_results = data.get('moderation_results', [])
+                        if moderation_results:
+                            self.log(f"   Reason: {moderation_results[0].get('reason', 'No reason')}", "ERROR")
+                        self.log("   This indicates the AI moderation rules may need adjustment", "ERROR")
+                        return False
                 else:
-                    self.log(f"❌ Suspicious content moderation failed: {data}", "ERROR")
+                    self.log(f"❌ Suspicious content API returned success=false: {data}", "ERROR")
                     return False
             else:
-                self.log(f"❌ Suspicious content moderation failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
+                try:
+                    error_data = response.json()
+                    error_detail = error_data.get('error', 'Unknown error')
+                except:
+                    error_detail = response.text[:500]
+
+                self.log(f"❌ Suspicious content moderation failed: HTTP {response.status_code}", "ERROR")
+                self.log(f"   Error: {error_detail}", "ERROR")
                 return False
 
         except Exception as e:
@@ -533,16 +559,20 @@ class AutoModerateE2ETest:
         self.log(f"\n📊 Test Results: {passed}/{total} tests passed")
         self.log(f"   Core Infrastructure: {core_passed}/{len(core_tests)} passed")
 
-        # Consider the test suite successful if core infrastructure works
-        # Even if OpenAI moderation has issues, the application itself is working
-        if core_passed == len(core_tests):
-            success_threshold = len(core_tests) + 1  # Core + at least stats or 1 moderation test
-            if passed >= success_threshold:
-                self.log("🎉 Test suite passed! Core functionality confirmed working.")
-                return True
+        # For complete E2E testing, ALL tests must pass including OpenAI integration
+        if passed == total:
+            self.log("🎉 Complete E2E test suite passed! All functionality confirmed working.")
+            return True
+        elif core_passed == len(core_tests):
+            if moderation_passed == 0:
+                self.log("💥 OpenAI moderation tests failed - this is REQUIRED for E2E validation", "ERROR")
+                self.log("   Please check:", "ERROR")
+                self.log("   - OPENAI_API_KEY secret is set in GitHub repository", "ERROR")
+                self.log("   - OpenAI API key has sufficient credits", "ERROR")
+                self.log("   - OpenAI service is available", "ERROR")
             else:
-                self.log("⚠️  Core functionality works but moderation may have issues.", "WARNING")
-                return False  # Still fail for CI, but with better context
+                self.log("⚠️  Some tests failed but core platform and moderation work", "WARNING")
+            return False
         else:
             self.log("💥 Core infrastructure failed - application not working correctly", "ERROR")
             return False
