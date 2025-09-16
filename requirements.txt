@@ -1,23 +1,23 @@
 # Flask and web framework
-Flask[async]==2.3.3
-Flask-SQLAlchemy==3.0.5
+Flask[async]==3.1.2
+Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
-Flask-WTF==1.1.1
-Flask-SocketIO==5.3.6
-WTForms==3.0.1
-Werkzeug==2.3.7
+Flask-WTF==1.2.1
+Flask-SocketIO==5.4.1
+WTForms==3.1.2
+Werkzeug==3.1.2
 
 # OpenAI integration
 openai>=1.55.3
-tiktoken==0.5.2
+tiktoken==0.8.0
 httpx[http2]
 
 # Security and utilities
-bcrypt==4.0.1
-python-dotenv==1.0.0
-requests==2.31.0
-pre-commit==3.6.0
-pydantic==2.5.0
+bcrypt==4.2.0
+python-dotenv==1.0.1
+requests==2.32.3
+pre-commit==4.0.1
+pydantic==2.9.2
 Flask-Talisman==1.1.0
 
 # Database support
