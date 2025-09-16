@@ -6,6 +6,7 @@ from flask import Flask
 from flask_login import LoginManager
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
 
 from config.config import config
 
@@ -13,6 +14,7 @@ from config.config import config
 db = SQLAlchemy()
 login_manager = LoginManager()
 socketio = SocketIO(cors_allowed_origins="*")
+csrf = CSRFProtect()
 
 
 def create_app(config_name: str = 'default') -> Flask:
@@ -37,6 +39,12 @@ def create_app(config_name: str = 'default') -> Flask:
 
     # Initialize SocketIO
     socketio.init_app(app, async_mode='threading')
+
+    # Initialize CSRF protection
+    csrf.init_app(app)
+
+    # Exempt API endpoints from CSRF protection (they use API key authentication)
+    csrf.exempt('api')
 
     # User loader for Flask-Login
     @login_manager.user_loader

@@ -63,6 +63,7 @@
                 <hr>
                 <div class="d-flex gap-2">
                     <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" class="btn btn-{% if user.is_admin %}warning{% else %}success{% endif %}"
                                 onclick="return confirm('{% if user.is_admin %}Revoke admin privileges for {{ user.username }}?{% else %}Grant admin privileges to {{ user.username }}?{% endif %}')">
                             <i class="fas fa-{% if user.is_admin %}user-minus{% else %}user-plus{% endif %}"></i>
@@ -71,6 +72,7 @@
                     </form>
 
                     <form method="POST" action="{{ url_for('admin.toggle_active', user_id=user.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" class="btn btn-{% if user.is_active %}danger{% else %}success{% endif %}"
                                 onclick="return confirm('{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}')">
                             <i class="fas fa-{% if user.is_active %}pause{% else %}play{% endif %}"></i>
@@ -97,6 +99,7 @@
                     </div>
                     {% endif %}
                     <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" class="btn btn-danger"
                                 onclick="return confirm('Are you absolutely sure you want to delete user {{ user.username }}? This action cannot be undone and will permanently delete all user data.')"
                                 {% if projects %}disabled{% endif %}>

@@ -133,6 +133,7 @@
             </div>
             <div class="modal-body">
                 <form method="POST" action="{{ url_for('dashboard.create_api_key', project_id=project.id) }}" id="createApiKeyForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <div class="mb-3">
                         <label for="apiKeyName" class="form-label">API Key Name *</label>
                         <input type="text" class="form-control" id="apiKeyName" name="name" required

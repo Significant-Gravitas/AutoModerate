@@ -122,6 +122,7 @@
                                             <i class="fas fa-check"></i> Accept
                                         </a>
                                         <form method="POST" action="{{ url_for('dashboard.decline_invitation', token=invitation.token) }}" style="display: inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                             <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Decline this invitation?')">
                                                 <i class="fas fa-times"></i> Decline
                                             </button>
