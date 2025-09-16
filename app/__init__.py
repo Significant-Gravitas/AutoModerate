@@ -43,9 +43,6 @@ def create_app(config_name: str = 'default') -> Flask:
     # Initialize CSRF protection
     csrf.init_app(app)
 
-    # Exempt API endpoints from CSRF protection (they use API key authentication)
-    csrf.exempt('api')
-
     # User loader for Flask-Login
     @login_manager.user_loader
     def load_user(user_id):
@@ -89,6 +86,9 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(websocket_bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(manual_review_bp)
+
+    # Exempt API endpoints from CSRF protection (they use API key authentication)
+    csrf.exempt(api_bp)
 
     # Database initialization with retry logic (only in main process, not reloader)
     if not os.environ.get('WERKZEUG_RUN_MAIN'):
