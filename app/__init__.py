@@ -6,6 +6,7 @@ from flask import Flask
 from flask_login import LoginManager
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
+from flask_talisman import Talisman
 from flask_wtf.csrf import CSRFProtect
 
 from config.config import config
@@ -42,6 +43,58 @@ def create_app(config_name: str = 'default') -> Flask:
 
     # Initialize CSRF protection
     csrf.init_app(app)
+
+    # Initialize security headers with Talisman
+    csp = {
+        'default-src': "'self'",
+        'script-src': [
+            "'self'",
+            "'unsafe-inline'",  # Required for inline scripts and Bootstrap functionality
+            "https://cdn.jsdelivr.net",  # Bootstrap, Chart.js
+            "https://cdnjs.cloudflare.com",  # FontAwesome, Socket.IO
+            "https://cdn.socket.io"  # Socket.IO CDN
+        ],
+        'style-src': [
+            "'self'",
+            "'unsafe-inline'",  # Required for inline styles and Bootstrap
+            "https://cdn.jsdelivr.net",  # Bootstrap CSS
+            "https://cdnjs.cloudflare.com",  # FontAwesome CSS
+            "https://fonts.googleapis.com"  # Google Fonts (if used)
+        ],
+        'font-src': [
+            "'self'",
+            "https://fonts.gstatic.com",  # Google Fonts
+            "https://cdnjs.cloudflare.com",  # FontAwesome fonts
+            "https://cdn.jsdelivr.net",  # Bootstrap fonts
+            "data:"  # Data URIs for fonts
+        ],
+        'img-src': [
+            "'self'",
+            "data:",  # Required for inline images and icons
+            "https:",  # Allow all HTTPS images
+            "blob:"  # For dynamic images
+        ],
+        'connect-src': [
+            "'self'",
+            "ws:",  # WebSocket connections (dev)
+            "wss:",  # Secure WebSocket connections (prod)
+            "https://cdn.socket.io"  # Socket.IO connections
+        ]
+    }
+
+    Talisman(
+        app,
+        force_https=True,  # Set to True in production
+        strict_transport_security=True,
+        strict_transport_security_max_age=31536000,  # 1 year
+        content_security_policy=csp,
+        referrer_policy='strict-origin-when-cross-origin',
+        feature_policy={
+            'camera': "'none'",
+            'microphone': "'none'",
+            'geolocation': "'none'"
+        }
+    )
 
     # User loader for Flask-Login
     @login_manager.user_loader

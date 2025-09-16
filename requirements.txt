@@ -18,6 +18,7 @@ python-dotenv==1.0.0
 requests==2.31.0
 pre-commit==3.6.0
 pydantic==2.5.0
+Flask-Talisman==1.1.0
 
 # Database support
 psycopg2-binary==2.9.9
