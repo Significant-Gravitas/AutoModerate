@@ -13,11 +13,13 @@ import asyncio
 import json
 import os
 import random
+import re
 import string
 import time
 from typing import Any, Dict
 
 import requests
+from bs4 import BeautifulSoup
 
 
 class AutoModerateE2ETest:
@@ -42,6 +44,30 @@ class AutoModerateE2ETest:
         """Log a message with timestamp"""
         print(f"[{time.strftime('%H:%M:%S')}] {level}: {message}")
 
+    def get_csrf_token(self, url: str) -> str:
+        """Extract CSRF token from a form page"""
+        try:
+            response = self.session.get(url, timeout=30)
+            if response.status_code != 200:
+                self.log(f"Failed to get CSRF token from {url}: HTTP {response.status_code}", "ERROR")
+                return None
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            csrf_input = soup.find('input', {'name': 'csrf_token'})
+            if csrf_input:
+                return csrf_input.get('value')
+            else:
+                # Alternative: check for meta tag
+                csrf_meta = soup.find('meta', {'name': 'csrf-token'})
+                if csrf_meta:
+                    return csrf_meta.get('content')
+
+            self.log(f"No CSRF token found in {url}", "ERROR")
+            return None
+        except Exception as e:
+            self.log(f"Error extracting CSRF token: {str(e)}", "ERROR")
+            return None
+
     def test_health_check(self) -> bool:
         """Test that the application is running"""
         try:
@@ -60,19 +86,44 @@ class AutoModerateE2ETest:
     def register_user(self) -> bool:
         """Register a new user account"""
         try:
+            # Get CSRF token from registration form
+            csrf_token = self.get_csrf_token(f"{self.base_url}/auth/register")
+            if not csrf_token:
+                self.log("❌ Failed to get CSRF token for registration", "ERROR")
+                return False
+
+            # Submit form data with CSRF token
+            form_data = {
+                'csrf_token': csrf_token,
+                'username': self.test_user['username'],
+                'email': self.test_user['email'],
+                'password': self.test_user['password']
+            }
+
             response = self.session.post(
                 f"{self.base_url}/auth/register",
-                json=self.test_user,
-                timeout=30
+                data=form_data,
+                timeout=30,
+                allow_redirects=False  # Handle redirects manually
             )
 
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
+            # Check for successful registration (redirect to dashboard or 200 with success)
+            if response.status_code == 302:
+                # Successful registration should redirect to dashboard
+                location = response.headers.get('Location', '')
+                if '/dashboard' in location:
                     self.log(f"✅ User registered successfully: {self.test_user['email']}")
                     return True
                 else:
-                    self.log(f"❌ User registration failed: {data.get('message', 'Unknown error')}", "ERROR")
+                    self.log(f"❌ Registration redirect unexpected: {location}", "ERROR")
+                    return False
+            elif response.status_code == 200:
+                # Check if it's a success response
+                if 'success' in response.text.lower() or 'dashboard' in response.text.lower():
+                    self.log(f"✅ User registered successfully: {self.test_user['email']}")
+                    return True
+                else:
+                    self.log(f"❌ Registration form error: {response.text[:200]}", "ERROR")
                     return False
             else:
                 self.log(f"❌ User registration failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
@@ -85,22 +136,42 @@ class AutoModerateE2ETest:
     def login_user(self) -> bool:
         """Login with the test user"""
         try:
+            # Get CSRF token from login form
+            csrf_token = self.get_csrf_token(f"{self.base_url}/auth/login")
+            if not csrf_token:
+                self.log("❌ Failed to get CSRF token for login", "ERROR")
+                return False
+
+            # Submit form data with CSRF token
+            form_data = {
+                'csrf_token': csrf_token,
+                'email': self.test_user['email'],
+                'password': self.test_user['password']
+            }
+
             response = self.session.post(
                 f"{self.base_url}/auth/login",
-                json={
-                    'email': self.test_user['email'],
-                    'password': self.test_user['password']
-                },
-                timeout=30
+                data=form_data,
+                timeout=30,
+                allow_redirects=False  # Handle redirects manually
             )
 
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
+            # Check for successful login (redirect to dashboard)
+            if response.status_code == 302:
+                location = response.headers.get('Location', '')
+                if '/dashboard' in location:
                     self.log(f"✅ User logged in successfully: {self.test_user['email']}")
                     return True
                 else:
-                    self.log(f"❌ User login failed: {data.get('message', 'Unknown error')}", "ERROR")
+                    self.log(f"❌ Login redirect unexpected: {location}", "ERROR")
+                    return False
+            elif response.status_code == 200:
+                # Check if it's a success response
+                if 'dashboard' in response.text.lower() and 'error' not in response.text.lower():
+                    self.log(f"✅ User logged in successfully: {self.test_user['email']}")
+                    return True
+                else:
+                    self.log(f"❌ Login form error: {response.text[:200]}", "ERROR")
                     return False
             else:
                 self.log(f"❌ User login failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
@@ -113,18 +184,15 @@ class AutoModerateE2ETest:
     def create_project(self) -> bool:
         """Create a new project"""
         try:
-            # First get the form page to ensure we have the session
-            form_response = self.session.get(
-                f"{self.base_url}/dashboard/projects/create",
-                timeout=30
-            )
-
-            if form_response.status_code != 200:
-                self.log(f"❌ Failed to access project creation form: HTTP {form_response.status_code}", "ERROR")
+            # Get CSRF token from project creation form
+            csrf_token = self.get_csrf_token(f"{self.base_url}/dashboard/projects/create")
+            if not csrf_token:
+                self.log("❌ Failed to get CSRF token for project creation", "ERROR")
                 return False
 
-            # Now submit the form data
+            # Submit form data with CSRF token
             project_data = {
+                'csrf_token': csrf_token,
                 'name': f'Test Project {self.test_suffix}',
                 'description': f'E2E test project created at {time.strftime("%Y-%m-%d %H:%M:%S")}'
             }
@@ -240,10 +308,21 @@ class AutoModerateE2ETest:
     def create_additional_api_key(self) -> bool:
         """Create an additional API key if default doesn't exist"""
         try:
-            # Create API key via form submission
+            # Get CSRF token for API key creation
+            csrf_token = self.get_csrf_token(f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys")
+            if not csrf_token:
+                self.log("❌ Failed to get CSRF token for API key creation", "ERROR")
+                return False
+
+            # Create API key via form submission with CSRF token
+            form_data = {
+                'csrf_token': csrf_token,
+                'name': f'E2E Test Key {self.test_suffix}'
+            }
+
             response = self.session.post(
                 f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys/create",
-                data={'name': f'E2E Test Key {self.test_suffix}'},
+                data=form_data,
                 timeout=30,
                 allow_redirects=False
             )
