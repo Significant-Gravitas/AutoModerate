@@ -29,7 +29,7 @@
                 <h5 class="card-title mb-0">Existing API Keys</h5>
             </div>
             <div class="card-body">
-                {% if project.api_keys %}
+                {% if api_keys %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -44,7 +44,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for key in project.api_keys %}
+                            {% for key in api_keys %}
                             <tr>
                                 <td>
                                     <strong>{{ key.name }}</strong>
@@ -133,6 +133,7 @@
             </div>
             <div class="modal-body">
                 <form method="POST" action="{{ url_for('dashboard.create_api_key', project_id=project.id) }}" id="createApiKeyForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <div class="mb-3">
                         <label for="apiKeyName" class="form-label">API Key Name *</label>
                         <input type="text" class="form-control" id="apiKeyName" name="name" required

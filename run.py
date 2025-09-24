@@ -1,7 +1,7 @@
 import logging
 import os
 
-from flask import redirect, url_for
+from flask import Response, redirect, url_for
 
 from app import create_app, socketio
 
@@ -15,9 +15,11 @@ app = create_app(os.getenv('FLASK_CONFIG') or 'default')
 
 
 @app.route('/')
-def home():
+def home() -> Response:
     return redirect(url_for('auth.login'))
 
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=6217)
+    # Allow unsafe Werkzeug in testing/CI environments
+    is_testing = os.getenv('FLASK_ENV') == 'testing' or os.getenv('CI') == 'true'
+    socketio.run(app, host='0.0.0.0', port=6217, allow_unsafe_werkzeug=is_testing)

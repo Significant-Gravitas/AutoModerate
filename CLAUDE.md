@@ -35,6 +35,12 @@ pre-commit install                   # setup hooks
 pre-commit run --all-files          # run all checks
 autopep8 --in-place --recursive .   # format code
 isort .                             # sort imports
+
+# Pre-commit runs these automatically:
+# - autopep8 with max line length 127
+# - isort with black profile
+# - flake8 code quality checks
+# - trailing whitespace removal
 ```
 
 ---

@@ -3,16 +3,17 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from app import db
 from app.models.api_key import APIKey
 from app.models.content import Content
-from app.models.moderation_result import ModerationResult
 from app.models.moderation_rule import ModerationRule
 from app.models.project import Project, ProjectInvitation, ProjectMember
 from app.models.user import User
 from app.services.database_service import db_service
+from app.utils.project_access import require_project_access
 from config.default_rules import create_default_rules
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -94,7 +95,7 @@ async def create_project():
 
         # Create default API key
         import secrets
-        key_value = f"ak_{secrets.token_urlsafe(32)}"
+        key_value = f"am_{secrets.token_urlsafe(32)}"
         await db_service.create_api_key(
             project_id=project['id'],
             name='Default Key',
@@ -109,27 +110,23 @@ async def create_project():
 
 @dashboard_bp.route('/projects/<project_id>')
 @login_required
-async def project_detail(project_id):
+@require_project_access
+async def project_detail(project_id, project=None):
     """Project detail page"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
+    # Get recent content using database service
+    recent_content = await db_service.get_project_content(project_id, limit=10)
 
-    # Get recent content
-    recent_content = Content.query.filter_by(project_id=project.id).order_by(
-        Content.created_at.desc()).limit(10).all()
+    # Get API keys to avoid DetachedInstanceError in template
+    api_keys = await db_service.get_project_api_keys(project_id)
 
-    # Get stats
-    total_content = Content.query.filter_by(project_id=project.id).count()
-    approved_content = Content.query.filter_by(
-        project_id=project.id, status='approved').count()
-    rejected_content = Content.query.filter_by(
-        project_id=project.id, status='rejected').count()
-    flagged_content = Content.query.filter_by(
-        project_id=project.id, status='flagged').count()
+    # Get stats using database service
+    content_counts = await db_service.get_content_counts_by_status(project_id)
+
+    total_content = sum(content_counts.values())
+    approved_content = content_counts.get('approved', 0)
+    rejected_content = content_counts.get('rejected', 0)
+    flagged_content = content_counts.get('flagged', 0)
 
     stats = {
         'total': total_content,
@@ -142,41 +139,43 @@ async def project_detail(project_id):
     return render_template('dashboard/project_detail.html',
                            project=project,
                            recent_content=recent_content,
+                           api_keys=api_keys,
                            stats=stats)
 
 
 @dashboard_bp.route('/projects/<project_id>/api-keys')
 @login_required
-async def project_api_keys(project_id):
+@require_project_access
+async def project_api_keys(project_id, project=None):
     """Manage project API keys"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
-
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
-    return render_template('dashboard/api_keys.html', project=project)
+    # Get API keys to avoid DetachedInstanceError in template
+    api_keys = await db_service.get_project_api_keys(project_id)
+    return render_template('dashboard/api_keys.html', project=project, api_keys=api_keys)
 
 
 @dashboard_bp.route('/projects/<project_id>/api-keys/create', methods=['POST'])
 @login_required
-async def create_api_key(project_id):
+@require_project_access
+async def create_api_key(project_id, project=None):
     """Create new API key"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
-
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
 
     name = request.form.get('name')
     if not name:
         flash('API key name is required', 'error')
         return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
 
-    api_key = APIKey(name=name, project_id=project.id)
-    db.session.add(api_key)
-    db.session.commit()
+    # Generate API key value
+    key_value = f"am_{secrets.token_urlsafe(32)}"
+
+    api_key = await db_service.create_api_key(
+        project_id=project.id,
+        name=name,
+        key_value=key_value
+    )
+
+    if not api_key:
+        flash('Failed to create API key.', 'error')
+        return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
 
     flash('API key created successfully!', 'success')
     return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
@@ -184,16 +183,10 @@ async def create_api_key(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/rules')
 @login_required
-async def project_rules(project_id):
+@require_project_access
+async def project_rules(project_id, project=None):
     """Manage project moderation rules"""
-    project = Project.query.filter_by(id=project_id).first_or_404()
-
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
-    rules = ModerationRule.query.filter_by(project_id=project.id).order_by(
-        ModerationRule.priority.desc()).all()
+    rules = await db_service.get_project_rules(project_id)
     return render_template('dashboard/rules.html', project=project, rules=rules)
 
 
@@ -592,7 +585,7 @@ async def update_project(project_id):
         db.session.commit()
 
         flash('Project updated successfully!', 'success')
-    except Exception:
+    except SQLAlchemyError:
         db.session.rollback()
         flash('Error updating project', 'error')
 
@@ -620,146 +613,23 @@ async def delete_project(project_id):
 
 @dashboard_bp.route('/projects/<project_id>/analytics')
 @login_required
-async def project_analytics(project_id):
+@require_project_access
+async def project_analytics(project_id, project):
     """Project-specific analytics dashboard"""
     from datetime import datetime, timedelta
-
-    project = Project.query.filter_by(id=project_id).first_or_404()
-
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
 
     # Get date range for statistics
     days = request.args.get('days', 30, type=int)
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
 
-    # Project overview stats
-    project_stats = {
-        'total_content': Content.query.filter_by(project_id=project_id).count(),
-        'total_moderations': ModerationResult.query.select_from(ModerationResult).join(
-            Content, ModerationResult.content_id == Content.id
-        ).filter(Content.project_id == project_id).count(),
-        'total_rules': ModerationRule.query.filter_by(project_id=project_id).count(),
-        'total_api_keys': APIKey.query.filter_by(project_id=project_id).count(),
-        'active_api_keys': APIKey.query.filter_by(
-            project_id=project_id, is_active=True
-        ).count(),
-    }
-
-    # Content submissions over time
-    content_submissions = db.session.query(
-        db.func.date(Content.created_at).label('date'),
-        db.func.count(Content.id).label('count')
-    ).filter(
-        Content.project_id == project_id,
-        Content.created_at >= start_date
-    ).group_by(
-        db.func.date(Content.created_at)
-    ).order_by('date').all()
-
-    # Moderation decisions breakdown
-    moderation_decisions = db.session.query(
-        ModerationResult.decision,
-        db.func.count(ModerationResult.id).label('count')
-    ).select_from(ModerationResult).join(
-        Content, ModerationResult.content_id == Content.id
-    ).filter(
-        Content.project_id == project_id,
-        ModerationResult.created_at >= start_date
-    ).group_by(ModerationResult.decision).all()
-
-    # Content type distribution
-    content_types = db.session.query(
-        Content.content_type,
-        db.func.count(Content.id).label('count')
-    ).filter(
-        Content.project_id == project_id,
-        Content.created_at >= start_date
-    ).group_by(Content.content_type).all()
-
-    # Processing time stats for this project
-    processing_stats = db.session.query(
-        db.func.avg(ModerationResult.processing_time).label('avg_time'),
-        db.func.min(ModerationResult.processing_time).label('min_time'),
-        db.func.max(ModerationResult.processing_time).label('max_time')
-    ).select_from(ModerationResult).join(
-        Content, ModerationResult.content_id == Content.id
-    ).filter(
-        Content.project_id == project_id,
-        ModerationResult.created_at >= start_date,
-        ModerationResult.processing_time.isnot(None)
-    ).first()
-
-    # API keys and their details for this project
-    api_usage = db.session.query(
-        APIKey.name,
-        APIKey.usage_count,
-        APIKey.last_used,
-        APIKey.is_active
-    ).filter(
-        APIKey.project_id == project_id
-    ).order_by(APIKey.usage_count.desc()).limit(10).all()
-
-    # Top users for this project
-    from app.models.api_user import APIUser
-    top_users = db.session.query(
-        APIUser.external_user_id,
-        db.func.count(Content.id).label('submissions'),
-        db.func.sum(db.case(
-            (ModerationResult.decision == 'approved', 1),
-            else_=0
-        )).label('approved'),
-        db.func.sum(db.case(
-            (ModerationResult.decision == 'rejected', 1),
-            else_=0
-        )).label('rejected')
-    ).select_from(APIUser).join(
-        Content, APIUser.id == Content.api_user_id
-    ).join(
-        ModerationResult, Content.id == ModerationResult.content_id
-    ).filter(
-        Content.project_id == project_id,
-        Content.created_at >= start_date
-    ).group_by(APIUser.external_user_id).order_by(
-        db.func.count(Content.id).desc()
-    ).limit(10).all()
-
-    # Rule effectiveness for this project
-    rule_stats = db.session.query(
-        ModerationRule.name,
-        db.func.count(ModerationResult.id).label('triggered'),
-        ModerationRule.rule_type
-    ).select_from(ModerationRule).join(
-        ModerationResult, ModerationRule.id == ModerationResult.moderator_id
-    ).join(Content, ModerationResult.content_id == Content.id).filter(
-        ModerationRule.project_id == project_id,
-        ModerationResult.created_at >= start_date,
-        ModerationResult.moderator_type == 'rule',
-        ModerationResult.moderator_id.isnot(None)
-    ).group_by(ModerationRule.id).order_by(
-        db.func.count(ModerationResult.id).desc()
-    ).limit(10).all()
-
-    # Recent activity summary
-    recent_content = Content.query.filter_by(
-        project_id=project_id
-    ).order_by(Content.created_at.desc()).limit(5).all()
+    # Get all analytics data from database service
+    analytics_data = await db_service.get_project_analytics_stats(project_id, start_date, end_date)
 
     return render_template('dashboard/project_analytics.html',
                            project=project,
-                           project_stats=project_stats,
-                           content_submissions=content_submissions,
-                           moderation_decisions=moderation_decisions,
-                           content_types=content_types,
-                           processing_stats=processing_stats,
-                           api_usage=api_usage,
-                           top_users=top_users,
-                           rule_stats=rule_stats,
-                           recent_content=recent_content,
-                           days=days)
+                           days=days,
+                           **analytics_data)
 
 
 # Project Member Management Routes

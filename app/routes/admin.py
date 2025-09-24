@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from functools import wraps
+from typing import Callable
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user
 
 from app import db
-from app.models.api_key import APIKey
 from app.models.content import Content
 from app.models.moderation_result import ModerationResult
 from app.models.moderation_rule import ModerationRule
@@ -16,22 +16,46 @@ from app.services.database_service import db_service
 admin_bp = Blueprint('admin', __name__)
 
 
-def admin_required(f):
-    """Decorator to require admin access"""
+def admin_required(f: Callable) -> Callable:
+    """Enhanced decorator to require admin access with additional security checks"""
     @wraps(f)
     async def decorated_function(*args, **kwargs):
+        # Check if user is authenticated
         if not current_user.is_authenticated:
+            flash('Please log in to access admin area.', 'error')
             return redirect(url_for('auth.login'))
+
+        # Check if user is active (prevent deactivated admin accounts)
+        if not current_user.is_active:
+            flash('Your account has been deactivated. Contact support.', 'error')
+            return redirect(url_for('auth.logout'))
+
+        # Check if user has admin privileges
         if not current_user.is_admin:
             flash('Access denied. Admin privileges required.', 'error')
+            # Log unauthorized access attempt
+            current_app.logger.warning(
+                f"Unauthorized admin access attempt by user {current_user.id} ({current_user.email})"
+            )
             return redirect(url_for('dashboard.index'))
+
+        # Additional security: verify user still exists in database
+        try:
+            fresh_user = await db_service.get_user_by_id(current_user.id)
+            if not fresh_user or not fresh_user.is_admin or not fresh_user.is_active:
+                flash('Session invalid. Please log in again.', 'error')
+                return redirect(url_for('auth.logout'))
+        except Exception as e:
+            current_app.logger.error(f"Admin access verification error: {str(e)}")
+            flash('Access verification failed. Please log in again.', 'error')
+            return redirect(url_for('auth.logout'))
+
         return await f(*args, **kwargs)
     return decorated_function
 
 
 @admin_bp.route('/')
-@login_required
-@admin_required
+@admin_required  # admin_required includes login_required functionality
 async def index():
     """Admin dashboard overview"""
     # Get system statistics using centralized service
@@ -56,7 +80,6 @@ async def index():
 
 
 @admin_bp.route('/users')
-@login_required
 @admin_required
 async def users():
     """User management page"""
@@ -71,7 +94,6 @@ async def users():
 
 
 @admin_bp.route('/users/<user_id>')
-@login_required
 @admin_required
 async def user_detail(user_id):
     """User detail page"""
@@ -96,7 +118,6 @@ async def user_detail(user_id):
 
 
 @admin_bp.route('/users/<user_id>/toggle_admin', methods=['POST'])
-@login_required
 @admin_required
 async def toggle_admin(user_id):
     """Toggle admin status for a user"""
@@ -116,7 +137,6 @@ async def toggle_admin(user_id):
 
 
 @admin_bp.route('/users/<user_id>/toggle_active', methods=['POST'])
-@login_required
 @admin_required
 async def toggle_active(user_id):
     """Toggle active status for a user"""
@@ -135,7 +155,6 @@ async def toggle_active(user_id):
 
 
 @admin_bp.route('/users/create', methods=['POST'])
-@login_required
 @admin_required
 async def create_user():
     """Create a new user"""
@@ -169,17 +188,18 @@ async def create_user():
             flash('Email address already exists.', 'error')
             return redirect(url_for('admin.users'))
 
-        # Create new user
-        new_user = User(
+        # Create new user using database service
+        new_user = await db_service.create_user(
             username=username,
             email=email,
+            password=password,
             is_admin=is_admin,
             is_active=is_active
         )
-        new_user.set_password(password)
 
-        db.session.add(new_user)
-        db.session.commit()
+        if not new_user:
+            flash('Failed to create user.', 'error')
+            return redirect(url_for('admin.users'))
 
         role = 'admin' if is_admin else 'user'
         status = 'active' if is_active else 'inactive'
@@ -195,7 +215,6 @@ async def create_user():
 
 
 @admin_bp.route('/users/<user_id>/delete', methods=['POST'])
-@login_required
 @admin_required
 async def delete_user(user_id):
     """Delete a user and all their data"""
@@ -229,7 +248,6 @@ async def delete_user(user_id):
 
 
 @admin_bp.route('/projects')
-@login_required
 @admin_required
 async def projects():
     """All projects overview"""
@@ -239,31 +257,20 @@ async def projects():
     # Get projects using database service with eager loading
     all_projects = await db_service.get_all_projects_for_admin(page=page, per_page=per_page)
 
-    # Add counts for each project efficiently
+    # Add counts for each project efficiently using database service
     project_stats = {}
     if all_projects:
         project_ids = [p.id for p in all_projects]
 
-        # Get counts for all projects in bulk
-        from sqlalchemy import func
-        content_counts = dict(db.session.query(
-            Content.project_id, func.count(Content.id)
-        ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
-
-        rules_counts = dict(db.session.query(
-            ModerationRule.project_id, func.count(ModerationRule.id)
-        ).filter(ModerationRule.project_id.in_(project_ids)).group_by(ModerationRule.project_id).all())
-
-        keys_counts = dict(db.session.query(
-            APIKey.project_id, func.count(APIKey.id)
-        ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
+        # Get bulk statistics using database service
+        bulk_stats = await db_service.get_project_bulk_stats(project_ids)
 
         # Create stats dict for template
         for project in all_projects:
             project_stats[project.id] = {
-                'content_count': content_counts.get(project.id, 0),
-                'rules_count': rules_counts.get(project.id, 0),
-                'keys_count': keys_counts.get(project.id, 0)
+                'content_count': bulk_stats['content_counts'].get(project.id, 0),
+                'rules_count': bulk_stats['rules_counts'].get(project.id, 0),
+                'keys_count': bulk_stats['keys_counts'].get(project.id, 0)
             }
 
     # Create a simple pagination object
@@ -302,26 +309,7 @@ async def projects():
                            unique_owners=unique_owners)
 
 
-@admin_bp.route('/projects/<project_id>')
-@login_required
-@admin_required
-async def project_detail(project_id):
-    """Project detail page"""
-    project = Project.query.get_or_404(project_id)
-
-    # Get project statistics
-    stats = {
-        'content_count': Content.query.filter_by(project_id=project_id).count(),
-        'rules_count': ModerationRule.query.filter_by(project_id=project_id).count(),
-        'api_keys_count': APIKey.query.filter_by(project_id=project_id).count(),
-        'moderations_count': ModerationResult.query.join(Content).filter(Content.project_id == project_id).count(),
-    }
-
-    return render_template('admin/project_detail.html', project=project, stats=stats)
-
-
 @admin_bp.route('/analytics')
-@login_required
 @admin_required
 async def analytics():
     """Comprehensive analytics dashboard"""
@@ -331,14 +319,7 @@ async def analytics():
     start_date = end_date - timedelta(days=days)
 
     # Overall system stats
-    system_stats = {
-        'total_users': User.query.count(),
-        'active_users': User.query.filter_by(is_active=True).count(),
-        'total_projects': Project.query.count(),
-        'total_content': Content.query.count(),
-        'total_moderations': ModerationResult.query.count(),
-        'total_api_keys': APIKey.query.filter_by(is_active=True).count(),
-    }
+    system_stats = await db_service.get_analytics_stats()
 
     # Time series data for charts
     user_registrations = db.session.query(
@@ -447,34 +428,9 @@ async def analytics():
 
 
 @admin_bp.route('/api/stats')
-@login_required
 @admin_required
 async def api_stats():
     """API endpoint for admin statistics"""
-    stats = {
-        'users': {
-            'total': User.query.count(),
-            'active': User.query.filter_by(is_active=True).count(),
-            'admin': User.query.filter_by(is_admin=True).count(),
-            'recent': User.query.filter(User.created_at >= datetime.utcnow() - timedelta(days=7)).count()
-        },
-        'projects': {
-            'total': Project.query.count(),
-            'recent': Project.query.filter(Project.created_at >= datetime.utcnow() - timedelta(days=7)).count()
-        },
-        'content': {
-            'total': Content.query.count(),
-            'recent': Content.query.filter(Content.created_at >= datetime.utcnow() - timedelta(days=7)).count()
-        },
-        'moderations': {
-            'total': ModerationResult.query.count(),
-            'approved': ModerationResult.query.filter_by(decision='approved').count(),
-            'rejected': ModerationResult.query.filter_by(decision='rejected').count(),
-            'flagged': ModerationResult.query.filter_by(decision='flagged').count(),
-            'recent': ModerationResult.query.filter(
-                ModerationResult.created_at >= datetime.utcnow() - timedelta(days=7)
-            ).count()
-        }
-    }
+    stats = await db_service.get_api_stats()
 
     return jsonify(stats)

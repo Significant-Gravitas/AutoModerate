@@ -142,6 +142,7 @@
                                 {% if project.can_manage_members(current_user.id) %}
                                 <td>
                                     <form method="POST" action="{{ url_for('dashboard.cancel_invitation', project_id=project.id, invitation_id=invitation.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Cancel this invitation?')">
                                             <i class="fas fa-times"></i> Cancel
                                         </button>
@@ -215,6 +216,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ url_for('dashboard.invite_member', project_id=project.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="email" class="form-label">Email Address</label>
@@ -250,6 +252,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" id="roleForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="newRole" class="form-label">New Role</label>
@@ -289,6 +292,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form method="POST" id="removeMemberForm" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <button type="submit" class="btn btn-danger">
                         <i class="fas fa-user-minus"></i> Remove Member
                     </button>

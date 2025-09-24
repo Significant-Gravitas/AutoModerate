@@ -5,6 +5,7 @@ High-performance async database operations with consistent error handling
 
 import asyncio
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
@@ -28,10 +29,17 @@ class DatabaseService:
     """Async centralized database operations with consistent error handling"""
 
     def __init__(self):
-        self._executor = ThreadPoolExecutor(max_workers=20)
+        from flask import current_app
+        try:
+            max_workers = current_app.config.get('DB_THREAD_POOL_WORKERS', 8)
+        except RuntimeError:
+            # No app context available during initialization
+            max_workers = 8
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._operation_lock = threading.RLock()  # Reentrant lock for thread safety
 
     async def _safe_execute(self, operation_func, *args, **kwargs):
-        """Execute database operation asynchronously in thread pool"""
+        """Execute database operation asynchronously in thread pool with proper synchronization"""
         from flask import current_app, has_app_context
 
         loop = asyncio.get_event_loop()
@@ -41,43 +49,81 @@ class DatabaseService:
             app = current_app._get_current_object()
 
             def context_operation():
-                with app.app_context():
-                    return operation_func(*args, **kwargs)
+                # Use thread-safe operation with locking
+                with self._operation_lock:
+                    with app.app_context():
+                        try:
+                            result = operation_func(*args, **kwargs)
+                            # Ensure session is properly handled
+                            if hasattr(db.session, 'commit'):
+                                # Session will be committed by the operation if needed
+                                pass
+                            return result
+                        except SQLAlchemyError as e:
+                            logger.error(f"Database error in thread: {str(e)}")
+                            try:
+                                db.session.rollback()
+                            except SQLAlchemyError as rollback_error:
+                                logger.error(f"Rollback error: {str(rollback_error)}")
+                            raise
+                        except (ValueError, TypeError, AttributeError) as e:
+                            logger.error(f"Data processing error in thread: {str(e)}")
+                            try:
+                                db.session.rollback()
+                            except SQLAlchemyError as rollback_error:
+                                logger.error(f"Rollback error: {str(rollback_error)}")
+                            raise
 
             try:
                 return await loop.run_in_executor(self._executor, context_operation)
             except SQLAlchemyError as e:
                 logger.error(f"Database error: {str(e)}")
-
-                def rollback_operation():
-                    with app.app_context():
-                        db.session.rollback()
-                await loop.run_in_executor(self._executor, rollback_operation)
                 return None
-            except Exception as e:
-                logger.error(f"Unexpected error: {str(e)}")
+            except (ValueError, TypeError, RuntimeError) as e:
+                logger.error(f"Runtime error: {str(e)}")
                 return None
         else:
             # No app context, run directly (shouldn't happen in normal operation)
+            def safe_operation():
+                with self._operation_lock:
+                    try:
+                        return operation_func(*args, **kwargs)
+                    except SQLAlchemyError as e:
+                        logger.error(f"Database error (no context): {str(e)}")
+                        try:
+                            db.session.rollback()
+                        except SQLAlchemyError:
+                            pass
+                        raise
+                    except (ValueError, TypeError, AttributeError) as e:
+                        logger.error(f"Data processing error (no context): {str(e)}")
+                        raise
+
             try:
-                return await loop.run_in_executor(self._executor, operation_func, *args, **kwargs)
+                return await loop.run_in_executor(self._executor, safe_operation)
             except SQLAlchemyError as e:
                 logger.error(f"Database error: {str(e)}")
-                await loop.run_in_executor(self._executor, db.session.rollback)
                 return None
-            except Exception as e:
-                logger.error(f"Unexpected error: {str(e)}")
+            except (ValueError, TypeError, RuntimeError) as e:
+                logger.error(f"Runtime error: {str(e)}")
                 return None
 
     # User Operations
-    async def create_user(self, username: str, email: str, password: str, is_admin: bool = False) -> Optional[User]:
+    async def create_user(self, username: str, email: str, password: str,
+                          is_admin: bool = False, is_active: bool = True) -> Optional[User]:
         """Create a new user"""
         def _create_user():
-            user = User(username=username, email=email, is_admin=is_admin)
-            user.set_password(password)
-            db.session.add(user)
-            db.session.commit()
-            return user
+            try:
+                user = User(username=username, email=email, is_admin=is_admin, is_active=is_active)
+                user.set_password(password)
+                db.session.add(user)
+                db.session.commit()
+                # Refresh the user to ensure it's attached to the session
+                db.session.refresh(user)
+                return user
+            except SQLAlchemyError:
+                db.session.rollback()
+                raise
 
         return await self._safe_execute(_create_user)
 
@@ -105,7 +151,6 @@ class DatabaseService:
     async def get_user_with_projects(self, user_id: str) -> Optional[User]:
         """Get user by ID with projects and related data loaded"""
         def _get_user():
-            from sqlalchemy.orm import joinedload
             return User.query.options(
                 joinedload(User.projects)
                 .joinedload(Project.api_keys),
@@ -223,9 +268,11 @@ class DatabaseService:
         return await self._safe_execute(_get_projects) or []
 
     async def get_project_by_id(self, project_id: str) -> Optional[Project]:
-        """Get project by ID"""
+        """Get project by ID with owner relationship loaded"""
         def _get_project():
-            return Project.query.get(project_id)
+            return Project.query.options(
+                joinedload(Project.owner)
+            ).filter_by(id=project_id).first()
 
         return await self._safe_execute(_get_project)
 
@@ -300,9 +347,10 @@ class DatabaseService:
         return await self._safe_execute(_create_content)
 
     async def get_project_content(self, project_id: str, limit: int = 100, offset: int = 0) -> List[Content]:
-        """Get content for a project with pagination"""
+        """Get content for a project with pagination and moderation results"""
         def _get_content():
             return Content.query.filter_by(project_id=project_id)\
+                .options(joinedload(Content.moderation_results))\
                 .order_by(Content.created_at.desc())\
                 .limit(limit).offset(offset).all()
 
@@ -310,26 +358,42 @@ class DatabaseService:
 
     async def get_project_content_with_filters(self, project_id: str, status: str = None, limit: int = 50,
                                                offset: int = 0) -> List[Content]:
-        """Get content for a project with optional status filter"""
+        """Get content for a project with optional status filter and moderation results"""
         def _get_content():
-            query = Content.query.filter_by(project_id=project_id)
-            if status:
-                query = query.filter_by(status=status)
-            return query.order_by(Content.created_at.desc()).limit(limit).offset(offset).all()
+            # Validate inputs to prevent any potential issues
+            validated_limit = limit
+            validated_offset = offset
+            if not isinstance(limit, int) or limit < 1 or limit > 1000:
+                validated_limit = 50
+            if not isinstance(offset, int) or offset < 0:
+                validated_offset = 0
+
+            query = Content.query.filter_by(project_id=project_id)\
+                .options(joinedload(Content.moderation_results))
+            if status and isinstance(status, str):
+                # Validate status against known values
+                valid_statuses = {'approved', 'rejected', 'flagged', 'pending'}
+                if status in valid_statuses:
+                    query = query.filter_by(status=status)
+            return query.order_by(Content.created_at.desc()).limit(validated_limit).offset(validated_offset).all()
 
         return await self._safe_execute(_get_content) or []
 
     async def get_content_by_id(self, content_id: str) -> Optional[Content]:
-        """Get content by ID"""
+        """Get content by ID with moderation results"""
         def _get_content():
-            return Content.query.get(content_id)
+            return Content.query.options(
+                joinedload(Content.moderation_results)
+            ).filter_by(id=content_id).first()
 
         return await self._safe_execute(_get_content)
 
     async def get_content_by_id_and_project(self, content_id: str, project_id: str) -> Optional[Content]:
-        """Get content by ID and project ID"""
+        """Get content by ID and project ID with moderation results"""
         def _get_content():
-            return Content.query.filter_by(id=content_id, project_id=project_id).first()
+            return Content.query.options(
+                joinedload(Content.moderation_results)
+            ).filter_by(id=content_id, project_id=project_id).first()
 
         return await self._safe_execute(_get_content)
 
@@ -471,6 +535,202 @@ class DatabaseService:
 
         return await self._safe_execute(_get_stats) or {}
 
+    async def get_analytics_stats(self) -> Dict[str, Any]:
+        """Get comprehensive analytics statistics"""
+        def _get_analytics_stats():
+            return {
+                'total_users': User.query.count(),
+                'active_users': User.query.filter_by(is_active=True).count(),
+                'total_projects': Project.query.count(),
+                'total_content': Content.query.count(),
+                'total_moderations': ModerationResult.query.count(),
+                'total_api_keys': APIKey.query.filter_by(is_active=True).count(),
+            }
+
+        return await self._safe_execute(_get_analytics_stats) or {}
+
+    async def get_api_stats(self) -> Dict[str, Any]:
+        """Get API statistics with user, project, content, and moderation breakdowns"""
+        def _get_api_stats():
+            from datetime import datetime, timedelta
+
+            week_ago = datetime.utcnow() - timedelta(days=7)
+
+            return {
+                'users': {
+                    'total': User.query.count(),
+                    'active': User.query.filter_by(is_active=True).count(),
+                    'admin': User.query.filter_by(is_admin=True).count(),
+                    'recent': User.query.filter(User.created_at >= week_ago).count()
+                },
+                'projects': {
+                    'total': Project.query.count(),
+                    'recent': Project.query.filter(Project.created_at >= week_ago).count()
+                },
+                'content': {
+                    'total': Content.query.count(),
+                    'recent': Content.query.filter(Content.created_at >= week_ago).count()
+                },
+                'moderations': {
+                    'total': ModerationResult.query.count(),
+                    'approved': ModerationResult.query.filter_by(decision='approved').count(),
+                    'rejected': ModerationResult.query.filter_by(decision='rejected').count(),
+                    'flagged': ModerationResult.query.filter_by(decision='flagged').count(),
+                    'recent': ModerationResult.query.filter(
+                        ModerationResult.created_at >= week_ago
+                    ).count()
+                }
+            }
+
+        return await self._safe_execute(_get_api_stats) or {}
+
+    async def get_project_analytics_stats(self, project_id: str, start_date, end_date) -> Dict[str, Any]:
+        """Get comprehensive analytics statistics for a specific project"""
+        def _get_project_analytics():
+            # Validate date parameters to prevent issues
+            validated_start_date = start_date
+            validated_end_date = end_date
+            if not start_date or not end_date:
+                from datetime import datetime, timedelta
+                validated_end_date = datetime.utcnow()
+                validated_start_date = validated_end_date - timedelta(days=30)
+            # Project overview stats
+            project_stats = {
+                'total_content': Content.query.filter_by(project_id=project_id).count(),
+                'total_moderations': ModerationResult.query.select_from(ModerationResult).join(
+                    Content, ModerationResult.content_id == Content.id
+                ).filter(Content.project_id == project_id).count(),
+                'total_rules': ModerationRule.query.filter_by(project_id=project_id).count(),
+                'total_api_keys': APIKey.query.filter_by(project_id=project_id).count(),
+                'active_api_keys': APIKey.query.filter_by(
+                    project_id=project_id, is_active=True
+                ).count(),
+            }
+
+            # Content submissions over time - using parameterized queries
+            content_submissions = db.session.query(
+                func.date(Content.created_at).label('date'),
+                func.count(Content.id).label('count')
+            ).filter(
+                Content.project_id == project_id,
+                Content.created_at >= validated_start_date,
+                Content.created_at <= validated_end_date
+            ).group_by(
+                func.date(Content.created_at)
+            ).order_by('date').all()
+
+            # Moderation decisions breakdown - using parameterized queries
+            moderation_decisions = db.session.query(
+                ModerationResult.decision,
+                func.count(ModerationResult.id).label('count')
+            ).select_from(ModerationResult).join(
+                Content, ModerationResult.content_id == Content.id
+            ).filter(
+                Content.project_id == project_id,
+                ModerationResult.created_at >= validated_start_date,
+                ModerationResult.created_at <= validated_end_date
+            ).group_by(ModerationResult.decision).all()
+
+            # Content type distribution
+            content_types = db.session.query(
+                Content.content_type,
+                func.count(Content.id).label('count')
+            ).filter(
+                Content.project_id == project_id,
+                Content.created_at >= validated_start_date,
+                Content.created_at <= validated_end_date
+            ).group_by(Content.content_type).all()
+
+            # Processing time stats for this project
+            processing_stats = db.session.query(
+                func.avg(ModerationResult.processing_time).label('avg_time'),
+                func.min(ModerationResult.processing_time).label('min_time'),
+                func.max(ModerationResult.processing_time).label('max_time')
+            ).select_from(ModerationResult).join(
+                Content, ModerationResult.content_id == Content.id
+            ).filter(
+                Content.project_id == project_id,
+                ModerationResult.created_at >= validated_start_date,
+                ModerationResult.created_at <= validated_end_date,
+                ModerationResult.processing_time.isnot(None)
+            ).first()
+
+            # API keys and their details for this project
+            api_usage = db.session.query(
+                APIKey.name,
+                APIKey.usage_count,
+                APIKey.last_used,
+                APIKey.is_active
+            ).filter(
+                APIKey.project_id == project_id
+            ).order_by(APIKey.usage_count.desc()).limit(10).all()
+
+            # Top users for this project
+            from sqlalchemy import case
+
+            from app.models.api_user import APIUser
+            top_users = db.session.query(
+                APIUser.external_user_id,
+                func.count(Content.id).label('submissions'),
+                func.sum(case(
+                    (ModerationResult.decision == 'approved', 1),
+                    else_=0
+                )).label('approved'),
+                func.sum(case(
+                    (ModerationResult.decision == 'rejected', 1),
+                    else_=0
+                )).label('rejected')
+            ).select_from(APIUser).join(
+                Content, APIUser.id == Content.api_user_id
+            ).join(
+                ModerationResult, Content.id == ModerationResult.content_id
+            ).filter(
+                Content.project_id == project_id,
+                Content.created_at >= validated_start_date,
+                Content.created_at <= validated_end_date
+            ).group_by(APIUser.external_user_id).order_by(
+                func.count(Content.id).desc()
+            ).limit(10).all()
+
+            # Rule effectiveness for this project
+            rule_stats = db.session.query(
+                ModerationRule.name,
+                func.count(ModerationResult.id).label('triggered'),
+                ModerationRule.rule_type
+            ).select_from(ModerationRule).join(
+                ModerationResult, ModerationRule.id == ModerationResult.moderator_id
+            ).join(Content, ModerationResult.content_id == Content.id).filter(
+                ModerationRule.project_id == project_id,
+                ModerationResult.created_at >= validated_start_date,
+                ModerationResult.created_at <= validated_end_date,
+                ModerationResult.moderator_type == 'rule',
+                ModerationResult.moderator_id.isnot(None)
+            ).group_by(ModerationRule.id).order_by(
+                func.count(ModerationResult.id).desc()
+            ).limit(10).all()
+
+            # Recent activity summary
+            from app.models.api_user import APIUser
+            recent_content = Content.query.options(
+                joinedload(Content.api_user)
+            ).filter_by(
+                project_id=project_id
+            ).order_by(Content.created_at.desc()).limit(5).all()
+
+            return {
+                'project_stats': project_stats,
+                'content_submissions': content_submissions,
+                'moderation_decisions': moderation_decisions,
+                'content_types': content_types,
+                'processing_stats': processing_stats,
+                'api_usage': api_usage,
+                'top_users': top_users,
+                'rule_stats': rule_stats,
+                'recent_content': recent_content
+            }
+
+        return await self._safe_execute(_get_project_analytics) or {}
+
     # API User Operations
     async def get_or_create_api_user(self, external_user_id: str, project_id: str) -> Optional[APIUser]:
         """Get existing API user or create new one"""
@@ -579,7 +839,6 @@ class DatabaseService:
     async def get_recent_projects(self, limit: int = 5) -> List[Project]:
         """Get recent projects for admin dashboard"""
         def _get_recent():
-            from sqlalchemy.orm import joinedload
             return Project.query.options(
                 joinedload(Project.owner)
             ).order_by(Project.created_at.desc()).limit(limit).all()
@@ -589,7 +848,6 @@ class DatabaseService:
     async def get_recent_content_admin(self, limit: int = 10) -> List[Content]:
         """Get recent content for admin dashboard"""
         def _get_recent():
-            from sqlalchemy.orm import joinedload
             return Content.query.options(
                 joinedload(Content.project).joinedload(Project.owner)
             ).order_by(Content.created_at.desc()).limit(limit).all()
@@ -648,7 +906,6 @@ class DatabaseService:
     async def get_all_projects_for_admin(self, page: int = 1, per_page: int = 20) -> List[Project]:
         """Get all projects for admin view with pagination (lightweight)"""
         def _get_projects():
-            from sqlalchemy.orm import joinedload
             offset = (page - 1) * per_page
             # Only load owner data, not all content/rules/keys which can be huge
             return Project.query.options(
@@ -656,6 +913,53 @@ class DatabaseService:
             ).offset(offset).limit(per_page).all()
 
         return await self._safe_execute(_get_projects) or []
+
+    async def get_project_bulk_stats(self, project_ids: list) -> dict:
+        """Get bulk statistics for multiple projects"""
+        def _get_stats():
+            # Get counts for all projects in bulk
+            content_counts = dict(db.session.query(
+                Content.project_id, func.count(Content.id)
+            ).filter(Content.project_id.in_(project_ids)).group_by(Content.project_id).all())
+
+            rules_counts = dict(db.session.query(
+                ModerationRule.project_id, func.count(ModerationRule.id)
+            ).filter(ModerationRule.project_id.in_(project_ids)).group_by(ModerationRule.project_id).all())
+
+            keys_counts = dict(db.session.query(
+                APIKey.project_id, func.count(APIKey.id)
+            ).filter(APIKey.project_id.in_(project_ids)).group_by(APIKey.project_id).all())
+
+            return {
+                'content_counts': content_counts,
+                'rules_counts': rules_counts,
+                'keys_counts': keys_counts
+            }
+
+        return await self._safe_execute(_get_stats)
+
+    async def get_flagged_content_for_projects(self, project_ids: list, page: int = 1, per_page: int = 50) -> tuple:
+        """Get flagged content for multiple projects with pagination"""
+        def _get_flagged_content():
+            if not project_ids:
+                return [], 0
+
+            query = Content.query.filter(
+                Content.project_id.in_(project_ids),
+                Content.status == 'flagged'
+            ).options(joinedload(Content.moderation_results))\
+             .order_by(Content.created_at.desc())
+
+            # Get total count
+            total = query.count()
+
+            # Apply pagination
+            offset = (page - 1) * per_page
+            items = query.offset(offset).limit(per_page).all()
+
+            return items, total
+
+        return await self._safe_execute(_get_flagged_content)
 
     async def bulk_save_objects(self, objects: List) -> bool:
         """Bulk save objects to database"""

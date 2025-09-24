@@ -38,6 +38,9 @@ class Config:
         'echo': bool(os.environ.get('SQL_DEBUG', False))  # SQL debugging via env var
     }
 
+    # ThreadPoolExecutor configuration for async database operations
+    DB_THREAD_POOL_WORKERS = int(os.environ.get('DB_THREAD_POOL_WORKERS', '8'))
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

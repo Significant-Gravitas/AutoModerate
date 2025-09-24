@@ -7,6 +7,7 @@ from app.models.api_user import APIUser
 from app.models.content import Content
 from app.models.moderation_result import ModerationResult
 from app.models.project import Project
+from app.services.database_service import db_service
 
 manual_review_bp = Blueprint('manual_review', __name__)
 
@@ -16,26 +17,25 @@ manual_review_bp = Blueprint('manual_review', __name__)
 async def index():
     """Manual review dashboard - shows flagged content across all projects user has access to"""
     try:
-        # Get all projects the user has access to
-        user_projects = []
+        # Get all projects the user has access to using database service
         if current_user.is_admin:
-            # Admin can see all projects
-            user_projects = Project.query.all()
+            # Admin can see all projects (with pagination for performance)
+            user_projects = await db_service.get_all_projects_for_admin(page=1, per_page=1000)
         else:
             # Regular users can only see projects they're members of
-            user_projects = [
-                p for p in Project.query.all() if p.is_member(current_user.id)]
+            user_projects = await db_service.get_user_projects(current_user.id)
 
         project_ids = [p.id for p in user_projects]
 
-        # Get flagged content from these projects
-        flagged_content = Content.query.filter(
-            Content.project_id.in_(project_ids),
-            Content.status == 'flagged'
-        ).order_by(desc(Content.created_at)).all()
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = 50  # Limit to 50 items per page
 
-        # Get statistics
-        total_flagged = len(flagged_content)
+        # Get flagged content from these projects with pagination
+        flagged_content, total_flagged = await db_service.get_flagged_content_for_projects(
+            project_ids, page=page, per_page=per_page)
+
+        # Get additional statistics
         total_approved = Content.query.filter(
             Content.project_id.in_(project_ids),
             Content.status == 'approved'
@@ -45,12 +45,29 @@ async def index():
             Content.status == 'rejected'
         ).count()
 
+        # Create pagination object
+        has_prev = page > 1
+        has_next = len(flagged_content) == per_page
+        prev_num = page - 1 if has_prev else None
+        next_num = page + 1 if has_next else None
+
+        pagination = {
+            'page': page,
+            'per_page': per_page,
+            'total': total_flagged,
+            'has_prev': has_prev,
+            'has_next': has_next,
+            'prev_num': prev_num,
+            'next_num': next_num
+        }
+
         return render_template('manual_review/index.html',
                                flagged_content=flagged_content,
                                total_flagged=total_flagged,
                                total_approved=total_approved,
                                total_rejected=total_rejected,
-                               projects=user_projects)
+                               projects=user_projects,
+                               pagination=pagination)
 
     except Exception as e:
         current_app.logger.error(f"Manual review index error: {str(e)}")

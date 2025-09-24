@@ -117,6 +117,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                                         {% if user.id != current_user.id %}
                                             <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}"
                                                   style="display: inline;">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="btn btn-outline-warning"
                                                         title="{% if user.is_admin %}Revoke Admin{% else %}Grant Admin{% endif %}"
                                                         onclick="return confirm('{% if user.is_admin %}Revoke admin privileges for {{ user.username }}?{% else %}Grant admin privileges to {{ user.username }}?{% endif %}')">
@@ -126,6 +127,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
 
                                             <form method="POST" action="{{ url_for('admin.toggle_active', user_id=user.id) }}"
                                                   style="display: inline;">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="btn btn-outline-{% if user.is_active %}danger{% else %}success{% endif %}"
                                                         title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %}"
                                                         onclick="return confirm('{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}')">
@@ -231,6 +233,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
             </div>
             <div class="modal-body">
                 <form method="POST" action="{{ url_for('admin.create_user') }}" id="createUserForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <div class="mb-3">
                         <label for="username" class="form-label">Username *</label>
                         <input type="text" class="form-control" id="username" name="username" required

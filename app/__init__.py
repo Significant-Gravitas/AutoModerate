@@ -1,10 +1,13 @@
 import os
 import time
+from typing import Any, List, Union
 
 from flask import Flask
 from flask_login import LoginManager
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
+from flask_talisman import Talisman
+from flask_wtf.csrf import CSRFProtect
 
 from config.config import config
 
@@ -12,9 +15,10 @@ from config.config import config
 db = SQLAlchemy()
 login_manager = LoginManager()
 socketio = SocketIO(cors_allowed_origins="*")
+csrf = CSRFProtect()
 
 
-def create_app(config_name='default'):
+def create_app(config_name: str = 'default') -> Flask:
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
@@ -36,6 +40,61 @@ def create_app(config_name='default'):
 
     # Initialize SocketIO
     socketio.init_app(app, async_mode='threading')
+
+    # Initialize CSRF protection
+    csrf.init_app(app)
+
+    # Initialize security headers with Talisman
+    csp = {
+        'default-src': "'self'",
+        'script-src': [
+            "'self'",
+            "'unsafe-inline'",  # Required for inline scripts and Bootstrap functionality
+            "https://cdn.jsdelivr.net",  # Bootstrap, Chart.js
+            "https://cdnjs.cloudflare.com",  # FontAwesome, Socket.IO
+            "https://cdn.socket.io"  # Socket.IO CDN
+        ],
+        'style-src': [
+            "'self'",
+            "'unsafe-inline'",  # Required for inline styles and Bootstrap
+            "https://cdn.jsdelivr.net",  # Bootstrap CSS
+            "https://cdnjs.cloudflare.com",  # FontAwesome CSS
+            "https://fonts.googleapis.com"  # Google Fonts (if used)
+        ],
+        'font-src': [
+            "'self'",
+            "https://fonts.gstatic.com",  # Google Fonts
+            "https://cdnjs.cloudflare.com",  # FontAwesome fonts
+            "https://cdn.jsdelivr.net",  # Bootstrap fonts
+            "data:"  # Data URIs for fonts
+        ],
+        'img-src': [
+            "'self'",
+            "data:",  # Required for inline images and icons
+            "https:",  # Allow all HTTPS images
+            "blob:"  # For dynamic images
+        ],
+        'connect-src': [
+            "'self'",
+            "ws:",  # WebSocket connections (dev)
+            "wss:",  # Secure WebSocket connections (prod)
+            "https://cdn.socket.io"  # Socket.IO connections
+        ]
+    }
+
+    Talisman(
+        app,
+        force_https=True,  # Set to True in production
+        strict_transport_security=True,
+        strict_transport_security_max_age=31536000,  # 1 year
+        content_security_policy=csp,
+        referrer_policy='strict-origin-when-cross-origin',
+        feature_policy={
+            'camera': "'none'",
+            'microphone': "'none'",
+            'geolocation': "'none'"
+        }
+    )
 
     # User loader for Flask-Login
     @login_manager.user_loader
@@ -81,6 +140,9 @@ def create_app(config_name='default'):
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(manual_review_bp)
 
+    # Exempt API endpoints from CSRF protection (they use API key authentication)
+    csrf.exempt(api_bp)
+
     # Database initialization with retry logic (only in main process, not reloader)
     if not os.environ.get('WERKZEUG_RUN_MAIN'):
         with app.app_context():
@@ -88,7 +150,7 @@ def create_app(config_name='default'):
 
     # Add custom Jinja2 filters
     @app.template_filter('to_dict_list')
-    def to_dict_list_filter(items):
+    def to_dict_list_filter(items: List[Any]) -> List[Union[dict, Any]]:
         """Convert a list of objects with to_dict() method to a list of dictionaries"""
         if not items:
             return []
@@ -97,7 +159,7 @@ def create_app(config_name='default'):
     return app
 
 
-def _initialize_database_with_retry(app, max_retries=3, delay=5):
+def _initialize_database_with_retry(app: Flask, max_retries: int = 3, delay: int = 5) -> None:
     """Initialize database with retry logic for connection pool issues"""
     for attempt in range(max_retries):
         try:
@@ -133,7 +195,7 @@ def _initialize_database_with_retry(app, max_retries=3, delay=5):
                     break
 
 
-def _create_default_admin(app):
+def _create_default_admin(app: Flask) -> None:
     """Create default admin user"""
     try:
         import asyncio

@@ -1,3 +1,5 @@
+import re
+
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
@@ -9,17 +11,62 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 async def login():
     if request.method == 'POST':
+        # Input validation and sanitization
         if request.is_json:
             data = request.get_json()
-            email = data.get('email')
-            password = data.get('password')
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid JSON data'
+                }), 400
+            email = data.get('email', '').strip()
+            password = data.get('password', '')
         else:
-            email = request.form.get('email')
-            password = request.form.get('password')
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+
+        # Validate required fields
+        if not email or not password:
+            error_msg = 'Email and password are required'
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 400
+            else:
+                flash(error_msg, 'error')
+                return render_template('auth/login.html')
+
+        # Validate email format
+        if not _is_valid_email(email):
+            error_msg = 'Invalid email format'
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 400
+            else:
+                flash(error_msg, 'error')
+                return render_template('auth/login.html')
+
+        # Normalize inputs
+        email = email.lower()
+
+        # Rate limiting check (basic implementation)
+        if len(password) > 200:  # Prevent excessive password lengths
+            error_msg = 'Invalid credentials'
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 401
+            else:
+                flash(error_msg, 'error')
+                return render_template('auth/login.html')
 
         user = await db_service.get_user_by_email(email)
 
-        if user and user.check_password(password):
+        if user and user.is_active and user.check_password(password):
             login_user(user)
             if request.is_json:
                 return jsonify({
@@ -31,13 +78,16 @@ async def login():
                 flash('Login successful!', 'success')
                 return redirect(url_for('dashboard.index'))
         else:
+            # Generic error message to prevent user enumeration
+            error_msg = 'Invalid email or password'
             if request.is_json:
                 return jsonify({
                     'success': False,
-                    'message': 'Invalid email or password'
+                    'message': error_msg
                 }), 401
             else:
-                flash('Invalid email or password', 'error')
+                flash(error_msg, 'error')
+                return render_template('auth/login.html')
 
     return render_template('auth/login.html')
 
@@ -45,15 +95,73 @@ async def login():
 @auth_bp.route('/register', methods=['GET', 'POST'])
 async def register():
     if request.method == 'POST':
+        # Input validation and sanitization
         if request.is_json:
             data = request.get_json()
-            username = data.get('username')
-            email = data.get('email')
-            password = data.get('password')
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid JSON data'
+                }), 400
+            username = data.get('username', '').strip()
+            email = data.get('email', '').strip()
+            password = data.get('password', '')
         else:
-            username = request.form.get('username')
-            email = request.form.get('email')
-            password = request.form.get('password')
+            username = request.form.get('username', '').strip()
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+
+        # Validate required fields
+        if not username or not email or not password:
+            error_msg = 'All fields are required'
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 400
+            else:
+                flash(error_msg, 'error')
+                return render_template('auth/register.html')
+
+        # Validate email format
+        if not _is_valid_email(email):
+            error_msg = 'Invalid email format'
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 400
+            else:
+                flash(error_msg, 'error')
+                return render_template('auth/register.html')
+
+        # Validate username format
+        if not _is_valid_username(username):
+            error_msg = 'Username must be 3-50 characters, alphanumeric and underscores only'
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 400
+            else:
+                flash(error_msg, 'error')
+                return render_template('auth/register.html')
+
+        # Validate password strength
+        if len(password) < 8:
+            error_msg = 'Password must be at least 8 characters long'
+            if request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 400
+            else:
+                flash(error_msg, 'error')
+                return render_template('auth/register.html')
+
+        # Normalize inputs
+        username = username
+        email = email.lower()
 
         # Check if user already exists
         if await db_service.get_user_by_email(email):
@@ -124,6 +232,32 @@ async def profile():
     return render_template('auth/profile.html', user=user)
 
 
+def _is_valid_email(email):
+    """Validate email format"""
+    if not email or len(email) > 320:  # RFC 5321 limit
+        return False
+    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(email_regex, email) is not None
+
+
+def _is_valid_username(username):
+    """Validate username format"""
+    if not username or len(username) < 3 or len(username) > 50:
+        return False
+    username_regex = r'^[a-zA-Z0-9_]+$'
+    return re.match(username_regex, username) is not None
+
+
+def _is_valid_password(password):
+    """Validate password strength"""
+    if len(password) < 8 or len(password) > 200:
+        return False
+    # At least one uppercase, one lowercase, one digit
+    return (re.search(r'[A-Z]', password) and
+            re.search(r'[a-z]', password) and
+            re.search(r'\d', password))
+
+
 @auth_bp.route('/change-password', methods=['POST'])
 @login_required
 async def change_password():
@@ -153,15 +287,39 @@ async def change_password():
             flash('Current password is incorrect', 'error')
             return redirect(url_for('auth.profile'))
 
-    # Validate new password
-    if len(new_password) < 6:
+    # Validate inputs
+    if not current_password or not new_password or not confirm_password:
+        error_msg = 'All password fields are required'
         if request.is_json:
             return jsonify({
                 'success': False,
-                'message': 'New password must be at least 6 characters long'
+                'message': error_msg
             }), 400
         else:
-            flash('New password must be at least 6 characters long', 'error')
+            flash(error_msg, 'error')
+            return redirect(url_for('auth.profile'))
+
+    # Validate new password
+    if len(new_password) < 8:
+        if request.is_json:
+            return jsonify({
+                'success': False,
+                'message': 'New password must be at least 8 characters long'
+            }), 400
+        else:
+            flash('New password must be at least 8 characters long', 'error')
+            return redirect(url_for('auth.profile'))
+
+    # Check password strength
+    if not _is_valid_password(new_password):
+        error_msg = 'Password must contain at least one uppercase, one lowercase, and one number'
+        if request.is_json:
+            return jsonify({
+                'success': False,
+                'message': error_msg
+            }), 400
+        else:
+            flash(error_msg, 'error')
             return redirect(url_for('auth.profile'))
 
     # Validate password confirmation

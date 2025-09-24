@@ -23,6 +23,7 @@
             </div>
             <div class="card-body">
                 <form method="POST" id="ruleForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <!-- Basic Information -->
                     <div class="row">
                         <div class="col-md-8">
