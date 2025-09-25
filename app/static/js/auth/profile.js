@@ -40,12 +40,14 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.disabled = true;
         submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Changing Password...';
 
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
         fetch(changePasswordForm.action, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'X-CSRFToken': csrfToken
             },
             body: JSON.stringify(jsonData)
         })

@@ -457,9 +457,9 @@ class DatabaseService:
         return await self._safe_execute(_create_rule)
 
     async def get_project_rules(self, project_id: str) -> List[ModerationRule]:
-        """Get all active moderation rules for a project"""
+        """Get all moderation rules for a project (active and inactive)"""
         def _get_rules():
-            return ModerationRule.query.filter_by(project_id=project_id, is_active=True)\
+            return ModerationRule.query.filter_by(project_id=project_id)\
                 .order_by(ModerationRule.priority.desc()).all()
 
         return await self._safe_execute(_get_rules) or []

@@ -44,6 +44,9 @@ def create_app(config_name: str = 'default') -> Flask:
     # Initialize CSRF protection
     csrf.init_app(app)
 
+    # Configure CSRF header names for AJAX requests
+    app.config['WTF_CSRF_HEADERS'] = ['X-CSRFToken', 'X-CSRF-Token']
+
     # Initialize security headers with Talisman
     csp = {
         'default-src': "'self'",
@@ -52,7 +55,8 @@ def create_app(config_name: str = 'default') -> Flask:
             "'unsafe-inline'",  # Required for inline scripts and Bootstrap functionality
             "https://cdn.jsdelivr.net",  # Bootstrap, Chart.js
             "https://cdnjs.cloudflare.com",  # FontAwesome, Socket.IO
-            "https://cdn.socket.io"  # Socket.IO CDN
+            "https://cdn.socket.io",  # Socket.IO CDN
+            "https://static.cloudflareinsights.com"  # Cloudflare Analytics
         ],
         'style-src': [
             "'self'",
@@ -78,7 +82,8 @@ def create_app(config_name: str = 'default') -> Flask:
             "'self'",
             "ws:",  # WebSocket connections (dev)
             "wss:",  # Secure WebSocket connections (prod)
-            "https://cdn.socket.io"  # Socket.IO connections
+            "https://cdn.socket.io",  # Socket.IO connections
+            "https://cdn.jsdelivr.net"  # Bootstrap source maps
         ]
     }
 

@@ -166,14 +166,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
             fetch(`/dashboard/projects/${projectId}/rules/${ruleId}/toggle`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({ action: action })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     location.reload(); // Refresh to show updated status
@@ -214,10 +221,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
             fetch(`/dashboard/projects/${projectId}/rules/${ruleId}/delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 }
             })
             .then(response => response.json())
@@ -279,10 +288,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 rule_data: ruleData
             };
 
+            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
             fetch(`/dashboard/projects/${projectId}/rules/${ruleId}/update`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify(updateData)
             })

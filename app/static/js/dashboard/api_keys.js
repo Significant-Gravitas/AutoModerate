@@ -63,10 +63,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const projectId = this.closest('[data-project-id]')?.getAttribute('data-project-id') ||
                              document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
 
+            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
             fetch(`/dashboard/projects/${projectId}/api-keys/${keyId}/toggle`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({ action: action })
             })
@@ -94,10 +96,12 @@ document.addEventListener('DOMContentLoaded', function() {
                              document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
 
             if (confirm(`Are you sure you want to delete the API key "${keyName}"? This action cannot be undone.`)) {
+                const csrfToken = document.querySelector('input[name="csrf_token"]').value;
                 fetch(`/dashboard/projects/${projectId}/api-keys/${keyId}/delete`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
                     }
                 })
                 .then(response => response.json())
