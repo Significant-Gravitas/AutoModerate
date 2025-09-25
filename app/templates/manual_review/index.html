@@ -70,6 +70,9 @@
 {% endblock %}
 
 {% block content %}
+<!-- Hidden CSRF token for AJAX requests -->
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
@@ -432,10 +435,12 @@ function performBulkAction() {
     };
 
     // Send bulk action request
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
     fetch('/manual-review/bulk-decision', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
         },
         body: JSON.stringify(requestData)
     })

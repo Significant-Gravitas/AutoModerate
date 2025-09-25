@@ -3,6 +3,9 @@
 {% block title %}Review Content - {{ content.id[:8] }}{% endblock %}
 
 {% block content %}
+<!-- Hidden CSRF token for AJAX requests -->
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
@@ -219,10 +222,12 @@ document.getElementById('decisionForm').addEventListener('submit', function(e) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
     fetch('{{ url_for("manual_review.make_decision", content_id=content.id) }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
         },
         body: JSON.stringify(formData)
     })

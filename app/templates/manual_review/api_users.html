@@ -3,6 +3,9 @@
 {% block title %}API Users{% endblock %}
 
 {% block content %}
+<!-- Hidden CSRF token for AJAX requests -->
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">

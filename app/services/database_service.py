@@ -947,8 +947,10 @@ class DatabaseService:
             query = Content.query.filter(
                 Content.project_id.in_(project_ids),
                 Content.status == 'flagged'
-            ).options(joinedload(Content.moderation_results))\
-             .order_by(Content.created_at.desc())
+            ).options(
+                joinedload(Content.moderation_results),
+                joinedload(Content.project)
+            ).order_by(Content.created_at.desc())
 
             # Get total count
             total = query.count()
