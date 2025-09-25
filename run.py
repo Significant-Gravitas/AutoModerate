@@ -20,6 +20,7 @@ def home() -> Response:
 
 
 if __name__ == '__main__':
-    # Allow unsafe Werkzeug in testing/CI environments
-    is_testing = os.getenv('FLASK_ENV') == 'testing' or os.getenv('CI') == 'true'
-    socketio.run(app, host='0.0.0.0', port=6217, allow_unsafe_werkzeug=is_testing)
+    # Allow unsafe Werkzeug in non-production environments or Cloud Run
+    is_production = os.getenv('FLASK_CONFIG') == 'production'
+    allow_unsafe = not is_production or os.getenv('CI') == 'true'
+    socketio.run(app, host='0.0.0.0', port=6217, allow_unsafe_werkzeug=allow_unsafe)
