@@ -804,9 +804,13 @@ class DatabaseService:
     async def update_api_key_usage(self, api_key: APIKey) -> bool:
         """Update API key usage statistics"""
         def _update_usage():
-            api_key.increment_usage()
-            db.session.commit()
-            return True
+            # Get fresh instance from database using the key ID
+            fresh_api_key = APIKey.query.filter_by(id=api_key.id).first()
+            if fresh_api_key:
+                fresh_api_key.increment_usage()
+                db.session.commit()
+                return True
+            return False
 
         result = await self._safe_execute(_update_usage)
         return result is not None
