@@ -33,7 +33,6 @@ class APIKey(db.Model):
     def increment_usage(self):
         self.usage_count += 1
         self.last_used = datetime.utcnow()
-        db.session.commit()
 
     def to_dict(self):
         return {
