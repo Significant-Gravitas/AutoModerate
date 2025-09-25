@@ -33,10 +33,12 @@ steps:
     - '${_CPU}'
     - '--max-instances'
     - '${_MAX_INSTANCES}'
+    - '--add-cloudsql-instances'
+    - '${_CLOUD_SQL_INSTANCE}'
     - '--set-env-vars'
     - 'FLASK_CONFIG=${_FLASK_CONFIG},DATABASE_URL=${_DATABASE_URL},OPENAI_API_KEY=${_OPENAI_API_KEY},SECRET_KEY=${_SECRET_KEY},ADMIN_EMAIL=${_ADMIN_EMAIL},ADMIN_PASSWORD=${_ADMIN_PASSWORD}'
 
-# Default substitutions (can be overridden in triggers)
+# Default substitutions (MUST be overridden in triggers for security)
 substitutions:
   _ENV: 'dev'
   _REGION: 'us-central1'
@@ -44,11 +46,13 @@ substitutions:
   _MEMORY: '1Gi'
   _CPU: '1'
   _MAX_INSTANCES: '10'
-  _DATABASE_URL: 'postgresql://user:pass@/automoderate?host=/cloudsql/project:region:instance'
-  _OPENAI_API_KEY: 'your-openai-api-key'
-  _SECRET_KEY: 'your-secret-key'
-  _ADMIN_EMAIL: 'admin@example.com'
-  _ADMIN_PASSWORD: 'admin123'
+  # Sensitive variables MUST be set in trigger configuration:
+  # _CLOUD_SQL_INSTANCE: project:region:instance-name
+  # _DATABASE_URL: Cloud SQL connection string
+  # _OPENAI_API_KEY: OpenAI API key
+  # _SECRET_KEY: Flask session secret
+  # _ADMIN_EMAIL: Admin email
+  # _ADMIN_PASSWORD: Admin password
 
 options:
   logging: CLOUD_LOGGING_ONLY
