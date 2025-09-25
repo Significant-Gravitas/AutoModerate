@@ -358,8 +358,9 @@ Does content violate this rule? JSON only:"""
                 MIN_CONFIDENCE_FOR_REJECTION = 0.55
                 if result['decision'] == 'rejected' and result['confidence'] < MIN_CONFIDENCE_FOR_REJECTION:
                     result['decision'] = 'approved'
-                    result['reason'] = f"Low confidence rejection ({result['confidence']:.2f} < {
-                        MIN_CONFIDENCE_FOR_REJECTION}) - approved instead. Original reason: {result['reason']}"
+                    result['reason'] = (f"Low confidence rejection ({result['confidence']:.2f} < "
+                                        f"{MIN_CONFIDENCE_FOR_REJECTION}) - approved instead. "
+                                        f"Original reason: {result['reason']}")
 
                 # Add metadata
                 result['moderator_type'] = 'ai'
@@ -392,8 +393,8 @@ Does content violate this rule? JSON only:"""
                 MIN_CONFIDENCE_FOR_REJECTION = 0.55
                 if decision == 'rejected' and confidence < MIN_CONFIDENCE_FOR_REJECTION:
                     decision = 'approved'
-                    reason = f"Malformed AI response with low confidence ({
-                        confidence:.2f}) - approved. Raw response: {result_text[:100]}"
+                    reason = (f"Malformed AI response with low confidence ({confidence:.2f}) - "
+                              f"approved. Raw response: {result_text[:100]}")
                 else:
                     reason = f"Parsed from malformed response: {result_text[:200]}"
 
