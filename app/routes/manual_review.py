@@ -328,8 +328,7 @@ async def api_user_by_external_id(external_user_id):
         ).first()
 
         if not api_user:
-            flash(f'API user with ID "{
-                  external_user_id}" not found in your accessible projects', 'error')
+            flash(f'API user with ID "{external_user_id}" not found in your accessible projects', 'error')
             return redirect(url_for('manual_review.api_users'))
 
         # Redirect to the internal ID route
