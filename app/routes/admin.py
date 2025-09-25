@@ -131,8 +131,7 @@ async def toggle_admin(user_id):
         return redirect(url_for('admin.users'))
 
     action = 'granted' if user_data['is_admin'] else 'revoked'
-    flash(f'Admin privileges {action} for user {
-          user_data["username"]}.', 'success')
+    flash(f'Admin privileges {action} for user {user_data["username"]}.', 'success')
     return redirect(url_for('admin.users'))
 
 

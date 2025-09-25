@@ -77,8 +77,7 @@ class ModerationOrchestrator:
             # Get cache summary for this request
             cache_summary = self.ai_moderator.cache.get_request_cache_summary()
             if cache_summary['stores'] > 0:
-                cache_info = f" [Cached {cache_summary['stores']} results, total: {
-                    cache_summary['total']}]"
+                cache_info = f" [Cached {cache_summary['stores']} results, total: {cache_summary['total']}]"
             elif total_time < 1.0:
                 cache_info = " [Cache hit]"
             else:
