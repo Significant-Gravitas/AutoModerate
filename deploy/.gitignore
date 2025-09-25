@@ -1,0 +1,7 @@
+# Environment files with secrets
+env-dev.yaml
+env-prod.yaml
+
+# Temporary deployment files
+*.tmp
+*.log

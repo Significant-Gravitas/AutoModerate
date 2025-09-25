@@ -1,0 +1,54 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-f', 'deploy/Dockerfile',
+      '-t', 'gcr.io/$PROJECT_ID/automoderate:$BRANCH_NAME-$SHORT_SHA',
+      '.'
+    ]
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/automoderate:$BRANCH_NAME-$SHORT_SHA']
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+    - 'run'
+    - 'deploy'
+    - 'automoderate-${_ENV}'
+    - '--image'
+    - 'gcr.io/$PROJECT_ID/automoderate:$BRANCH_NAME-$SHORT_SHA'
+    - '--region'
+    - '${_REGION}'
+    - '--platform'
+    - 'managed'
+    - '--allow-unauthenticated'
+    - '--port'
+    - '6217'
+    - '--memory'
+    - '${_MEMORY}'
+    - '--cpu'
+    - '${_CPU}'
+    - '--max-instances'
+    - '${_MAX_INSTANCES}'
+    - '--set-env-vars'
+    - 'FLASK_CONFIG=${_FLASK_CONFIG},DATABASE_URL=${_DATABASE_URL},OPENAI_API_KEY=${_OPENAI_API_KEY},SECRET_KEY=${_SECRET_KEY},ADMIN_EMAIL=${_ADMIN_EMAIL},ADMIN_PASSWORD=${_ADMIN_PASSWORD}'
+
+# Default substitutions (can be overridden in triggers)
+substitutions:
+  _ENV: 'dev'
+  _REGION: 'us-central1'
+  _FLASK_CONFIG: 'development'
+  _MEMORY: '1Gi'
+  _CPU: '1'
+  _MAX_INSTANCES: '10'
+  _DATABASE_URL: 'postgresql://user:pass@/automoderate?host=/cloudsql/project:region:instance'
+  _OPENAI_API_KEY: 'your-openai-api-key'
+  _SECRET_KEY: 'your-secret-key'
+  _ADMIN_EMAIL: 'admin@example.com'
+  _ADMIN_PASSWORD: 'admin123'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
