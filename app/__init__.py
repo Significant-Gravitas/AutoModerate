@@ -229,8 +229,7 @@ def _create_default_admin(app: Flask) -> None:
                     is_admin=True
                 ))
             if admin:
-                print(f"✅ Created default admin user: {
-                      app.config['ADMIN_EMAIL']}")
+                print(f"✅ Created default admin user: {app.config['ADMIN_EMAIL']}")
             else:
                 print("❌ Failed to create default admin user")
     except Exception as e:
