@@ -114,6 +114,7 @@ def validate_json_request(schema_class: BaseModel):
                 # Get JSON data from request
                 json_data = request.get_json()
                 if json_data is None:
+                    logger.warning(f"Missing JSON data in request to {request.endpoint}")
                     return api_error_response(
                         "JSON data required",
                         400,
@@ -135,6 +136,7 @@ def validate_json_request(schema_class: BaseModel):
                     field = '.'.join(str(loc) for loc in error['loc'])
                     error_details.append(f"{field}: {error['msg']}")
 
+                logger.warning(f"Validation error in {request.endpoint}: {error_details}")
                 return api_error_response(
                     "Invalid input data",
                     400,

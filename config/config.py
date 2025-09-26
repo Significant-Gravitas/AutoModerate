@@ -11,6 +11,8 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'DATABASE_URL') or 'sqlite:///automoderate.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Increase max content length to handle large prompts (10MB)
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
     # OpenAI model and token configuration
     OPENAI_CHAT_MODEL = os.environ.get(

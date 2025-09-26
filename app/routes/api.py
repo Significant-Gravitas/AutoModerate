@@ -72,8 +72,12 @@ async def moderate_content(validated_data=None):
     if not content_data or not isinstance(content_data, str):
         return api_error_response('Content is required and must be text', 400)
 
-    max_content_size = 1000000  # 1MB limit
+    max_content_size = 5000000  # 5MB limit (increased from 1MB)
+    content_size_kb = len(content_data) // 1000
+    current_app.logger.info(f'Content moderation request: {content_size_kb}KB')
+
     if len(content_data) > max_content_size:
+        current_app.logger.warning(f'Content too large: {content_size_kb}KB > {max_content_size // 1000}KB')
         return api_error_response(f'Content too large (max {max_content_size // 1000}KB)', 400)
 
     if len(content_data.strip()) == 0:
