@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from typing import Any, List, Union
@@ -40,6 +41,10 @@ def create_app(config_name: str = 'default') -> Flask:
 
     # Initialize SocketIO
     socketio.init_app(app, async_mode='threading')
+
+    # Disable verbose SocketIO logs
+    logging.getLogger('socketio').setLevel(logging.ERROR)
+    logging.getLogger('engineio').setLevel(logging.ERROR)
 
     # Initialize CSRF protection
     csrf.init_app(app)
