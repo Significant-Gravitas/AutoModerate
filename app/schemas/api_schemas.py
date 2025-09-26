@@ -1,7 +1,6 @@
 """
 Pydantic schemas for API request/response validation
 """
-import re
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -34,19 +33,6 @@ class ModerateContentRequest(BaseModel):
     def validate_content(cls, v):
         if not v or not v.strip():
             raise ValueError('Content cannot be empty or only whitespace')
-        # Check for potential XSS or injection attempts
-        suspicious_patterns = [
-            r'<script[^>]*>.*?</script>',
-            r'javascript:',
-            r'vbscript:',
-            r'onload=',
-            r'onerror=',
-            r'onclick='
-        ]
-        content_lower = v.lower()
-        for pattern in suspicious_patterns:
-            if re.search(pattern, content_lower, re.IGNORECASE | re.DOTALL):
-                raise ValueError('Content contains potentially malicious scripts')
         return v.strip()
 
     @validator('metadata')
