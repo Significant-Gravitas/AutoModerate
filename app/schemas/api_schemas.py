@@ -27,7 +27,7 @@ class ModerationStatus(str, Enum):
 class ModerateContentRequest(BaseModel):
     """Schema for content moderation requests"""
     type: ContentType = Field(default=ContentType.TEXT, description="Type of content to moderate")
-    content: str = Field(..., min_length=1, max_length=50000, description="Content to moderate")
+    content: str = Field(..., min_length=1, max_length=5000000, description="Content to moderate")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional metadata")
 
     @validator('content')
