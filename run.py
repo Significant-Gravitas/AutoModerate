@@ -20,7 +20,6 @@ def home() -> Response:
 
 
 if __name__ == '__main__':
-    # Allow unsafe Werkzeug in non-production environments or Cloud Run
-    is_production = os.getenv('FLASK_CONFIG') == 'production'
-    allow_unsafe = not is_production or os.getenv('CI') == 'true'
-    socketio.run(app, host='0.0.0.0', port=6217, allow_unsafe_werkzeug=allow_unsafe)
+    # For Cloud Run and containerized deployments, we need to allow unsafe Werkzeug
+    # This is acceptable since we're running in a controlled container environment
+    socketio.run(app, host='0.0.0.0', port=6217, allow_unsafe_werkzeug=True)
