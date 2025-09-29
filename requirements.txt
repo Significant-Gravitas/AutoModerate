@@ -29,3 +29,7 @@ beautifulsoup4==4.13.5
 # Async support
 asyncio
 asyncpg==0.29.0
+
+# Production WSGI server
+gunicorn==21.2.0
+eventlet==0.36.1

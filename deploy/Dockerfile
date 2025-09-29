@@ -28,5 +28,5 @@ EXPOSE 6217
 ENV FLASK_CONFIG=production
 ENV PYTHONPATH=/app
 
-# Run the application
-CMD ["python", "run.py"]
+# Run the application with Gunicorn for production
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "--bind", "0.0.0.0:6217", "run:app"]
