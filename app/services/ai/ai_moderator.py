@@ -1,4 +1,5 @@
 import json
+import time
 
 import openai
 import tiktoken
@@ -280,16 +281,26 @@ class AIModerator:
 
                 return self._combine_chunk_results(chunk_results, len(content))
 
-        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
-                openai.RateLimitError, openai.APITimeoutError) as e:
-            current_app.logger.error(f"OpenAI API error: {str(e)}")
+        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+            current_app.logger.error(f"OpenAI API connection error after retries: {str(e)}")
             return {
-                'decision': 'rejected',
-                'reason': f'OpenAI API error: {str(e)}',
+                'decision': 'approved',
+                'reason': f'OpenAI API unavailable after retries - approved for manual review. Error: {str(e)[:100]}',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
-                'categories': {},
-                'category_scores': {},
+                'categories': {'api_connection_error': True},
+                'category_scores': {'api_connection_error': 1.0},
+                'openai_flagged': False
+            }
+        except (openai.OpenAIError, openai.APIError, openai.RateLimitError) as e:
+            current_app.logger.error(f"OpenAI API error: {str(e)}")
+            return {
+                'decision': 'approved',
+                'reason': f'OpenAI API error - approved for manual review. Error: {str(e)[:100]}',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'api_error': True},
+                'category_scores': {'api_error': 1.0},
                 'openai_flagged': False
             }
         except (ValueError, TypeError, KeyError) as e:
@@ -303,6 +314,33 @@ class AIModerator:
                 'category_scores': {},
                 'openai_flagged': False
             }
+
+    def _retry_api_call(self, api_function, max_retries=3, initial_delay=1.0):
+        """Retry API calls with exponential backoff for connection errors"""
+        last_exception = None
+
+        for attempt in range(max_retries):
+            try:
+                return api_function()
+            except (openai.APIConnectionError, openai.APITimeoutError) as e:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    delay = initial_delay * (2 ** attempt)
+                    current_app.logger.warning(
+                        f"OpenAI API connection error (attempt {attempt + 1}/{max_retries}): {str(e)}. "
+                        f"Retrying in {delay:.1f}s..."
+                    )
+                    time.sleep(delay)
+                else:
+                    current_app.logger.error(
+                        f"OpenAI API connection failed after {max_retries} attempts: {str(e)}"
+                    )
+            except (openai.OpenAIError, openai.APIError, openai.RateLimitError):
+                # Don't retry on other API errors
+                raise
+
+        # If we exhausted all retries, raise the last exception
+        raise last_exception
 
     def _analyze_with_custom_prompt(self, content, custom_prompt):
         """Use GPT with custom prompts for specialized moderation rules"""
@@ -326,17 +364,21 @@ CONTENT: {content}
 
 Does content violate this rule? JSON only:"""
 
-            client = self.client_manager.get_client()
-            response = client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ],
-                top_p=1.0,       # Optimize for speed
-                frequency_penalty=0,
-                presence_penalty=0
-            )
+            # Wrap API call with retry logic
+            def make_api_call():
+                client = self.client_manager.get_client()
+                return client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ],
+                    top_p=1.0,       # Optimize for speed
+                    frequency_penalty=0,
+                    presence_penalty=0
+                )
+
+            response = self._retry_api_call(make_api_call)
 
             result_text = response.choices[0].message.content.strip()
 
@@ -408,16 +450,28 @@ Does content violate this rule? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
-                openai.RateLimitError, openai.APITimeoutError) as e:
-            current_app.logger.error(f"OpenAI API error in custom prompt: {str(e)}")
+        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+            # Connection errors after retry - approve with low confidence for manual review
+            current_app.logger.error(f"OpenAI API connection failed in custom prompt after retries: {str(e)}")
             return {
-                'decision': 'rejected',
-                'reason': f'OpenAI API error: {str(e)}',
+                'decision': 'approved',
+                'reason': f'OpenAI API unavailable after retries - approved for manual review. Error: {str(e)[:100]}',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
-                'categories': {'error': True},
-                'category_scores': {'error': 1.0},
+                'categories': {'api_connection_error': True},
+                'category_scores': {'api_connection_error': 1.0},
+                'openai_flagged': False
+            }
+        except (openai.OpenAIError, openai.APIError, openai.RateLimitError) as e:
+            # Other API errors - reject with low confidence for manual review
+            current_app.logger.error(f"OpenAI API error in custom prompt: {str(e)}")
+            return {
+                'decision': 'approved',
+                'reason': f'OpenAI API error - approved for manual review. Error: {str(e)[:100]}',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'api_error': True},
+                'category_scores': {'api_error': 1.0},
                 'openai_flagged': False
             }
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as e:
@@ -435,8 +489,12 @@ Does content violate this rule? JSON only:"""
     def _run_baseline_moderation(self, content):
         """Run OpenAI's built-in moderation API for fast baseline safety check"""
         try:
-            client = self.client_manager.get_client()
-            response = client.moderations.create(input=content)
+            # Wrap API call with retry logic
+            def make_api_call():
+                client = self.client_manager.get_client()
+                return client.moderations.create(input=content)
+
+            response = self._retry_api_call(make_api_call)
             result = response.results[0]
 
             if result.flagged:
@@ -490,16 +548,28 @@ Does content violate this rule? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
-                openai.RateLimitError, openai.APITimeoutError) as e:
-            current_app.logger.error(f"OpenAI API error in baseline moderation: {str(e)}")
+        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+            # Connection errors after retry - continue to next moderation layer
+            current_app.logger.warning(f"OpenAI baseline moderation unavailable after retries: {str(e)}")
             return {
-                'decision': 'rejected',
-                'reason': f'OpenAI API error: {str(e)}',
+                'decision': 'approved',
+                'reason': 'OpenAI baseline moderation unavailable - continuing to next check',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
-                'categories': {'error': True},
-                'category_scores': {'error': 1.0},
+                'categories': {'api_connection_error': True},
+                'category_scores': {'api_connection_error': 0.0},
+                'openai_flagged': False
+            }
+        except (openai.OpenAIError, openai.APIError, openai.RateLimitError) as e:
+            # Other API errors - continue to next moderation layer
+            current_app.logger.warning(f"OpenAI baseline moderation error: {str(e)}")
+            return {
+                'decision': 'approved',
+                'reason': 'OpenAI baseline moderation error - continuing to next check',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'api_error': True},
+                'category_scores': {'api_error': 0.0},
                 'openai_flagged': False
             }
         except (ValueError, TypeError, AttributeError) as e:
@@ -535,17 +605,21 @@ Does content violate this rule? JSON only:"""
 
 Is this harmful? JSON only:"""
 
-            client = self.client_manager.get_client()
-            response = client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ],
-                top_p=1.0,
-                frequency_penalty=0,
-                presence_penalty=0
-            )
+            # Wrap API call with retry logic
+            def make_api_call():
+                client = self.client_manager.get_client()
+                return client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ],
+                    top_p=1.0,
+                    frequency_penalty=0,
+                    presence_penalty=0
+                )
+
+            response = self._retry_api_call(make_api_call)
 
             result_text = response.choices[0].message.content.strip()
 
@@ -595,16 +669,28 @@ Is this harmful? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except (openai.OpenAIError, openai.APIError, openai.APIConnectionError,
-                openai.RateLimitError, openai.APITimeoutError) as e:
-            current_app.logger.error(f"OpenAI API error in enhanced moderation: {str(e)}")
+        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+            # Connection errors after retry - approve with low confidence for manual review
+            current_app.logger.error(f"OpenAI enhanced moderation unavailable after retries: {str(e)}")
             return {
-                'decision': 'rejected',
-                'reason': f'OpenAI API error: {str(e)}',
+                'decision': 'approved',
+                'reason': f'OpenAI API unavailable after retries - approved for manual review. Error: {str(e)[:100]}',
                 'confidence': 0.0,
                 'moderator_type': 'ai',
-                'categories': {'error': True},
-                'category_scores': {'error': 1.0},
+                'categories': {'api_connection_error': True},
+                'category_scores': {'api_connection_error': 1.0},
+                'openai_flagged': False
+            }
+        except (openai.OpenAIError, openai.APIError, openai.RateLimitError) as e:
+            # Other API errors - approve with low confidence for manual review
+            current_app.logger.error(f"OpenAI API error in enhanced moderation: {str(e)}")
+            return {
+                'decision': 'approved',
+                'reason': f'OpenAI API error - approved for manual review. Error: {str(e)[:100]}',
+                'confidence': 0.0,
+                'moderator_type': 'ai',
+                'categories': {'api_error': True},
+                'category_scores': {'api_error': 1.0},
                 'openai_flagged': False
             }
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as e:
