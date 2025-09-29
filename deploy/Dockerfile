@@ -29,4 +29,4 @@ ENV FLASK_CONFIG=production
 ENV PYTHONPATH=/app
 
 # Run the application with Gunicorn for production
-CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "--bind", "0.0.0.0:6217", "run:app"]
+CMD ["gunicorn", "--worker-class", "gevent", "-w", "1", "--bind", "0.0.0.0:6217", "run:app"]
