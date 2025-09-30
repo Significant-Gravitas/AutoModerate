@@ -26,6 +26,11 @@ class Config:
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
+    # Google OAuth configuration
+    GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+    GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
+
     # Database connection preference
     USE_DIRECT_POSTGRES = bool(os.environ.get(
         'DATABASE_URL', '').startswith('postgresql://'))

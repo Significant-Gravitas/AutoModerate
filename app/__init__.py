@@ -23,6 +23,10 @@ def create_app(config_name: str = 'default') -> Flask:
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
+    # Handle HTTPS proxy headers (for production behind reverse proxy)
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
     # Initialize SQLAlchemy with PostgreSQL
     db.init_app(app)
     use_direct_postgres = app.config.get('USE_DIRECT_POSTGRES', False)
@@ -134,6 +138,19 @@ def create_app(config_name: str = 'default') -> Flask:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(run_async_with_context)
             return future.result()
+
+    # Initialize OAuth
+    from app.routes.auth import oauth
+    oauth.init_app(app)
+    oauth.register(
+        name='google',
+        client_id=app.config.get('GOOGLE_CLIENT_ID'),
+        client_secret=app.config.get('GOOGLE_CLIENT_SECRET'),
+        server_metadata_url=app.config.get('GOOGLE_DISCOVERY_URL'),
+        client_kwargs={
+            'scope': 'openid email profile'
+        }
+    )
 
     # Register blueprints
     from app.routes.admin import admin_bp

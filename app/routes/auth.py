@@ -1,11 +1,13 @@
 import re
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from authlib.integrations.flask_client import OAuth
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app.services.database_service import db_service
 
 auth_bp = Blueprint('auth', __name__)
+oauth = OAuth()
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -256,6 +258,82 @@ def _is_valid_password(password):
     return (re.search(r'[A-Z]', password) and
             re.search(r'[a-z]', password) and
             re.search(r'\d', password))
+
+
+@auth_bp.route('/google')
+def google_login():
+    """Redirect to Google OAuth login"""
+    redirect_uri = url_for('auth.google_callback', _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@auth_bp.route('/google/callback')
+async def google_callback():
+    """Handle Google OAuth callback"""
+    try:
+        token = oauth.google.authorize_access_token()
+        user_info = token.get('userinfo')
+
+        if not user_info:
+            flash('Failed to get user information from Google', 'error')
+            return redirect(url_for('auth.login'))
+
+        google_id = user_info.get('sub')
+        email = user_info.get('email')
+
+        if not google_id or not email:
+            flash('Invalid user information from Google', 'error')
+            return redirect(url_for('auth.login'))
+
+        # Check if user exists with this Google ID
+        user = await db_service.get_user_by_google_id(google_id)
+
+        if user:
+            # User exists, log them in
+            login_user(user)
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard.index'))
+
+        # Check if user exists with this email
+        user = await db_service.get_user_by_email(email.lower())
+
+        if user:
+            # Link Google account to existing user
+            await db_service.link_google_account(user.id, google_id)
+            login_user(user)
+            flash('Google account linked successfully!', 'success')
+            return redirect(url_for('dashboard.index'))
+
+        # Create new user
+        username = email.split('@')[0]
+        # Make username unique if it already exists
+        base_username = username
+        counter = 1
+        while await db_service.get_user_by_username(username):
+            username = f"{base_username}{counter}"
+            counter += 1
+
+        # Create user without password (Google SSO only)
+        user = await db_service.create_google_user(
+            username=username,
+            email=email.lower(),
+            google_id=google_id
+        )
+
+        if not user:
+            flash('Failed to create user account', 'error')
+            return redirect(url_for('auth.login'))
+
+        # Get fresh user and log in
+        fresh_user = await db_service.get_user_by_email(email.lower())
+        login_user(fresh_user)
+        flash('Account created successfully!', 'success')
+        return redirect(url_for('dashboard.index'))
+
+    except Exception as e:
+        current_app.logger.error(f"Google OAuth error: {str(e)}")
+        flash('Authentication failed. Please try again.', 'error')
+        return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/change-password', methods=['POST'])

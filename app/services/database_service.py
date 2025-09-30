@@ -141,6 +141,46 @@ class DatabaseService:
 
         return await self._safe_execute(_get_user)
 
+    async def get_user_by_google_id(self, google_id: str) -> Optional[User]:
+        """Get user by Google ID"""
+        def _get_user():
+            return User.query.filter_by(google_id=google_id).first()
+
+        return await self._safe_execute(_get_user)
+
+    async def create_google_user(self, username: str, email: str, google_id: str,
+                                 is_admin: bool = False, is_active: bool = True) -> Optional[User]:
+        """Create a new user with Google SSO (no password)"""
+        def _create_user():
+            try:
+                user = User(username=username, email=email, google_id=google_id,
+                            is_admin=is_admin, is_active=is_active)
+                db.session.add(user)
+                db.session.commit()
+                db.session.refresh(user)
+                return user
+            except SQLAlchemyError:
+                db.session.rollback()
+                raise
+
+        return await self._safe_execute(_create_user)
+
+    async def link_google_account(self, user_id: str, google_id: str) -> bool:
+        """Link Google account to existing user"""
+        def _link_account():
+            try:
+                user = User.query.get(user_id)
+                if not user:
+                    return False
+                user.google_id = google_id
+                db.session.commit()
+                return True
+            except SQLAlchemyError:
+                db.session.rollback()
+                raise
+
+        return await self._safe_execute(_link_account)
+
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID"""
         def _get_user():
