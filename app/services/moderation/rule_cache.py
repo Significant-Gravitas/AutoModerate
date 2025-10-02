@@ -23,9 +23,13 @@ class CachedRule:
 class RuleCache:
     """Manages caching of moderation rules for performance"""
 
+    # Shared cache across all instances
+    _shared_rules_cache = {}
+    _shared_cache_timestamps = {}
+
     def __init__(self, cache_ttl=300):  # 5 minutes default
-        self._rules_cache = {}
-        self._cache_timestamps = {}
+        self._rules_cache = RuleCache._shared_rules_cache
+        self._cache_timestamps = RuleCache._shared_cache_timestamps
         self._cache_ttl = cache_ttl
         self._max_projects = 100  # Limit number of cached projects
 
