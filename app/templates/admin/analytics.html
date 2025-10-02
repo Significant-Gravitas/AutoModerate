@@ -83,21 +83,6 @@
             </div>
         </div>
     </div>
-    <div class="col-md-2">
-        <div class="card stat-card text-center">
-            <div class="card-body">
-                <i class="fas fa-clock fa-2x text-secondary mb-2"></i>
-                <h4 class="text-secondary">
-                    {% if processing_stats and processing_stats.avg_time %}
-                        {{ "%.2f"|format(processing_stats.avg_time) }}s
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </h4>
-                <p class="card-text small">Avg Processing</p>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Charts Row -->
@@ -291,26 +276,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Moderation Decisions Chart
     const decisionsCtx = document.getElementById('decisionsChart').getContext('2d');
+
+    // Color mapping for decisions
+    const decisionColors = {
+        'approved': '#28a745',  // green
+        'rejected': '#dc3545',  // red
+        'flagged': '#ffc107',   // yellow
+        'pending': '#6c757d'    // gray
+    };
+
+    const decisions = [
+        {% for decision in moderation_decisions %}
+        { label: '{{ decision.decision.title() }}', value: {{ decision.count }}, name: '{{ decision.decision.lower().strip() }}' }{{ "," if not loop.last else "" }}
+        {% endfor %}
+    ];
+
     new Chart(decisionsCtx, {
         type: 'doughnut',
         data: {
-            labels: [
-                {% for decision in moderation_decisions %}
-                '{{ decision.decision.title() }}'{{ "," if not loop.last else "" }}
-                {% endfor %}
-            ],
+            labels: decisions.map(d => d.label),
             datasets: [{
-                data: [
-                    {% for decision in moderation_decisions %}
-                    {{ decision.count }}{{ "," if not loop.last else "" }}
-                    {% endfor %}
-                ],
-                backgroundColor: [
-                    '#28a745', // approved - green
-                    '#dc3545', // rejected - red
-                    '#ffc107', // flagged - yellow
-                    '#6c757d'  // other - gray
-                ]
+                data: decisions.map(d => d.value),
+                backgroundColor: decisions.map(d => decisionColors[d.name.trim()] || '#6c757d')
             }]
         }
     });
