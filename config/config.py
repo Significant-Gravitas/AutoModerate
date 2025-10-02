@@ -31,6 +31,9 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
     GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
+    # Sentry configuration
+    SENTRY_DSN = os.environ.get('SENTRY_DSN')
+
     # Database connection preference
     USE_DIRECT_POSTGRES = bool(os.environ.get(
         'DATABASE_URL', '').startswith('postgresql://'))

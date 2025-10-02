@@ -3,6 +3,7 @@ import os
 import time
 from typing import Any, List, Union
 
+import sentry_sdk
 from flask import Flask
 from flask_login import LoginManager
 from flask_socketio import SocketIO
@@ -22,6 +23,14 @@ csrf = CSRFProtect()
 def create_app(config_name: str = 'default') -> Flask:
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+
+    # Initialize Sentry
+    if app.config.get('SENTRY_DSN'):
+        sentry_sdk.init(
+            dsn=app.config['SENTRY_DSN'],
+            send_default_pii=True,
+            enable_logs=True,
+        )
 
     # Handle HTTPS proxy headers (for production behind reverse proxy)
     from werkzeug.middleware.proxy_fix import ProxyFix
