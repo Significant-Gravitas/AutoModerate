@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from app.schemas import ContentListRequest, ModerateContentRequest
 from app.services.database_service import db_service
+from app.services.error_tracker import error_tracker
 from app.services.moderation_orchestrator import ModerationOrchestrator
 from app.utils.error_handlers import (
     api_error_response,
@@ -132,13 +133,31 @@ async def moderate_content(validated_data=None):
     )
 
     if not content_id:
-        current_app.logger.error("Failed to create content record")
-        return api_error_response('Failed to create content record', 500)
+        error_msg = "Failed to create content record"
+        current_app.logger.error(f"{error_msg} - Project: {request.project.id}")
+        error_tracker.track_error('api', error_msg, details={'project_id': request.project.id})
+        return api_error_response(error_msg, 500, error_code="CONTENT_CREATION_FAILED")
 
     # Start moderation process
     moderation_orchestrator = ModerationOrchestrator()
     result = await moderation_orchestrator.moderate_content(
         content_id, request_start_time)
+
+    # Check if moderation encountered an error
+    if 'error' in result:
+        error_msg = result.get('error', 'Unknown moderation error')
+        current_app.logger.error(f"Moderation error for content {content_id}: {error_msg}")
+        error_tracker.track_error('api', error_msg, content_id=content_id)
+
+        # ALWAYS return content_id even on error
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'content_id': content_id,
+            'status': result.get('decision', 'rejected'),
+            'moderation_results': result.get('results', []),
+            'error_code': 'MODERATION_ERROR'
+        }), 500
 
     return api_success_response({
         'content_id': content_id,

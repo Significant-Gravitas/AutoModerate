@@ -7,6 +7,7 @@ from app.models.moderation_result import ModerationResult
 
 from .ai.ai_moderator import AIModerator
 from .database_service import db_service
+from .error_tracker import error_tracker
 from .moderation.rule_cache import RuleCache
 from .moderation.rule_processor import RuleProcessor
 from .moderation.websocket_notifier import WebSocketNotifier
@@ -95,13 +96,39 @@ class ModerationOrchestrator:
             }
 
         except SQLAlchemyError as e:
-            current_app.logger.error(f"Database error during moderation: {str(e)}")
+            error_msg = f"Database error during moderation of content {content_id}: {str(e)}"
+            current_app.logger.error(error_msg, exc_info=True)
+            error_tracker.track_error('database', str(e), content_id=content_id)
             await db_service.rollback_transaction()
-            return {'error': f'Database error: {str(e)}', 'decision': 'rejected', 'results': []}
+            return {
+                'error': f'Database error: {str(e)}',
+                'decision': 'rejected',
+                'results': [],
+                'content_id': content_id
+            }
         except (ValueError, TypeError, AttributeError) as e:
-            current_app.logger.error(f"Data processing error during moderation: {str(e)}")
+            error_msg = f"Data processing error during moderation of content {content_id}: {str(e)}"
+            current_app.logger.error(error_msg, exc_info=True)
+            error_tracker.track_error('processing', str(e), content_id=content_id)
             await db_service.rollback_transaction()
-            return {'error': f'Processing error: {str(e)}', 'decision': 'rejected', 'results': []}
+            return {
+                'error': f'Processing error: {str(e)}',
+                'decision': 'rejected',
+                'results': [],
+                'content_id': content_id
+            }
+        except Exception as e:
+            # Catch-all for unexpected errors
+            error_msg = f"Unexpected error during moderation of content {content_id}: {str(e)}"
+            current_app.logger.error(error_msg, exc_info=True)
+            error_tracker.track_error('moderation', str(e), content_id=content_id)
+            await db_service.rollback_transaction()
+            return {
+                'error': f'Unexpected error: {str(e)}',
+                'decision': 'rejected',
+                'results': [],
+                'content_id': content_id
+            }
 
     def _process_rules(self, content, fast_rules, ai_rules):
         """Process both fast and AI rules, returning first match"""

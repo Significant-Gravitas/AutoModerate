@@ -142,6 +142,86 @@
     </div>
 </div>
 
+<!-- Error Tracking -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Error Tracking</h5>
+                {% if error_stats.errors_last_5min > 0 %}
+                <span class="badge bg-danger">{{ error_stats.errors_last_5min }} errors in last 5 min</span>
+                {% else %}
+                <span class="badge bg-success">No recent errors</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3 text-center">
+                        <h6 class="text-muted">Database Errors</h6>
+                        <h4 class="text-danger">{{ error_stats.error_counts.database }}</h4>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h6 class="text-muted">Processing Errors</h6>
+                        <h4 class="text-warning">{{ error_stats.error_counts.processing }}</h4>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h6 class="text-muted">API Errors</h6>
+                        <h4 class="text-info">{{ error_stats.error_counts.api }}</h4>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h6 class="text-muted">Moderation Errors</h6>
+                        <h4 class="text-secondary">{{ error_stats.error_counts.moderation }}</h4>
+                    </div>
+                </div>
+
+                {% if recent_errors %}
+                <h6 class="mt-4 mb-3">Recent Errors (Last 20)</h6>
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Message</th>
+                                <th>Content ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for error in recent_errors %}
+                            <tr>
+                                <td class="text-nowrap">{{ error.time_ago }}</td>
+                                <td>
+                                    {% if error.type == 'database' %}
+                                    <span class="badge bg-danger">{{ error.type }}</span>
+                                    {% elif error.type == 'processing' %}
+                                    <span class="badge bg-warning">{{ error.type }}</span>
+                                    {% elif error.type == 'api' %}
+                                    <span class="badge bg-info">{{ error.type }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ error.type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ error.message[:100] }}{% if error.message|length > 100 %}...{% endif %}</small></td>
+                                <td>
+                                    {% if error.content_id %}
+                                    <code class="small">{{ error.content_id[:8] }}</code>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted mt-3">No errors recorded</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Auto-refresh every 30 seconds
 setTimeout(function() {

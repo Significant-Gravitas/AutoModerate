@@ -444,6 +444,7 @@ async def system_health():
     import psutil
 
     from app.services.ai.result_cache import ResultCache
+    from app.services.error_tracker import error_tracker
     from app.services.moderation.rule_cache import RuleCache
 
     # Get system metrics
@@ -500,7 +501,13 @@ async def system_health():
         'overflow': db.engine.pool.overflow()
     }
 
+    # Get error tracking stats
+    error_stats = error_tracker.get_error_stats()
+    recent_errors = error_tracker.get_recent_errors(limit=20)
+
     return render_template('admin/system_health.html',
                            system_stats=system_stats,
                            cache_stats=cache_stats,
-                           db_stats=db_stats)
+                           db_stats=db_stats,
+                           error_stats=error_stats,
+                           recent_errors=recent_errors)
