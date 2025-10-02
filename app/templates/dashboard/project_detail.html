@@ -168,6 +168,8 @@
                                         <span class="badge bg-danger">Rejected</span>
                                     {% elif content.status == 'flagged' %}
                                         <span class="badge bg-warning">Flagged</span>
+                                    {% elif content.status == 'error' %}
+                                        <span class="badge bg-dark"><i class="fas fa-exclamation-triangle"></i> Error</span>
                                     {% else %}
                                         <span class="badge bg-secondary">Pending</span>
                                     {% endif %}

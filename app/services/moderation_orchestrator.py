@@ -100,10 +100,20 @@ class ModerationOrchestrator:
             current_app.logger.error(error_msg, exc_info=True)
             error_tracker.track_error('database', str(e), content_id=content_id)
             await db_service.rollback_transaction()
+
+            # Save error result to database
+            await self._save_error_result(content_id, 'database', str(e))
+
             return {
                 'error': f'Database error: {str(e)}',
-                'decision': 'rejected',
-                'results': [],
+                'decision': 'error',
+                'results': [{
+                    'decision': 'error',
+                    'confidence': 0.0,
+                    'reason': f'Database error: {str(e)}',
+                    'moderator_type': 'system',
+                    'processing_time': 0.0
+                }],
                 'content_id': content_id
             }
         except (ValueError, TypeError, AttributeError) as e:
@@ -111,10 +121,20 @@ class ModerationOrchestrator:
             current_app.logger.error(error_msg, exc_info=True)
             error_tracker.track_error('processing', str(e), content_id=content_id)
             await db_service.rollback_transaction()
+
+            # Save error result to database
+            await self._save_error_result(content_id, 'processing', str(e))
+
             return {
                 'error': f'Processing error: {str(e)}',
-                'decision': 'rejected',
-                'results': [],
+                'decision': 'error',
+                'results': [{
+                    'decision': 'error',
+                    'confidence': 0.0,
+                    'reason': f'Processing error: {str(e)}',
+                    'moderator_type': 'system',
+                    'processing_time': 0.0
+                }],
                 'content_id': content_id
             }
         except Exception as e:
@@ -123,10 +143,20 @@ class ModerationOrchestrator:
             current_app.logger.error(error_msg, exc_info=True)
             error_tracker.track_error('moderation', str(e), content_id=content_id)
             await db_service.rollback_transaction()
+
+            # Save error result to database
+            await self._save_error_result(content_id, 'unexpected', str(e))
+
             return {
                 'error': f'Unexpected error: {str(e)}',
-                'decision': 'rejected',
-                'results': [],
+                'decision': 'error',
+                'results': [{
+                    'decision': 'error',
+                    'confidence': 0.0,
+                    'reason': f'Unexpected error: {str(e)}',
+                    'moderator_type': 'system',
+                    'processing_time': 0.0
+                }],
                 'content_id': content_id
             }
 
@@ -307,6 +337,35 @@ class ModerationOrchestrator:
         self.ai_moderator.cache.invalidate_cache()
         current_app.logger.info(
             f"Caches invalidated for project: {project_id or 'all'}")
+
+    async def _save_error_result(self, content_id, error_type, error_message):
+        """Save error result to database so we can track failures"""
+        try:
+            # Update content status to 'error'
+            await db_service.update_content_status(content_id, status='error')
+
+            # Create error moderation result
+            error_result = ModerationResult(
+                content_id=content_id,
+                decision='error',
+                confidence=0.0,
+                reason=f'{error_type.title()} error: {error_message}',
+                moderator_type='system',
+                moderator_id=None,
+                processing_time=0.0,
+                details={
+                    'error_type': error_type,
+                    'error_message': error_message,
+                    'is_error': True
+                }
+            )
+
+            await db_service.bulk_save_objects([error_result])
+            await db_service.commit_transaction()
+            current_app.logger.info(f"Saved error result for content {content_id}")
+        except Exception as e:
+            current_app.logger.error(f"Failed to save error result for content {content_id}: {str(e)}")
+            # Don't raise - we don't want to fail the error handler itself
 
     def get_system_stats(self):
         """Get comprehensive system statistics"""

@@ -79,6 +79,7 @@
                             <option value="approved" {% if current_status == 'approved' %}selected{% endif %}>Approved</option>
                             <option value="rejected" {% if current_status == 'rejected' %}selected{% endif %}>Rejected</option>
                             <option value="flagged" {% if current_status == 'flagged' %}selected{% endif %}>Flagged</option>
+                            <option value="error" {% if current_status == 'error' %}selected{% endif %}>Error</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -243,6 +244,8 @@
                                         <span class="badge bg-danger">Rejected</span>
                                     {% elif content.status == 'flagged' %}
                                         <span class="badge bg-warning">Flagged</span>
+                                    {% elif content.status == 'error' %}
+                                        <span class="badge bg-dark"><i class="fas fa-exclamation-triangle"></i> Error</span>
                                     {% else %}
                                         <span class="badge bg-secondary">Pending</span>
                                     {% endif %}

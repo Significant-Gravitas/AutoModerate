@@ -865,16 +865,21 @@ class DatabaseService:
                 project_id=project_id, status='flagged').count()
             pending = Content.query.filter_by(
                 project_id=project_id, status='pending').count()
+            error = Content.query.filter_by(
+                project_id=project_id, status='error').count()
 
             return {
                 'total': total,
                 'approved': approved,
                 'rejected': rejected,
                 'flagged': flagged,
-                'pending': pending
+                'pending': pending,
+                'error': error
             }
 
-        return await self._safe_execute(_get_counts) or {'total': 0, 'approved': 0, 'rejected': 0, 'flagged': 0, 'pending': 0}
+        return await self._safe_execute(_get_counts) or {
+            'total': 0, 'approved': 0, 'rejected': 0, 'flagged': 0, 'pending': 0, 'error': 0
+        }
 
     async def update_content_status(self, content_id: str, **kwargs) -> bool:
         """Update content status and flags"""
