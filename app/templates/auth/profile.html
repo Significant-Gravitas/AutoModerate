@@ -88,25 +88,19 @@
                 <div class="row text-center">
                     <div class="col-md-4">
                         <div class="mb-3">
-                            <h3 class="text-primary">{{ user.projects|length }}</h3>
+                            <h3 class="text-primary">{{ user.project_count }}</h3>
                             <p class="text-muted">Projects Created</p>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="mb-3">
-                            <h3 class="text-success">
-                                {% set total_api_keys = user.projects|map(attribute='api_keys')|map('length')|sum %}
-                                {{ total_api_keys }}
-                            </h3>
+                            <h3 class="text-success">{{ user.total_api_keys }}</h3>
                             <p class="text-muted">API Keys</p>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="mb-3">
-                            <h3 class="text-info">
-                                {% set total_content = user.projects|map(attribute='content')|map('length')|sum %}
-                                {{ total_content }}
-                            </h3>
+                            <h3 class="text-info">{{ user.total_content }}</h3>
                             <p class="text-muted">Content Moderated</p>
                         </div>
                     </div>

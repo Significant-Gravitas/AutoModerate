@@ -226,12 +226,12 @@ async def logout():
 @auth_bp.route('/profile')
 @login_required
 async def profile():
-    # Get fresh user data with projects loaded to avoid detached instance errors
-    user = await db_service.get_user_with_projects(current_user.id)
-    if not user:
+    # Get user with aggregated stats (lightweight, no OOM issues)
+    user_data = await db_service.get_user_with_project_stats(current_user.id)
+    if not user_data:
         flash('User not found', 'error')
         return redirect(url_for('auth.login'))
-    return render_template('auth/profile.html', user=user)
+    return render_template('auth/profile.html', user=user_data)
 
 
 def _is_valid_email(email):

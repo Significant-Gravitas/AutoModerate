@@ -189,7 +189,7 @@ class DatabaseService:
         return await self._safe_execute(_get_user)
 
     async def get_user_with_projects(self, user_id: str) -> Optional[User]:
-        """Get user by ID with projects and related data loaded"""
+        """Get user by ID with projects and related data loaded (DEPRECATED - causes OOM with large datasets)"""
         def _get_user():
             return User.query.options(
                 joinedload(User.projects)
@@ -199,6 +199,59 @@ class DatabaseService:
             ).filter_by(id=user_id).first()
 
         return await self._safe_execute(_get_user)
+
+    async def get_user_with_project_stats(self, user_id: str) -> Optional[dict]:
+        """Get user with lightweight project statistics for profile page"""
+        def _get_user_stats():
+            from sqlalchemy import func
+
+            # Get basic user info
+            user = User.query.get(user_id)
+            if not user:
+                return None
+
+            # Get project stats efficiently with aggregated counts
+            project_stats = db.session.query(
+                Project.id,
+                Project.name,
+                Project.description,
+                Project.created_at,
+                func.count(APIKey.id.distinct()).label('api_key_count'),
+                func.count(Content.id.distinct()).label('content_count')
+            ).outerjoin(APIKey, Project.id == APIKey.project_id)\
+             .outerjoin(Content, Project.id == Content.project_id)\
+             .filter(Project.user_id == user_id)\
+             .group_by(Project.id, Project.name, Project.description, Project.created_at)\
+             .all()
+
+            # Build user dict with stats (keep datetime objects for template)
+            user_data = {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'is_admin': user.is_admin,
+                'is_active': user.is_active,
+                'created_at': user.created_at,  # Keep as datetime
+                'updated_at': user.updated_at,  # Keep as datetime
+                'project_count': len(project_stats),
+                'total_api_keys': sum(stat.api_key_count for stat in project_stats),
+                'total_content': sum(stat.content_count for stat in project_stats),
+                'projects': [
+                    {
+                        'id': stat.id,
+                        'name': stat.name,
+                        'description': stat.description,
+                        'created_at': stat.created_at,
+                        'api_key_count': stat.api_key_count,
+                        'content_count': stat.content_count
+                    }
+                    for stat in project_stats
+                ]
+            }
+
+            return user_data
+
+        return await self._safe_execute(_get_user_stats)
 
     async def update_user_profile(self, user: User, **kwargs) -> bool:
         """Update user profile information"""
