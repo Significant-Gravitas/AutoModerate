@@ -103,24 +103,47 @@ class RuleProcessor:
                 return (rule.id, None)
 
         # Execute in parallel
-        try:
-            with ThreadPoolExecutor(max_workers=min(len(ai_rules), 10)) as executor:
-                futures = {executor.submit(
-                    process_single_ai_rule, rule): rule for rule in ai_rules}
+        with ThreadPoolExecutor(max_workers=min(len(ai_rules), 10)) as executor:
+            futures = {executor.submit(
+                process_single_ai_rule, rule): rule for rule in ai_rules}
 
-                for future in as_completed(futures, timeout=30):
-                    rule_id, result = future.result()
-                    if result:
-                        results[rule_id] = result
+            try:
+                for future in as_completed(futures, timeout=60):
+                    try:
+                        rule_id, result = future.result()
+                        if result:
+                            results[rule_id] = result
 
-                        # Cancel remaining futures for early exit
-                        for f in futures:
-                            if f != future and not f.done():
-                                f.cancel()
-                        break
+                            # Cancel remaining futures for early exit
+                            for f in futures:
+                                if f != future and not f.done():
+                                    f.cancel()
+                            break
+                    except Exception as e:
+                        current_app.logger.error(f"AI rule future error: {str(e)}")
 
-        except Exception as e:
-            current_app.logger.error(f"Parallel AI error: {str(e)}")
+            except TimeoutError:
+                # Handle timeout - collect any completed futures
+                unfinished = sum(1 for f in futures if not f.done())
+                completed = len(futures) - unfinished
+                current_app.logger.warning(
+                    f"AI rule timeout: {completed}/{len(ai_rules)} completed, {unfinished} timed out after 60s"
+                )
+
+                # Try to collect results from completed futures
+                for future in futures:
+                    if future.done() and not future.cancelled():
+                        try:
+                            rule_id, result = future.result(timeout=0)
+                            if result:
+                                results[rule_id] = result
+                        except Exception as e:
+                            current_app.logger.error(f"Error collecting completed result: {str(e)}")
+
+                # Cancel unfinished futures
+                for future in futures:
+                    if not future.done():
+                        future.cancel()
 
         if results:
             current_app.logger.info(
