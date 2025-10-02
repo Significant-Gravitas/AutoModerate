@@ -30,6 +30,7 @@ def create_app(config_name: str = 'default') -> Flask:
             dsn=app.config['SENTRY_DSN'],
             send_default_pii=True,
             enable_logs=True,
+            traces_sample_rate=1.0,
             environment=app.config.get('FLASK_ENV', 'development'),
         )
 
