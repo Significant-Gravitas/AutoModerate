@@ -281,7 +281,7 @@ class AIModerator:
 
                 return self._combine_chunk_results(chunk_results, len(content))
 
-        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+        except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             current_app.logger.error(f"OpenAI API connection error after retries: {str(e)}")
             return {
                 'decision': 'approved',
@@ -316,27 +316,28 @@ class AIModerator:
             }
 
     def _retry_api_call(self, api_function, max_retries=3, initial_delay=1.0):
-        """Retry API calls with exponential backoff for connection errors"""
+        """Retry API calls with exponential backoff for transient errors"""
         last_exception = None
 
         for attempt in range(max_retries):
             try:
                 return api_function()
-            except (openai.APIConnectionError, openai.APITimeoutError) as e:
+            except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
                 last_exception = e
                 if attempt < max_retries - 1:
                     delay = initial_delay * (2 ** attempt)
+                    error_type = type(e).__name__
                     current_app.logger.warning(
-                        f"OpenAI API connection error (attempt {attempt + 1}/{max_retries}): {str(e)}. "
+                        f"OpenAI API {error_type} (attempt {attempt + 1}/{max_retries}): {str(e)}. "
                         f"Retrying in {delay:.1f}s..."
                     )
                     time.sleep(delay)
                 else:
                     current_app.logger.error(
-                        f"OpenAI API connection failed after {max_retries} attempts: {str(e)}"
+                        f"OpenAI API failed after {max_retries} attempts: {str(e)}"
                     )
             except (openai.OpenAIError, openai.APIError, openai.RateLimitError):
-                # Don't retry on other API errors
+                # Don't retry on other API errors (auth, rate limit, etc.)
                 raise
 
         # If we exhausted all retries, raise the last exception
@@ -450,7 +451,7 @@ Does content violate this rule? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+        except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             # Connection errors after retry - approve with low confidence for manual review
             current_app.logger.error(f"OpenAI API connection failed in custom prompt after retries: {str(e)}")
             return {
@@ -548,7 +549,7 @@ Does content violate this rule? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+        except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             # Connection errors after retry - continue to next moderation layer
             current_app.logger.warning(f"OpenAI baseline moderation unavailable after retries: {str(e)}")
             return {
@@ -669,7 +670,7 @@ Is this harmful? JSON only:"""
                     'openai_flagged': False
                 }
 
-        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+        except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             # Connection errors after retry - approve with low confidence for manual review
             current_app.logger.error(f"OpenAI enhanced moderation unavailable after retries: {str(e)}")
             return {
