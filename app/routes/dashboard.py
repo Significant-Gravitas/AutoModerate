@@ -123,7 +123,7 @@ async def project_detail(project_id, project=None):
     # Get stats using database service
     content_counts = await db_service.get_content_counts_by_status(project_id)
 
-    total_content = sum(content_counts.values())
+    total_content = content_counts.get('total', 0)
     approved_content = content_counts.get('approved', 0)
     rejected_content = content_counts.get('rejected', 0)
     flagged_content = content_counts.get('flagged', 0)
