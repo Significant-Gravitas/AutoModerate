@@ -10,13 +10,13 @@ class ResultCache:
 
     # Shared cache across all instances with better memory management
     _shared_cache = {}
-    _shared_cache_ttl = 3600  # 1 hour default
+    _shared_cache_ttl = 1800  # 30 minutes (reduced from 1 hour)
     _current_request_stores = 0  # Track stores per request
     _cache_lock = RLock()  # Thread-safe operations
-    _max_cache_size = 1000  # Reduced max cache size to prevent memory leaks
-    _cleanup_threshold = 800  # Start cleanup earlier
+    _max_cache_size = 500  # Reduced from 1000 for high-volume deployments
+    _cleanup_threshold = 400  # Start cleanup earlier
     _last_cleanup_time = 0
-    _cleanup_interval = 300  # Cleanup every 5 minutes
+    _cleanup_interval = 180  # Cleanup every 3 minutes (more frequent)
 
     def __init__(self, cache_ttl=3600):  # 1 hour default
         self._cache_ttl = cache_ttl

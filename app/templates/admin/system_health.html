@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}System Health - AutoModerate{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">System Health</h1>
+    <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">
+        <i class="fas fa-sync"></i> Refresh
+    </button>
+</div>
+
+<!-- System Metrics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted">Memory Usage</h6>
+                <h3 class="text-primary">{{ system_stats.memory_used_mb }} MB</h3>
+                <small class="text-muted">{{ system_stats.memory_percent }}% of available</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted">CPU Usage</h6>
+                <h3 class="text-success">{{ system_stats.cpu_percent }}%</h3>
+                <small class="text-muted">Current process</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted">Active Threads</h6>
+                <h3 class="text-info">{{ system_stats.threads }}</h3>
+                <small class="text-muted">Running</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted">Uptime</h6>
+                <h3 class="text-warning">{{ system_stats.uptime_hours }}h</h3>
+                <small class="text-muted">Hours</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cache Statistics -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-brain"></i> AI Result Cache</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td><strong>Total Entries</strong></td>
+                            <td>{{ cache_stats.ai_cache.total_entries }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Valid Entries</strong></td>
+                            <td class="text-success">{{ cache_stats.ai_cache.valid_entries }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Expired Entries</strong></td>
+                            <td class="text-warning">{{ cache_stats.ai_cache.expired_entries }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cache Size</strong></td>
+                            <td>{{ "%.2f"|format(cache_stats.ai_cache.cache_size_mb) }} MB</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Oldest Entry Age</strong></td>
+                            <td>{{ (cache_stats.ai_cache.oldest_entry_age / 60)|int }} minutes</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Rule Cache</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td><strong>Cached Projects</strong></td>
+                            <td>{{ cache_stats.rule_cache.cached_projects }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Oldest Cache Age</strong></td>
+                            <td>{{ (cache_stats.rule_cache.oldest_cache_age / 60)|int }} minutes</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database Connection Pool -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-database"></i> Database Connection Pool</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td><strong>Pool Size</strong></td>
+                            <td>{{ db_stats.pool_size }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Checked Out Connections</strong></td>
+                            <td>{{ db_stats.checked_out }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Overflow</strong></td>
+                            <td>{{ db_stats.overflow }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Available Connections</strong></td>
+                            <td class="text-success">{{ db_stats.pool_size - db_stats.checked_out }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh every 30 seconds
+setTimeout(function() {
+    location.reload();
+}, 30000);
+</script>
+
+{% endblock %}

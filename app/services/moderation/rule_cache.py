@@ -27,6 +27,7 @@ class RuleCache:
         self._rules_cache = {}
         self._cache_timestamps = {}
         self._cache_ttl = cache_ttl
+        self._max_projects = 100  # Limit number of cached projects
 
     async def get_cached_rules(self, project_id):
         """Get rules with caching for performance"""
@@ -50,6 +51,15 @@ class RuleCache:
                            r.priority, r.rule_data or {})
                 for r in db_rules
             ]
+
+            # Check cache size and evict oldest if needed
+            if len(self._rules_cache) >= self._max_projects:
+                # Remove oldest cached project
+                if self._cache_timestamps:
+                    oldest_project = min(self._cache_timestamps, key=self._cache_timestamps.get)
+                    self._rules_cache.pop(oldest_project, None)
+                    self._cache_timestamps.pop(oldest_project, None)
+                    current_app.logger.info(f"Rule cache full, evicted project {oldest_project}")
 
             # Update cache
             self._rules_cache[project_id] = cached_rules

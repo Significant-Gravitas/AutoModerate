@@ -158,6 +158,7 @@ def create_app(config_name: str = 'default') -> Flask:
     from app.routes.auth import auth_bp
     from app.routes.dashboard import dashboard_bp
     from app.routes.manual_review import manual_review_bp
+    from app.routes.monitoring import monitoring_bp
     from app.routes.websocket import websocket_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -166,6 +167,7 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(websocket_bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(manual_review_bp)
+    app.register_blueprint(monitoring_bp)
 
     # Exempt API endpoints from CSRF protection (they use API key authentication)
     csrf.exempt(api_bp)

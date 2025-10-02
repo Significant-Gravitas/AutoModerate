@@ -433,3 +433,52 @@ async def api_stats():
     stats = await db_service.get_api_stats()
 
     return jsonify(stats)
+
+
+@admin_bp.route('/system-health')
+@admin_required
+async def system_health():
+    """System health monitoring page"""
+    import time
+
+    import psutil
+
+    from app.services.ai.result_cache import ResultCache
+    from app.services.moderation.rule_cache import RuleCache
+
+    # Get system metrics
+    process = psutil.Process()
+    memory_info = process.memory_info()
+
+    # Calculate uptime (approximation based on process start time)
+    uptime_seconds = time.time() - process.create_time()
+    uptime_hours = round(uptime_seconds / 3600, 1)
+
+    system_stats = {
+        'memory_used_mb': round(memory_info.rss / 1024 / 1024, 2),
+        'memory_percent': round(process.memory_percent(), 2),
+        'cpu_percent': round(process.cpu_percent(), 2),
+        'threads': process.num_threads(),
+        'uptime_hours': uptime_hours
+    }
+
+    # Get cache stats
+    result_cache = ResultCache()
+    rule_cache = RuleCache()
+
+    cache_stats = {
+        'ai_cache': result_cache.get_cache_stats(),
+        'rule_cache': rule_cache.get_cache_stats()
+    }
+
+    # Get database connection pool stats
+    db_stats = {
+        'pool_size': current_app.config['SQLALCHEMY_ENGINE_OPTIONS']['pool_size'],
+        'checked_out': db.engine.pool.checkedout(),
+        'overflow': db.engine.pool.overflow()
+    }
+
+    return render_template('admin/system_health.html',
+                           system_stats=system_stats,
+                           cache_stats=cache_stats,
+                           db_stats=db_stats)
