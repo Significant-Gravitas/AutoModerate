@@ -457,8 +457,27 @@ async def system_health():
     # Get CPU usage with interval (required for accurate reading)
     cpu_percent = round(process.cpu_percent(interval=0.5), 2)
 
+    # Format memory display (show GB if over 1024 MB)
+    memory_mb = memory_info.rss / 1024 / 1024
+    total_memory_mb = psutil.virtual_memory().total / 1024 / 1024
+
+    # Format used memory
+    if memory_mb >= 1024:
+        memory_used_display = f"{round(memory_mb / 1024, 2)} GB"
+    else:
+        memory_used_display = f"{round(memory_mb, 2)} MB"
+
+    # Format total memory
+    if total_memory_mb >= 1024:
+        memory_total_display = f"{round(total_memory_mb / 1024, 2)} GB"
+    else:
+        memory_total_display = f"{round(total_memory_mb, 2)} MB"
+
+    memory_display = f"{memory_used_display} / {memory_total_display}"
+
     system_stats = {
-        'memory_used_mb': round(memory_info.rss / 1024 / 1024, 2),
+        'memory_used': memory_display,
+        'memory_used_mb': round(memory_mb, 2),
         'memory_percent': round(process.memory_percent(), 2),
         'cpu_percent': cpu_percent,
         'threads': process.num_threads(),
