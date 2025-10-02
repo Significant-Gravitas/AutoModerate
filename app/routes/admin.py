@@ -454,10 +454,13 @@ async def system_health():
     uptime_seconds = time.time() - process.create_time()
     uptime_hours = round(uptime_seconds / 3600, 1)
 
+    # Get CPU usage with interval (required for accurate reading)
+    cpu_percent = round(process.cpu_percent(interval=0.1), 2)
+
     system_stats = {
         'memory_used_mb': round(memory_info.rss / 1024 / 1024, 2),
         'memory_percent': round(process.memory_percent(), 2),
-        'cpu_percent': round(process.cpu_percent(), 2),
+        'cpu_percent': cpu_percent,
         'threads': process.num_threads(),
         'uptime_hours': uptime_hours
     }
