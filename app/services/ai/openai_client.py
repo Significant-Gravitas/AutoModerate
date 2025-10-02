@@ -1,12 +1,14 @@
+import threading
+
 import httpx
 import openai
 from flask import current_app
 
 
 class OpenAIClient:
-    """Manages OpenAI client configuration and connection pooling"""
+    """Manages OpenAI client configuration with thread-local storage for thread safety"""
 
-    _client = None
+    _thread_local = threading.local()
     _api_key = None
 
     def __init__(self):
@@ -26,8 +28,9 @@ class OpenAIClient:
 
     @classmethod
     def _get_or_create_client(cls, api_key):
-        """Create or reuse OpenAI client with optimized settings for speed"""
-        if cls._client is None or cls._api_key != api_key:
+        """Create or reuse thread-local OpenAI client with optimized settings for speed"""
+        # Check if this thread has a client and if the API key matches
+        if not hasattr(cls._thread_local, 'client') or cls._api_key != api_key:
             http_client = httpx.Client(
                 timeout=httpx.Timeout(
                     connect=3.0,     # Increased connect timeout
@@ -43,13 +46,13 @@ class OpenAIClient:
                 http2=True
             )
 
-            cls._client = openai.OpenAI(
+            cls._thread_local.client = openai.OpenAI(
                 api_key=api_key,
                 http_client=http_client
             )
             cls._api_key = api_key
 
-        return cls._client
+        return cls._thread_local.client
 
     def is_configured(self):
         """Check if OpenAI client is properly configured"""
