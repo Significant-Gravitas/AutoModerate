@@ -825,8 +825,8 @@ class DatabaseService:
         return await self._safe_execute(_get_project_analytics) or {}
 
     # API User Operations
-    async def get_or_create_api_user(self, external_user_id: str, project_id: str) -> Optional[APIUser]:
-        """Get existing API user or create new one"""
+    async def get_or_create_api_user(self, external_user_id: str, project_id: str) -> Optional[str]:
+        """Get existing API user or create new one, returns the user ID"""
         def _get_or_create():
             api_user = APIUser.query.filter_by(
                 external_user_id=external_user_id,
@@ -841,7 +841,8 @@ class DatabaseService:
                 db.session.add(api_user)
                 db.session.commit()
 
-            return api_user
+            # Return the ID string instead of the object to avoid detached instance issues
+            return api_user.id
 
         return await self._safe_execute(_get_or_create)
 

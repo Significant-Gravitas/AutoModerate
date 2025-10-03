@@ -76,6 +76,8 @@ class Project(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey(
         'users.id'), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+    discord_webhook_url = db.Column(db.String(500))
+    discord_notifications_enabled = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -122,6 +124,8 @@ class Project(db.Model):
             'description': self.description,
             'user_id': self.user_id,
             'is_active': self.is_active,
+            'discord_webhook_url': self.discord_webhook_url,
+            'discord_notifications_enabled': self.discord_notifications_enabled,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'api_keys_count': len(self.api_keys),

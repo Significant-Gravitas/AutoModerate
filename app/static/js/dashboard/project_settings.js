@@ -36,4 +36,58 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Test Discord webhook
+    const testWebhookForm = document.getElementById('testWebhookForm');
+    if (testWebhookForm) {
+        testWebhookForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const resultDiv = document.getElementById('webhookTestResult');
+            const btn = document.getElementById('testWebhookBtn');
+            const originalHTML = btn.innerHTML;
+            const formData = new FormData(this);
+
+            // Show loading state
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+
+            // Send test request
+            fetch(this.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Show result
+                resultDiv.style.display = 'block';
+                if (data.success) {
+                    resultDiv.className = 'alert alert-success mt-3';
+                    resultDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message}`;
+                } else {
+                    resultDiv.className = 'alert alert-danger mt-3';
+                    resultDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.message}`;
+                }
+
+                // Hide result after 5 seconds
+                setTimeout(() => {
+                    resultDiv.style.display = 'none';
+                }, 5000);
+            })
+            .catch(error => {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'alert alert-danger mt-3';
+                resultDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${error.message}`;
+
+                setTimeout(() => {
+                    resultDiv.style.display = 'none';
+                }, 5000);
+            })
+            .finally(() => {
+                // Restore button state
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            });
+        });
+    }
 });

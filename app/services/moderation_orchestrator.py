@@ -1,6 +1,6 @@
 import time
 
-from flask import current_app
+from flask import current_app, request
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.moderation_result import ModerationResult
@@ -11,6 +11,7 @@ from .error_tracker import error_tracker
 from .moderation.rule_cache import RuleCache
 from .moderation.rule_processor import RuleProcessor
 from .moderation.websocket_notifier import WebSocketNotifier
+from .notifications.discord_notifier import DiscordNotifier
 
 
 class ModerationOrchestrator:
@@ -68,6 +69,10 @@ class ModerationOrchestrator:
             await self._save_results(content, final_decision, results, total_time)
             self.websocket_notifier.send_update_async(
                 content, final_decision, results, total_time)
+
+            # Send Discord notification if content is flagged or rejected
+            if final_decision in ['flagged', 'rejected']:
+                await self._send_discord_notification(content, final_decision, results)
 
             # Log final result summary with cache info
             if results and results[0].get('rule_name'):
@@ -374,3 +379,61 @@ class ModerationOrchestrator:
             'result_cache': self.ai_moderator.cache.get_cache_stats(),
             'openai_configured': self.ai_moderator.client_manager.is_configured()
         }
+
+    async def _send_discord_notification(self, content, final_decision, results):
+        """Send Discord notification for flagged or rejected content"""
+        try:
+            # Get project details
+            project = await db_service.get_project_by_id(content.project_id)
+            if not project:
+                return
+
+            # Check if Discord notifications are enabled for this project
+            if not project.discord_notifications_enabled:
+                return
+
+            # Determine webhook URL
+            webhook_url = project.discord_webhook_url
+            if not webhook_url:
+                return
+
+            # Initialize Discord notifier
+            notifier = DiscordNotifier(webhook_url)
+
+            # Extract notification details
+            result = results[0] if results else {}
+            confidence = result.get('confidence', 0.0)
+            reason = result.get('reason', 'No reason provided')
+            moderator_type = result.get('moderator_type', 'unknown')
+
+            # Get metadata including user_id
+            metadata = content.meta_data or {}
+
+            # Add api_user_id to metadata if available
+            if content.api_user_id:
+                metadata['api_user_id'] = content.api_user_id
+
+            # Construct base URL from request context
+            base_url = request.url_root.rstrip('/') if request else 'http://localhost:6217'
+
+            # Send notification
+            notifier.send_flagged_content_notification(
+                content_id=content.id,
+                project_id=content.project_id,
+                project_name=project.name,
+                status=final_decision,
+                confidence=confidence,
+                reason=reason,
+                moderator_type=moderator_type,
+                metadata=metadata,
+                base_url=base_url
+            )
+
+            current_app.logger.info(
+                f"Discord notification sent for content {content.id} (status: {final_decision})")
+
+        except Exception as e:
+            # Don't fail moderation if Discord notification fails
+            current_app.logger.error(
+                f"Failed to send Discord notification for content {content.id}: {str(e)}")
+            # Continue without raising - notification failures shouldn't block moderation

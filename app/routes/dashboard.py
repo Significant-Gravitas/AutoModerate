@@ -596,6 +596,79 @@ async def update_project(project_id):
     return redirect(url_for('dashboard.project_settings', project_id=project_id))
 
 
+@dashboard_bp.route('/projects/<project_id>/discord-settings', methods=['POST'])
+@login_required
+async def update_discord_settings(project_id):
+    """Update Discord notification settings for a project"""
+    project = Project.query.filter_by(id=project_id).first_or_404()
+
+    # Check if user has admin access
+    if not project.can_manage_members(current_user.id):
+        flash('You do not have permission to modify project settings', 'error')
+        return redirect(url_for('dashboard.project_settings', project_id=project_id))
+
+    discord_notifications_enabled = request.form.get('discord_notifications_enabled') == 'true'
+    discord_webhook_url = request.form.get('discord_webhook_url', '').strip()
+
+    # Validate webhook URL if provided
+    if discord_webhook_url and not discord_webhook_url.startswith('https://discord.com/api/webhooks/'):
+        flash('Invalid Discord webhook URL', 'error')
+        return redirect(url_for('dashboard.project_settings', project_id=project_id))
+
+    try:
+        project.discord_notifications_enabled = discord_notifications_enabled
+        project.discord_webhook_url = discord_webhook_url if discord_webhook_url else None
+        db.session.commit()
+
+        flash('Discord notification settings updated successfully!', 'success')
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash('Error updating Discord settings', 'error')
+
+    return redirect(url_for('dashboard.project_settings', project_id=project_id))
+
+
+@dashboard_bp.route('/projects/<project_id>/test-webhook', methods=['POST'])
+@login_required
+async def test_discord_webhook(project_id):
+    """Test Discord webhook configuration"""
+    from app.services.notifications.discord_notifier import DiscordNotifier
+
+    project = Project.query.filter_by(id=project_id).first_or_404()
+
+    # Check if user has admin access
+    if not project.can_manage_members(current_user.id):
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
+
+    # Determine webhook URL
+    webhook_url = project.discord_webhook_url
+    if not webhook_url:
+        # Try to use global webhook from environment
+        from flask import current_app
+        webhook_url = current_app.config.get('DISCORD_WEBHOOK_URL')
+
+    if not webhook_url:
+        return jsonify({
+            'success': False,
+            'message': 'No webhook URL configured. Please add a webhook URL or set DISCORD_WEBHOOK_URL in your environment.'
+        }), 400
+
+    # Send test notification
+    notifier = DiscordNotifier(webhook_url)
+    success = notifier.send_test_notification(project_name=project.name)
+
+    if success:
+        return jsonify({
+            'success': True,
+            'message': 'Test notification sent successfully! Check your Discord channel.'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'Failed to send test notification. Please check your webhook URL and try again.'
+        }), 500
+
+
 @dashboard_bp.route('/projects/<project_id>/delete', methods=['POST'])
 @login_required
 async def delete_project(project_id):

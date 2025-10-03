@@ -106,7 +106,6 @@ async def moderate_content(validated_data=None):
                 return api_error_response(f'Forbidden metadata key: {key}', 400)
 
     # Track API user if user_id is provided in metadata
-    api_user = None
     if meta_data and 'user_id' in meta_data:
         external_user_id = str(meta_data['user_id']).strip()
 
@@ -117,18 +116,20 @@ async def moderate_content(validated_data=None):
         # User ID already validated by regex, no HTML escaping needed for database storage
         external_user_id = external_user_id
 
-        # Find or create API user using centralized service
-        api_user = await db_service.get_or_create_api_user(
+        # Find or create API user using centralized service (returns user ID)
+        api_user_id = await db_service.get_or_create_api_user(
             external_user_id=external_user_id,
             project_id=request.project.id
         )
+    else:
+        api_user_id = None
 
     # Create content record using database service
     content_id = await db_service.create_content(
         project_id=request.project.id,
         content_text=str(content_data),
         content_type=content_type,
-        api_user_id=api_user.id if api_user else None,
+        api_user_id=api_user_id,
         meta_data=meta_data if meta_data else None
     )
 
