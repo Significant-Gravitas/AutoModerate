@@ -13,36 +13,33 @@ from app.services.database_service import db_service
 manual_review_bp = Blueprint('manual_review', __name__)
 
 
-@manual_review_bp.route('/manual-review')
+@manual_review_bp.route('/projects/<project_id>/manual-review')
 @login_required
-async def index():
-    """Manual review dashboard - shows flagged content across all projects user has access to"""
+async def index(project_id):
+    """Manual review dashboard - shows flagged content for specific project"""
     try:
-        # Get all projects the user has access to using database service
-        if current_user.is_admin:
-            # Admin can see all projects (with pagination for performance)
-            user_projects = await db_service.get_all_projects_for_admin(page=1, per_page=1000)
-        else:
-            # Regular users can only see projects they're members of
-            user_projects = await db_service.get_user_projects(current_user.id)
+        # Get project and verify access
+        project = Project.query.get_or_404(project_id)
 
-        project_ids = [p.id for p in user_projects]
+        if not project.is_member(current_user.id):
+            flash('You do not have access to this project', 'error')
+            return redirect(url_for('dashboard.index'))
 
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
         per_page = 50  # Limit to 50 items per page
 
-        # Get flagged content from these projects with pagination
+        # Get flagged content for this project with pagination
         flagged_content, total_flagged = await db_service.get_flagged_content_for_projects(
-            project_ids, page=page, per_page=per_page)
+            [project_id], page=page, per_page=per_page)
 
-        # Get additional statistics
+        # Get additional statistics for this project
         total_approved = Content.query.filter(
-            Content.project_id.in_(project_ids),
+            Content.project_id == project_id,
             Content.status == 'approved'
         ).count()
         total_rejected = Content.query.filter(
-            Content.project_id.in_(project_ids),
+            Content.project_id == project_id,
             Content.status == 'rejected'
         ).count()
 
@@ -67,7 +64,7 @@ async def index():
                                total_flagged=total_flagged,
                                total_approved=total_approved,
                                total_rejected=total_rejected,
-                               projects=user_projects,
+                               project=project,
                                pagination=pagination)
 
     except Exception as e:
@@ -76,17 +73,22 @@ async def index():
         return redirect(url_for('dashboard.index'))
 
 
-@manual_review_bp.route('/manual-review/<content_id>')
+@manual_review_bp.route('/projects/<project_id>/manual-review/<content_id>')
 @login_required
-async def review_content(content_id):
+async def review_content(project_id, content_id):
     """Review specific flagged content"""
     try:
-        content = Content.query.get_or_404(content_id)
+        # Verify project access
+        project = Project.query.get_or_404(project_id)
+        if not project.is_member(current_user.id):
+            flash('You do not have access to this project', 'error')
+            return redirect(url_for('dashboard.index'))
 
-        # Check if user has access to this project
-        if not current_user.is_admin and not content.project.is_member(current_user.id):
-            flash('You do not have access to this content', 'error')
-            return redirect(url_for('manual_review.index'))
+        # Get content and verify it belongs to this project
+        content = Content.query.get_or_404(content_id)
+        if content.project_id != project_id:
+            flash('Content does not belong to this project', 'error')
+            return redirect(url_for('manual_review.index', project_id=project_id))
 
         # Get moderation results for this content
         moderation_results = ModerationResult.query.filter_by(
@@ -99,13 +101,14 @@ async def review_content(content_id):
 
         return render_template('manual_review/review_content.html',
                                content=content,
+                               project=project,
                                moderation_results=moderation_results,
                                api_user=api_user)
 
     except Exception as e:
         current_app.logger.error(f"Review content error: {str(e)}")
         flash('Error loading content for review', 'error')
-        return redirect(url_for('manual_review.index'))
+        return redirect(url_for('dashboard.index'))
 
 
 @manual_review_bp.route('/manual-review/<content_id>/decision', methods=['POST'])
@@ -278,6 +281,15 @@ async def bulk_decision():
 async def api_users():
     """View API users and their moderation history"""
     try:
+        # Get optional project_id from query parameter to track where user came from
+        from_project_id = request.args.get('project_id')
+        from_project = None
+
+        if from_project_id:
+            from_project = Project.query.get(from_project_id)
+            if from_project and not from_project.is_member(current_user.id):
+                from_project = None  # Clear if user doesn't have access
+
         # Get all projects the user has access to
         user_projects = []
         if current_user.is_admin:
@@ -303,7 +315,9 @@ async def api_users():
             content_count_subquery.c.content_count > 0  # Only users with content
         ).order_by(desc(APIUser.last_seen)).all()
 
-        return render_template('manual_review/api_users.html', api_users=api_users)
+        return render_template('manual_review/api_users.html',
+                               api_users=api_users,
+                               from_project=from_project)
 
     except Exception as e:
         current_app.logger.error(f"API users error: {str(e)}")
@@ -328,7 +342,7 @@ async def api_user_by_external_id(external_user_id):
 
         if not user_projects:
             flash('You do not have access to any projects', 'error')
-            return redirect(url_for('manual_review.index'))
+            return redirect(url_for('dashboard.index'))
 
         project_ids = [project.id for project in user_projects]
 

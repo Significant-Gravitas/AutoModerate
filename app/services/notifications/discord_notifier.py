@@ -98,8 +98,8 @@ class DiscordNotifier:
                 emoji = "ℹ️"
                 color = self.COLOR_INFO
 
-            # Build content link to manual review page
-            content_url = f"{base_url}/manual-review/{content_id}"
+            # Build content link to manual review page (project-specific)
+            content_url = f"{base_url}/projects/{project_id}/manual-review/{content_id}"
 
             # Extract user ID from metadata if available
             user_id = "N/A"

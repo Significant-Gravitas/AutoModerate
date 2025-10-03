@@ -16,14 +16,14 @@
     <h1 class="h2">{{ project.name }}</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <a href="{{ url_for('dashboard.project_api_keys', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-key"></i> API Keys
-            </a>
-            <a href="{{ url_for('dashboard.project_rules', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+            <a href="{{ url_for('dashboard.project_rules', project_id=project.id) }}" class="btn btn-sm btn-outline-danger">
                 <i class="fas fa-cogs"></i> Rules
             </a>
             <a href="{{ url_for('dashboard.project_content', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
                 <i class="fas fa-list"></i> Content
+            </a>
+            <a href="{{ url_for('manual_review.index', project_id=project.id) }}" class="btn btn-sm btn-outline-warning">
+                <i class="fas fa-flag"></i> Manual Review
             </a>
             <a href="{{ url_for('dashboard.project_analytics', project_id=project.id) }}" class="btn btn-sm btn-outline-success">
                 <i class="fas fa-chart-line"></i> Analytics
@@ -33,6 +33,9 @@
             </a>
             <a href="{{ url_for('dashboard.project_members', project_id=project.id) }}" class="btn btn-sm btn-outline-info">
                 <i class="fas fa-users"></i> Members
+            </a>
+            <a href="{{ url_for('manual_review.api_users', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-user-tag"></i> API Users
             </a>
         </div>
     </div>

@@ -14,8 +14,8 @@
                     <h1>Review Content</h1>
                     <p class="text-muted">Content ID: {{ content.id }}</p>
                 </div>
-                <a href="{{ url_for('manual_review.index') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                <a href="{{ url_for('manual_review.index', project_id=project.id) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Manual Review
                 </a>
             </div>
 
@@ -236,9 +236,9 @@ document.getElementById('decisionForm').addEventListener('submit', function(e) {
         if (data.success) {
             // Show Bootstrap toast
             showMainToast('Decision submitted successfully!');
-            // Redirect back to dashboard after short delay
+            // Redirect back to manual review after short delay
             setTimeout(function() {
-                window.location.href = '{{ url_for("manual_review.index") }}';
+                window.location.href = '{{ url_for("manual_review.index", project_id=project.id) }}';
             }, 1500);
         } else {
             alert('Error: ' + data.error);
