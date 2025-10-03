@@ -296,6 +296,11 @@ function addContentRow(data) {
     }
 }
 
+// Format number with commas
+function formatNumber(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 // Update statistics
 function updateStatistics(data) {
     const totalElement = document.getElementById('totalContent');
@@ -310,24 +315,31 @@ function updateStatistics(data) {
     }
 
     try {
-        // Update total
-        const currentTotal = parseInt(totalElement.textContent) || 0;
-        totalElement.textContent = currentTotal + 1;
-        totalCountElement.textContent = currentTotal + 1;
+        // Update total - strip commas before parsing
+        const totalText = totalElement.textContent.trim().replace(/,/g, '');
+        const currentTotal = parseInt(totalText, 10) || 0;
+        totalElement.textContent = formatNumber(currentTotal + 1);
+
+        const totalCountText = totalCountElement.textContent.trim().replace(/,/g, '');
+        const currentTotalCount = parseInt(totalCountText, 10) || 0;
+        totalCountElement.textContent = formatNumber(currentTotalCount + 1);
 
         // Update status-specific counts
         if (data.status === 'approved' && approvedElement) {
-            const currentApproved = parseInt(approvedElement.textContent) || 0;
-            approvedElement.textContent = currentApproved + 1;
+            const approvedText = approvedElement.textContent.trim().replace(/,/g, '');
+            const currentApproved = parseInt(approvedText, 10) || 0;
+            approvedElement.textContent = formatNumber(currentApproved + 1);
         } else if (data.status === 'rejected' && rejectedElement) {
-            const currentRejected = parseInt(rejectedElement.textContent) || 0;
-            rejectedElement.textContent = currentRejected + 1;
+            const rejectedText = rejectedElement.textContent.trim().replace(/,/g, '');
+            const currentRejected = parseInt(rejectedText, 10) || 0;
+            rejectedElement.textContent = formatNumber(currentRejected + 1);
         } else if (data.status === 'flagged' && flaggedElement) {
-            const currentFlagged = parseInt(flaggedElement.textContent) || 0;
-            flaggedElement.textContent = currentFlagged + 1;
+            const flaggedText = flaggedElement.textContent.trim().replace(/,/g, '');
+            const currentFlagged = parseInt(flaggedText, 10) || 0;
+            flaggedElement.textContent = formatNumber(currentFlagged + 1);
         }
     } catch (error) {
-        // Silent error handling
+        console.error('Error updating statistics:', error);
     }
 }
 
