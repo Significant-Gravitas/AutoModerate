@@ -140,11 +140,6 @@ class DiscordNotifier:
                     "name": "Confidence",
                     "value": f"{confidence:.2%}",
                     "inline": True
-                },
-                {
-                    "name": "Moderator",
-                    "value": moderator_type.title(),
-                    "inline": True
                 }
             ]
 
@@ -159,9 +154,17 @@ class DiscordNotifier:
                 "inline": False
             })
 
+            # Build title based on status
+            if status == "rejected":
+                title = f"{emoji} Content Rejected"
+            elif status == "flagged":
+                title = f"{emoji} Content Flagged for Review"
+            else:
+                title = f"{emoji} Content {status.title()}"
+
             # Build embed
             embed = {
-                "title": f"{emoji} Content {status.title()} for Review",
+                "title": title,
                 "description": reason,
                 "color": color,
                 "fields": fields,
