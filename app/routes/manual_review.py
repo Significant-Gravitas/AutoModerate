@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import selectinload
 
 from app import db
@@ -288,9 +288,19 @@ async def api_users():
 
         project_ids = [p.id for p in user_projects]
 
-        # Get API users from these projects
-        api_users = APIUser.query.filter(
-            APIUser.project_id.in_(project_ids)
+        # Subquery to count content per user
+        content_count_subquery = db.session.query(
+            Content.api_user_id,
+            func.count(Content.id).label('content_count')
+        ).group_by(Content.api_user_id).subquery()
+
+        # Get API users with content count, filter out users with 0 content
+        api_users = db.session.query(APIUser).outerjoin(
+            content_count_subquery,
+            APIUser.id == content_count_subquery.c.api_user_id
+        ).filter(
+            APIUser.project_id.in_(project_ids),
+            content_count_subquery.c.content_count > 0  # Only users with content
         ).order_by(desc(APIUser.last_seen)).all()
 
         return render_template('manual_review/api_users.html', api_users=api_users)

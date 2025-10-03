@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
 
+from sqlalchemy import func
+
 from app import db
 
 
@@ -56,22 +58,37 @@ class APIUser(db.Model):
             self.flagged_count += 1
 
     def get_current_stats(self):
-        """Get current stats by counting from database"""
+        """Get current stats by counting from database with caching"""
         from app.models.content import Content
 
-        # Count actual content records
-        total_content = Content.query.filter_by(api_user_id=self.id).count()
-        approved = Content.query.filter_by(api_user_id=self.id, status='approved').count()
-        rejected = Content.query.filter_by(api_user_id=self.id, status='rejected').count()
-        flagged = Content.query.filter_by(api_user_id=self.id, status='flagged').count()
+        # Use cached stats if available in this request
+        if hasattr(self, '_cached_stats'):
+            return self._cached_stats
 
-        return {
+        # Use a single efficient query to get all counts at once
+        result = db.session.query(
+            func.count(Content.id).label('total'),
+            func.sum(db.case((Content.status == 'approved', 1), else_=0)).label('approved'),
+            func.sum(db.case((Content.status == 'rejected', 1), else_=0)).label('rejected'),
+            func.sum(db.case((Content.status == 'flagged', 1), else_=0)).label('flagged')
+        ).filter(Content.api_user_id == self.id).first()
+
+        total_content = result.total or 0
+        approved = result.approved or 0
+        rejected = result.rejected or 0
+        flagged = result.flagged or 0
+
+        stats = {
             'total_requests': total_content,
             'approved_count': approved,
             'rejected_count': rejected,
             'flagged_count': flagged,
             'approval_rate': (approved / total_content * 100) if total_content > 0 else 0
         }
+
+        # Cache the stats for this instance
+        self._cached_stats = stats
+        return stats
 
     @property
     def approval_rate(self):
