@@ -17,14 +17,11 @@ class OpenAIClient:
 
             if not api_key:
                 self.api_key = None
-                self.client = None
             else:
                 self.api_key = api_key
-                self.client = self._get_or_create_client(api_key)
         except (ValueError, TypeError, KeyError) as e:
             current_app.logger.error(f"Configuration error for OpenAI: {str(e)}")
             self.api_key = None
-            self.client = None
 
     @classmethod
     def _get_or_create_client(cls, api_key):
@@ -56,13 +53,13 @@ class OpenAIClient:
 
     def is_configured(self):
         """Check if OpenAI client is properly configured"""
-        return self.api_key is not None and self.client is not None
+        return self.api_key is not None
 
     def get_client(self):
-        """Get the configured OpenAI client"""
+        """Get the configured OpenAI client (thread-local)"""
         if not self.is_configured():
             raise Exception("OpenAI client not configured - API key missing")
-        return self.client
+        return self._get_or_create_client(self.api_key)
 
     def test_connection(self):
         """Test the OpenAI connection with timeout"""
