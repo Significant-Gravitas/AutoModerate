@@ -4,6 +4,7 @@ from authlib.integrations.flask_client import OAuth
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
+from app.models.system_settings import SystemSettings
 from app.services.database_service import db_service
 
 auth_bp = Blueprint('auth', __name__)
@@ -96,6 +97,11 @@ async def login():
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 async def register():
+    # Check if registration is enabled
+    if not SystemSettings.is_registration_enabled():
+        flash('Registration is currently disabled. Please contact an administrator.', 'error')
+        return redirect(url_for('auth.login'))
+
     if request.method == 'POST':
         # Input validation and sanitization
         if request.is_json:
@@ -303,6 +309,11 @@ async def google_callback():
             login_user(user)
             flash('Google account linked successfully!', 'success')
             return redirect(url_for('dashboard.index'))
+
+        # Check if registration is enabled before creating new user
+        if not SystemSettings.is_registration_enabled():
+            flash('Registration is currently disabled. Please contact an administrator.', 'error')
+            return redirect(url_for('auth.login'))
 
         # Create new user
         username = email.split('@')[0]

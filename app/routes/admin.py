@@ -10,6 +10,7 @@ from app.models.content import Content
 from app.models.moderation_result import ModerationResult
 from app.models.moderation_rule import ModerationRule
 from app.models.project import Project
+from app.models.system_settings import SystemSettings
 from app.models.user import User
 from app.services.database_service import db_service
 
@@ -71,12 +72,16 @@ async def index():
         **(await db_service.get_moderation_result_stats()),
     }
 
+    # Get system settings
+    registration_enabled = SystemSettings.is_registration_enabled()
+
     return render_template('admin/index.html',
                            stats=stats,
                            recent_users=recent_users,
                            recent_projects=recent_projects,
                            recent_content=recent_content,
-                           moderation_stats=moderation_stats)
+                           moderation_stats=moderation_stats,
+                           registration_enabled=registration_enabled)
 
 
 @admin_bp.route('/users')
@@ -242,8 +247,37 @@ async def delete_user(user_id):
 
     except Exception as e:
         db.session.rollback()
+        current_app.logger.error(f"Delete user error: {str(e)}")
         flash(f'Error deleting user: {str(e)}', 'error')
-        return redirect(url_for('admin.user_detail', user_id=user_id))
+        return redirect(url_for('admin.users'))
+
+
+@admin_bp.route('/settings/toggle-registration', methods=['POST'])
+@admin_required
+async def toggle_registration():
+    """Toggle user registration on/off"""
+    try:
+        current_status = SystemSettings.is_registration_enabled()
+        new_status = 'false' if current_status else 'true'
+
+        SystemSettings.set_setting(
+            'registration_enabled',
+            new_status,
+            'Enable or disable new user registration'
+        )
+
+        action = 'enabled' if new_status == 'true' else 'disabled'
+        flash(f'User registration has been {action}.', 'success')
+
+        current_app.logger.info(
+            f"Admin {current_user.email} {action} user registration")
+
+        return redirect(url_for('admin.index'))
+
+    except Exception as e:
+        current_app.logger.error(f"Toggle registration error: {str(e)}")
+        flash(f'Error toggling registration: {str(e)}', 'error')
+        return redirect(url_for('admin.index'))
 
 
 @admin_bp.route('/projects')
