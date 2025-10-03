@@ -9,7 +9,6 @@ class OpenAIClient:
     """Manages OpenAI client configuration with thread-local storage for thread safety"""
 
     _thread_local = threading.local()
-    _api_key = None
 
     def __init__(self):
         try:
@@ -17,20 +16,19 @@ class OpenAIClient:
 
             if not api_key:
                 self.api_key = None
-                self.client = None
             else:
                 self.api_key = api_key
-                self.client = self._get_or_create_client(api_key)
         except (ValueError, TypeError, KeyError) as e:
             current_app.logger.error(f"Configuration error for OpenAI: {str(e)}")
             self.api_key = None
-            self.client = None
 
     @classmethod
     def _get_or_create_client(cls, api_key):
         """Create or reuse thread-local OpenAI client with optimized settings for speed"""
-        # Check if this thread has a client and if the API key matches
-        if not hasattr(cls._thread_local, 'client') or cls._api_key != api_key:
+        # Check if this thread has a client and if the API key matches (thread-safe check)
+        if not hasattr(cls._thread_local, 'client') or \
+           not hasattr(cls._thread_local, 'api_key') or \
+           cls._thread_local.api_key != api_key:
             http_client = httpx.Client(
                 timeout=httpx.Timeout(
                     connect=3.0,     # Increased connect timeout
@@ -50,19 +48,19 @@ class OpenAIClient:
                 api_key=api_key,
                 http_client=http_client
             )
-            cls._api_key = api_key
+            cls._thread_local.api_key = api_key  # Store API key per-thread for thread-safe comparison
 
         return cls._thread_local.client
 
     def is_configured(self):
         """Check if OpenAI client is properly configured"""
-        return self.api_key is not None and self.client is not None
+        return self.api_key is not None
 
     def get_client(self):
-        """Get the configured OpenAI client"""
+        """Get the configured OpenAI client (thread-local)"""
         if not self.is_configured():
             raise Exception("OpenAI client not configured - API key missing")
-        return self.client
+        return self._get_or_create_client(self.api_key)
 
     def test_connection(self):
         """Test the OpenAI connection with timeout"""
@@ -73,7 +71,8 @@ class OpenAIClient:
             # Simple test with a minimal request and fast timeout
             model_name = current_app.config.get(
                 'OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
-            self.client.chat.completions.create(
+            client = self.get_client()
+            client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": "hi"}],
                 max_tokens=1
