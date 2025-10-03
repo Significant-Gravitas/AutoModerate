@@ -1,6 +1,7 @@
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import desc
+from sqlalchemy.orm import selectinload
 
 from app import db
 from app.models.api_user import APIUser
@@ -359,6 +360,8 @@ async def api_user_detail(user_id):
         # Get paginated content from this API user
         content_pagination = Content.query.filter_by(
             api_user_id=user_id
+        ).options(
+            selectinload(Content.moderation_results)
         ).order_by(desc(Content.created_at)).paginate(
             page=page,
             per_page=per_page,
@@ -388,7 +391,9 @@ async def get_api_user_content_details(user_id, content_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         content = Content.query.filter_by(
-            id=content_id, api_user_id=user_id).first_or_404()
+            id=content_id, api_user_id=user_id).options(
+            selectinload(Content.moderation_results)
+        ).first_or_404()
 
         return jsonify({
             'success': True,

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app import db
 from app.models.api_key import APIKey
@@ -375,7 +375,9 @@ async def project_content(project_id):
     content_type = request.args.get('content_type')
     time_filter = request.args.get('time_filter')
 
-    query = Content.query.filter_by(project_id=project.id)
+    query = Content.query.filter_by(project_id=project.id).options(
+        selectinload(Content.moderation_results)
+    )
 
     # Apply status filter
     if status:
@@ -442,7 +444,9 @@ async def get_content_details(project_id, content_id):
     if not project.is_member(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     content = Content.query.filter_by(
-        id=content_id, project_id=project.id).first_or_404()
+        id=content_id, project_id=project.id).options(
+        selectinload(Content.moderation_results)
+    ).first_or_404()
 
     return jsonify({
         'success': True,
