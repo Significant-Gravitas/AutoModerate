@@ -62,7 +62,7 @@
                                     <i class="fas fa-eye text-muted ms-1" style="font-size: 0.8em;"></i>
                                 </td>
                                 <td>
-                                    <span class="badge bg-info">{{ key.usage_count }}</span>
+                                    <span class="badge bg-info">{{ key.usage_count|format_number }}</span>
                                 </td>
                                 <td>
                                     {% if key.last_used %}
