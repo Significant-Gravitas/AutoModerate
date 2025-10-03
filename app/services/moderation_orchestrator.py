@@ -8,7 +8,6 @@ from app.models.moderation_result import ModerationResult
 from .ai.ai_moderator import AIModerator
 from .database_service import db_service
 from .error_tracker import error_tracker
-from .moderation.rule_cache import RuleCache
 from .moderation.rule_processor import RuleProcessor
 from .moderation.websocket_notifier import WebSocketNotifier
 from .notifications.discord_notifier import DiscordNotifier
@@ -18,7 +17,6 @@ class ModerationOrchestrator:
     """Main coordinator for content moderation workflow"""
 
     def __init__(self):
-        self.rule_cache = RuleCache()
         self.ai_moderator = AIModerator()
         self.rule_processor = RuleProcessor(self.ai_moderator)
         self.websocket_notifier = WebSocketNotifier()
@@ -30,8 +28,8 @@ class ModerationOrchestrator:
             if not content:
                 return {'error': 'Content not found'}
 
-            # Get cached rules and separate by type
-            all_rules = await self.rule_cache.get_cached_rules(content.project_id)
+            # Get rules directly from database and separate by type
+            all_rules = await db_service.get_all_rules_for_project(content.project_id, include_inactive=False)
             fast_rules = [
                 r for r in all_rules if r.rule_type in ['keyword', 'regex']]
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
@@ -338,10 +336,10 @@ class ModerationOrchestrator:
 
     def invalidate_caches(self, project_id=None):
         """Invalidate all caches for a project or globally"""
-        self.rule_cache.invalidate_cache(project_id)
+        # Only invalidate AI result cache (rules are queried directly from DB)
         self.ai_moderator.cache.invalidate_cache()
         current_app.logger.info(
-            f"Caches invalidated for project: {project_id or 'all'}")
+            f"AI result cache invalidated for project: {project_id or 'all'}")
 
     async def _save_error_result(self, content_id, error_type, error_message):
         """Save error result to database so we can track failures"""
@@ -375,7 +373,6 @@ class ModerationOrchestrator:
     def get_system_stats(self):
         """Get comprehensive system statistics"""
         return {
-            'rule_cache': self.rule_cache.get_cache_stats(),
             'result_cache': self.ai_moderator.cache.get_cache_stats(),
             'openai_configured': self.ai_moderator.client_manager.is_configured()
         }

@@ -479,7 +479,6 @@ async def system_health():
 
     from app.services.ai.result_cache import ResultCache
     from app.services.error_tracker import error_tracker
-    from app.services.moderation.rule_cache import RuleCache
 
     # Get system metrics
     process = psutil.Process()
@@ -519,13 +518,11 @@ async def system_health():
         'uptime_hours': uptime_hours
     }
 
-    # Get cache stats
+    # Get cache stats (only AI result cache - rules are queried directly from DB)
     result_cache = ResultCache()
-    rule_cache = RuleCache()
 
     cache_stats = {
-        'ai_cache': result_cache.get_cache_stats(),
-        'rule_cache': rule_cache.get_cache_stats()
+        'ai_cache': result_cache.get_cache_stats()
     }
 
     # Get database connection pool stats
