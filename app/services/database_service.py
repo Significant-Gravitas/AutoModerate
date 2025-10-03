@@ -618,6 +618,7 @@ class DatabaseService:
 
             return {
                 'total_users': User.query.count(),
+                'active_users': User.query.filter_by(is_active=True).count(),
                 'total_projects': Project.query.count(),
                 'total_content': Content.query.count(),
                 'total_rules': ModerationRule.query.filter_by(is_active=True).count(),
