@@ -123,7 +123,7 @@
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
-                <h5 class="card-title text-primary" id="totalContent">{{ pagination.total|format_number }}</h5>
+                <h5 class="card-title text-primary" id="totalContent">{{ total_stats.total|format_number }}</h5>
                 <p class="card-text">Total Content</p>
             </div>
         </div>
@@ -132,7 +132,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-success" id="approvedContent">
-                    {{ (pagination.items|selectattr('status', 'equalto', 'approved')|list|length)|format_number }}
+                    {{ total_stats.approved|format_number }}
                 </h5>
                 <p class="card-text">Approved</p>
             </div>
@@ -142,7 +142,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-danger" id="rejectedContent">
-                    {{ (pagination.items|selectattr('status', 'equalto', 'rejected')|list|length)|format_number }}
+                    {{ total_stats.rejected|format_number }}
                 </h5>
                 <p class="card-text">Rejected</p>
             </div>
@@ -152,7 +152,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-warning" id="flaggedContent">
-                    {{ (pagination.items|selectattr('status', 'equalto', 'flagged')|list|length)|format_number }}
+                    {{ total_stats.flagged|format_number }}
                 </h5>
                 <p class="card-text">Flagged</p>
             </div>

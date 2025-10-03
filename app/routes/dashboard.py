@@ -425,9 +425,18 @@ async def project_content(project_id):
         page=page, per_page=25, error_out=False
     )
 
+    # Get total project statistics (not just current page)
+    total_stats = {
+        'total': Content.query.filter_by(project_id=project.id).count(),
+        'approved': Content.query.filter_by(project_id=project.id, status='approved').count(),
+        'rejected': Content.query.filter_by(project_id=project.id, status='rejected').count(),
+        'flagged': Content.query.filter_by(project_id=project.id, status='flagged').count(),
+    }
+
     return render_template('dashboard/content.html',
                            project=project,
                            pagination=pagination,
+                           total_stats=total_stats,
                            current_status=status,
                            current_search=search,
                            current_content_type=content_type,
