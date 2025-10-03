@@ -43,9 +43,9 @@
         <div class="card text-center">
             <div class="card-body">
                 <i class="fas fa-users fa-2x text-primary mb-2"></i>
-                <h4 class="text-primary">{{ stats.total_users }}</h4>
+                <h4 class="text-primary">{{ stats.total_users|format_number }}</h4>
                 <p class="card-text">Total Users</p>
-                <small class="text-muted">{{ stats.active_users }} active</small>
+                <small class="text-muted">{{ stats.active_users|format_number }} active</small>
             </div>
         </div>
     </div>
@@ -53,7 +53,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <i class="fas fa-project-diagram fa-2x text-info mb-2"></i>
-                <h4 class="text-info">{{ stats.total_projects }}</h4>
+                <h4 class="text-info">{{ stats.total_projects|format_number }}</h4>
                 <p class="card-text">Total Projects</p>
             </div>
         </div>
@@ -62,7 +62,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <i class="fas fa-file-alt fa-2x text-success mb-2"></i>
-                <h4 class="text-success">{{ stats.total_content }}</h4>
+                <h4 class="text-success">{{ stats.total_content|format_number }}</h4>
                 <p class="card-text">Content Items</p>
             </div>
         </div>
@@ -71,7 +71,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <i class="fas fa-shield-alt fa-2x text-warning mb-2"></i>
-                <h4 class="text-warning">{{ moderation_stats.total_moderations }}</h4>
+                <h4 class="text-warning">{{ moderation_stats.total_moderations|format_number }}</h4>
                 <p class="card-text">Moderations</p>
             </div>
         </div>

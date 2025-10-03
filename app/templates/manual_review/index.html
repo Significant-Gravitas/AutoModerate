@@ -102,7 +102,7 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <div>
-                                    <h4 class="card-title">{{ total_flagged }}</h4>
+                                    <h4 class="card-title">{{ total_flagged|format_number }}</h4>
                                     <p class="card-text">Flagged for Review</p>
                                 </div>
                                 <div class="align-self-center">
@@ -117,7 +117,7 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <div>
-                                    <h4 class="card-title">{{ total_approved }}</h4>
+                                    <h4 class="card-title">{{ total_approved|format_number }}</h4>
                                     <p class="card-text">Approved</p>
                                 </div>
                                 <div class="align-self-center">
@@ -132,7 +132,7 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <div>
-                                    <h4 class="card-title">{{ total_rejected }}</h4>
+                                    <h4 class="card-title">{{ total_rejected|format_number }}</h4>
                                     <p class="card-text">Rejected</p>
                                 </div>
                                 <div class="align-self-center">

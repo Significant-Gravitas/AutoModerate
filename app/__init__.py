@@ -196,6 +196,16 @@ def create_app(config_name: str = 'default') -> Flask:
             return []
         return [item.to_dict() if hasattr(item, 'to_dict') else item for item in items]
 
+    @app.template_filter('format_number')
+    def format_number_filter(value):
+        """Format numbers with comma separators for readability"""
+        if value is None:
+            return '0'
+        try:
+            return '{:,}'.format(int(value))
+        except (ValueError, TypeError):
+            return str(value)
+
     return app
 
 

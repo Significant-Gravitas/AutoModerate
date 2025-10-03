@@ -58,21 +58,21 @@
                 <h5 class="card-title">Quick Stats</h5>
                 <div class="row">
                     <div class="col-12 mb-2">
-                        <h4 class="text-primary">{{ stats.total }}</h4>
+                        <h4 class="text-primary">{{ stats.total|format_number }}</h4>
                         <small class="text-muted">Total Content</small>
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-4">
-                        <h6 class="text-success">{{ stats.approved }}</h6>
+                        <h6 class="text-success">{{ stats.approved|format_number }}</h6>
                         <small class="text-muted">Approved</small>
                     </div>
                     <div class="col-4">
-                        <h6 class="text-danger">{{ stats.rejected }}</h6>
+                        <h6 class="text-danger">{{ stats.rejected|format_number }}</h6>
                         <small class="text-muted">Rejected</small>
                     </div>
                     <div class="col-4">
-                        <h6 class="text-warning">{{ stats.flagged }}</h6>
+                        <h6 class="text-warning">{{ stats.flagged|format_number }}</h6>
                         <small class="text-muted">Flagged</small>
                     </div>
                 </div>

@@ -21,7 +21,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="card-title">{{ total_projects }}</h4>
+                        <h4 class="card-title">{{ total_projects|format_number }}</h4>
                         <p class="card-text">Projects</p>
                     </div>
                     <div class="align-self-center">
@@ -36,7 +36,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="card-title">{{ total_content }}</h4>
+                        <h4 class="card-title">{{ total_content|format_number }}</h4>
                         <p class="card-text">Content Moderated</p>
                     </div>
                     <div class="align-self-center">
@@ -51,7 +51,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="card-title">{{ total_api_keys }}</h4>
+                        <h4 class="card-title">{{ total_api_keys|format_number }}</h4>
                         <p class="card-text">API Keys</p>
                     </div>
                     <div class="align-self-center">

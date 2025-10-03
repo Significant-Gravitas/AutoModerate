@@ -135,25 +135,25 @@
                             <p><strong>User ID:</strong> <code>{{ api_user.external_user_id }}</code></p>
                             <p><strong>First Seen:</strong> {{ api_user.first_seen.strftime('%Y-%m-%d %H:%M') }}</p>
                             <p><strong>Last Seen:</strong> {{ api_user.last_seen.strftime('%Y-%m-%d %H:%M') }}</p>
-                            <p><strong>Total Requests:</strong> {{ api_user.total_requests }}</p>
+                            <p><strong>Total Requests:</strong> {{ api_user.total_requests|format_number }}</p>
                             <p><strong>Approval Rate:</strong> {{ "%.1f"|format(api_user.approval_rate) }}%</p>
 
                             <div class="row text-center">
                                 <div class="col-4">
                                     <div class="text-success">
-                                        <h5>{{ api_user.approved_count }}</h5>
+                                        <h5>{{ api_user.approved_count|format_number }}</h5>
                                         <small>Approved</small>
                                     </div>
                                 </div>
                                 <div class="col-4">
                                     <div class="text-danger">
-                                        <h5>{{ api_user.rejected_count }}</h5>
+                                        <h5>{{ api_user.rejected_count|format_number }}</h5>
                                         <small>Rejected</small>
                                     </div>
                                 </div>
                                 <div class="col-4">
                                     <div class="text-warning">
-                                        <h5>{{ api_user.flagged_count }}</h5>
+                                        <h5>{{ api_user.flagged_count|format_number }}</h5>
                                         <small>Flagged</small>
                                     </div>
                                 </div>
