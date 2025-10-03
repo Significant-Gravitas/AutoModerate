@@ -19,7 +19,7 @@ class Config:
         'OPENAI_CHAT_MODEL', 'gpt-5-nano-2025-08-07')
     # Estimated maximum context window size for the selected model
     OPENAI_CONTEXT_WINDOW = int(os.environ.get(
-        'OPENAI_CONTEXT_WINDOW', '400000'))
+        'OPENAI_CONTEXT_WINDOW', '272000'))
     # Upper bound for output tokens; actual requests may use much less
     OPENAI_MAX_OUTPUT_TOKENS = int(os.environ.get(
         'OPENAI_MAX_OUTPUT_TOKENS', '128000'))

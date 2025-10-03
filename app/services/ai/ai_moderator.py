@@ -19,7 +19,7 @@ class AIModerator:
         cfg = current_app.config
         self.model_name = cfg.get('OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
         self.model_context_window = int(
-            cfg.get('OPENAI_CONTEXT_WINDOW', 400000))
+            cfg.get('OPENAI_CONTEXT_WINDOW', 272000))
         self.max_output_tokens = int(
             cfg.get('OPENAI_MAX_OUTPUT_TOKENS', 128000))
 
@@ -28,15 +28,6 @@ class AIModerator:
             self.tokenizer = tiktoken.encoding_for_model(self.model_name)
         except (KeyError, ValueError):
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
-
-        # Reserve tokens for system+user prompts and model output
-        # Keep generous margins to stay below the context window
-        reserved_for_prompts = 2000
-        safety_margin = 0.90  # use 90% of available capacity to avoid overflow
-        available_for_content = int(
-            (self.model_context_window - self.max_output_tokens - reserved_for_prompts) * safety_margin)
-        # Ensure a sensible lower bound
-        self.max_content_tokens = max(12000, available_for_content)
 
     def count_tokens(self, text):
         """Count the number of tokens in a text string"""
@@ -47,14 +38,47 @@ class AIModerator:
             # Fallback: rough estimation (1 token ≈ 4 characters)
             return len(text) // 4
 
-    def split_text_into_chunks(self, text, max_tokens_per_chunk=None):
+    def calculate_max_content_tokens(self, custom_prompt=None):
+        """
+        Calculate the maximum tokens available for content based on prompt size.
+        Dynamically adjusts for custom prompts to prevent exceeding context window.
+        """
+        # Base system prompt size estimation
+        base_system_tokens = 100  # System message overhead
+
+        # Calculate custom prompt tokens if provided
+        prompt_tokens = 0
+        if custom_prompt:
+            # Account for the full prompt template
+            system_message = (
+                """You are a content moderator. Analyze if content violates the given rule. """
+                """Be conservative - when in doubt, approve.\n\n"""
+                """Respond ONLY with JSON:\n"""
+                """{"decision": "approved|rejected", "reason": "brief explanation", "confidence": 0.85}"""
+            )
+            user_template = f"""RULE: {custom_prompt}
+
+CONTENT: {{content}}
+
+Does content violate this rule? JSON only:"""
+            # Count tokens for the prompt parts (excluding content placeholder)
+            prompt_tokens = self.count_tokens(system_message) + self.count_tokens(user_template)
+
+        # Total overhead = base + prompt + output + safety margin
+        total_overhead = base_system_tokens + prompt_tokens + self.max_output_tokens
+        safety_margin = 0.90  # Use 90% of available capacity
+
+        available_for_content = int(
+            (self.model_context_window - total_overhead) * safety_margin)
+
+        # Ensure a sensible lower bound
+        return max(12000, available_for_content)
+
+    def split_text_into_chunks(self, text, max_tokens_per_chunk):
         """
         Split text into chunks that fit within token limits.
         Tries to split at sentence boundaries when possible.
         """
-        if max_tokens_per_chunk is None:
-            max_tokens_per_chunk = self.max_content_tokens
-
         # If text fits within limit, return as single chunk
         total_tokens = self.count_tokens(text)
         if total_tokens <= max_tokens_per_chunk:
@@ -230,16 +254,19 @@ class AIModerator:
 
             # Check content size and split if necessary
             content_tokens = self.count_tokens(content)
-            if not custom_prompt:
-                current_app.logger.info(f"Content has {content_tokens} tokens")
 
             # STEP 1: If custom prompt is provided, use ONLY custom prompt analysis
             if custom_prompt:
-                if content_tokens <= self.max_content_tokens:
+                # Calculate max content tokens based on custom prompt size
+                max_content_tokens = self.calculate_max_content_tokens(custom_prompt)
+                current_app.logger.info(
+                    f"Content has {content_tokens} tokens, max allowed: {max_content_tokens}")
+
+                if content_tokens <= max_content_tokens:
                     return self._analyze_with_custom_prompt(content, custom_prompt)
                 else:
                     # Split content and analyze each chunk
-                    chunks = self.split_text_into_chunks(content)
+                    chunks = self.split_text_into_chunks(content, max_content_tokens)
                     current_app.logger.info(
                         f"Split content into {len(chunks)} chunks for custom prompt analysis")
 
@@ -257,16 +284,20 @@ class AIModerator:
 
             # STEP 2: For default moderation, run baseline check first
             # Note: OpenAI moderation API has its own limits, but typically handles larger content
+            current_app.logger.info(f"Content has {content_tokens} tokens")
             baseline_result = self._run_baseline_moderation(content)
             if baseline_result['decision'] == 'rejected':
                 return baseline_result
 
             # STEP 3: Run enhanced default moderation for comprehensive safety
-            if content_tokens <= self.max_content_tokens:
+            # Calculate max content tokens for default moderation (no custom prompt)
+            max_content_tokens = self.calculate_max_content_tokens()
+
+            if content_tokens <= max_content_tokens:
                 return self._run_enhanced_default_moderation(content)
             else:
                 # Split content and analyze each chunk
-                chunks = self.split_text_into_chunks(content)
+                chunks = self.split_text_into_chunks(content, max_content_tokens)
                 current_app.logger.info(
                     f"Split content into {len(chunks)} chunks for enhanced moderation")
 
