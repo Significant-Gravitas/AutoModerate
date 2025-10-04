@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from typing import Any, Dict
 
@@ -8,6 +9,8 @@ from flask_socketio import disconnect, emit, join_room, leave_room
 
 from app import socketio
 from app.services.database_service import db_service
+
+logger = logging.getLogger(__name__)
 
 # Rate limiting for WebSocket connections
 _connection_attempts = {}
@@ -45,15 +48,15 @@ def handle_connect() -> None:
 
     # Rate limiting check
     if not _check_rate_limit(client_ip):
-        print("WebSocket connection rate limited")
+        logger.warning(f"WebSocket connection rate limited for IP: {client_ip}")
         disconnect()
         return
 
     if current_user.is_authenticated:
-        print(f"WebSocket connected: User {current_user.id}, Session {session_id}")
+        logger.debug(f"WebSocket connected: User {current_user.id}, Session {session_id}")
         emit('connected', {'message': 'Connected to AutoModerate'})
     else:
-        print("WebSocket connection rejected: Unauthenticated user")
+        logger.warning("WebSocket connection rejected: Unauthenticated user")
         disconnect()
         return
 
@@ -63,9 +66,9 @@ def handle_disconnect() -> None:
     """Handle client disconnection"""
     try:
         if current_user.is_authenticated:
-            print(f"WebSocket disconnected: User {current_user.id}, Session {request.sid}")
+            logger.debug(f"WebSocket disconnected: User {current_user.id}, Session {request.sid}")
         else:
-            print(f"WebSocket disconnected: Anonymous session {request.sid}")
+            logger.debug(f"WebSocket disconnected: Anonymous session {request.sid}")
     except Exception:
         # Suppress errors during disconnect - connection may already be closed
         pass
@@ -93,7 +96,7 @@ def handle_join_project(data: Dict[str, Any]) -> None:
             emit('error', {'message': 'Invalid project ID format'})
             return
 
-        print(f"User {current_user.id} attempting to join project {project_id}")
+        logger.debug(f"User {current_user.id} attempting to join project {project_id}")
 
         # Get the app reference in the main thread context
         app = current_app._get_current_object()
@@ -124,23 +127,23 @@ def handle_join_project(data: Dict[str, Any]) -> None:
             project, error_msg = future.result(timeout=10)  # 10-second timeout
 
             if error_msg:
-                print(error_msg)
+                logger.warning(f"Join project failed for user {current_user.id}: {error_msg}")
                 emit('error', {'message': error_msg})
                 return
 
         room = f"project_{project_id}"
         join_room(room)
-        print(f"User {user_id} joined room {room}")
+        logger.debug(f"User {user_id} joined room {room}")
         emit('joined_project', {'project_id': project_id, 'room': room})
 
     except concurrent.futures.TimeoutError:
-        print(f"Timeout in join_project for user {current_user.id}")
+        logger.error(f"Timeout in join_project for user {current_user.id}")
         emit('error', {'message': 'Server timeout - please try again'})
     except Exception as e:
         # Log full error details for debugging but don't expose to client
         import traceback
-        print(f"Error in join_project for user {current_user.id}: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error in join_project for user {current_user.id}: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         emit('error', {'message': 'Server error occurred'})
 
 
@@ -164,11 +167,11 @@ def handle_leave_project(data: Dict[str, Any]) -> None:
 
         room = f"project_{project_id}"
         leave_room(room)
-        print(f"User {current_user.id} left room {room}")
+        logger.debug(f"User {current_user.id} left room {room}")
         emit('left_project', {'project_id': project_id})
 
     except Exception as e:
         import traceback
-        print(f"Error in leave_project for user {current_user.id}: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error in leave_project for user {current_user.id}: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         emit('error', {'message': 'Server error occurred'})

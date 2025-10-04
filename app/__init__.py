@@ -63,11 +63,11 @@ def create_app(config_name: str = 'default') -> Flask:
     use_direct_postgres = app.config.get('USE_DIRECT_POSTGRES', False)
 
     if use_direct_postgres:
-        print("🐘 Using direct PostgreSQL connection via SQLAlchemy")
-        print(f"📊 Pool configuration: size={app.config['SQLALCHEMY_ENGINE_OPTIONS']['pool_size']}, "
-              f"max_overflow={app.config['SQLALCHEMY_ENGINE_OPTIONS']['max_overflow']}")
+        app.logger.info("Using direct PostgreSQL connection via SQLAlchemy")
+        app.logger.info(f"Pool configuration: size={app.config['SQLALCHEMY_ENGINE_OPTIONS']['pool_size']}, "
+                        f"max_overflow={app.config['SQLALCHEMY_ENGINE_OPTIONS']['max_overflow']}")
     else:
-        print("🔄 Using SQLAlchemy database")
+        app.logger.info("Using SQLAlchemy database")
 
     # Initialize Flask-Login
     login_manager.init_app(app)
@@ -254,42 +254,43 @@ def create_app(config_name: str = 'default') -> Flask:
 
 def _initialize_database_with_retry(app: Flask, max_retries: int = 3, delay: int = 5) -> None:
     """Initialize database with retry logic for connection pool issues"""
+    logger = logging.getLogger(__name__)
     for attempt in range(max_retries):
         try:
-            print(
-                f"🔄 Attempting database initialization (attempt {attempt + 1}/{max_retries})")
+            logger.info(f"Attempting database initialization (attempt {attempt + 1}/{max_retries})")
             db.create_all()
             _create_default_admin(app)
-            print("✅ Database initialization successful")
+            logger.info("Database initialization successful")
             return
         except Exception as e:
             error_msg = str(e).lower()
             if "max clients" in error_msg or "pool" in error_msg:
-                print(f"⚠️  Database pool issue on attempt {attempt + 1}: {e}")
+                logger.warning(f"Database pool issue on attempt {attempt + 1}: {e}")
                 if attempt < max_retries - 1:
-                    print(f"⏱️  Waiting {delay} seconds before retry...")
+                    logger.info(f"Waiting {delay} seconds before retry...")
                     time.sleep(delay)
                     delay *= 2  # Exponential backoff
                 else:
-                    print("❌ Max retries reached. Database initialization failed.")
-                    print("💡 Solutions:")
-                    print("   1. Check your database connection pool settings")
-                    print("   2. Reduce SQLALCHEMY_ENGINE_OPTIONS pool_size in config")
-                    print("   3. Contact your database administrator")
+                    logger.error("Max retries reached. Database initialization failed.")
+                    logger.error("Solutions:")
+                    logger.error("   1. Check your database connection pool settings")
+                    logger.error("   2. Reduce SQLALCHEMY_ENGINE_OPTIONS pool_size in config")
+                    logger.error("   3. Contact your database administrator")
                     # Don't exit completely, allow app to start without DB init
                     break
             else:
-                print(f"❌ Database error: {e}")
+                logger.error(f"Database error: {e}")
                 if attempt < max_retries - 1:
-                    print(f"⏱️  Retrying in {delay} seconds...")
+                    logger.info(f"Retrying in {delay} seconds...")
                     time.sleep(delay)
                 else:
-                    print("❌ Database initialization failed after all retries")
+                    logger.error("Database initialization failed after all retries")
                     break
 
 
 def _create_default_admin(app: Flask) -> None:
     """Create default admin user"""
+    logger = logging.getLogger(__name__)
     try:
         import asyncio
 
@@ -322,8 +323,8 @@ def _create_default_admin(app: Flask) -> None:
                     is_admin=True
                 ))
             if admin:
-                print(f"✅ Created default admin user: {app.config['ADMIN_EMAIL']}")
+                logger.info(f"Created default admin user: {app.config['ADMIN_EMAIL']}")
             else:
-                print("❌ Failed to create default admin user")
+                logger.error("Failed to create default admin user")
     except Exception as e:
-        print(f"❌ Error creating default admin user: {e}")
+        logger.error(f"Error creating default admin user: {e}")
