@@ -26,12 +26,32 @@ def create_app(config_name: str = 'default') -> Flask:
 
     # Initialize Sentry
     if app.config.get('SENTRY_DSN'):
+        def before_send(event, hint):
+            """Filter out expected errors before sending to Sentry"""
+            # Filter out Engine.IO "Invalid session" errors - these are expected when
+            # clients lose connection and attempt to use stale session IDs
+            if 'exception' in event:
+                for exception in event.get('exception', {}).get('values', []):
+                    exception_value = exception.get('value', '')
+                    if 'Invalid session' in exception_value:
+                        # Don't send to Sentry - this is expected connection lifecycle behavior
+                        return None
+            
+            # Filter out log messages about invalid sessions
+            if 'logentry' in event:
+                message = event.get('logentry', {}).get('message', '')
+                if 'Invalid session' in message:
+                    return None
+            
+            return event
+        
         sentry_sdk.init(
             dsn=app.config['SENTRY_DSN'],
             send_default_pii=True,
             enable_logs=True,
             traces_sample_rate=1.0,
             environment=app.config.get('FLASK_ENV', 'development'),
+            before_send=before_send,
         )
 
     # Handle HTTPS proxy headers (for production behind reverse proxy)
@@ -54,8 +74,15 @@ def create_app(config_name: str = 'default') -> Flask:
     login_manager.login_view = 'auth.login'
     login_manager.login_message = 'Please log in to access this page.'
 
-    # Initialize SocketIO
-    socketio.init_app(app, async_mode='threading')
+    # Initialize SocketIO with increased timeouts to handle browser tab throttling
+    # ping_timeout: Time to wait for client response before considering connection dead
+    # ping_interval: Time between server pings to check client connection
+    socketio.init_app(
+        app, 
+        async_mode='threading',
+        ping_timeout=120,  # Increased from default 60s to 2 minutes
+        ping_interval=25   # Keep default 25s interval
+    )
 
     # Disable verbose SocketIO logs
     logging.getLogger('socketio').setLevel(logging.ERROR)
