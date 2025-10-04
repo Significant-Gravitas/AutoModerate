@@ -47,7 +47,7 @@ def handle_connect() -> None:
     if not _check_rate_limit(client_ip):
         print("WebSocket connection rate limited")
         disconnect()
-        return False
+        return
 
     if current_user.is_authenticated:
         print(f"WebSocket connected: User {current_user.id}, Session {session_id}")
@@ -55,16 +55,20 @@ def handle_connect() -> None:
     else:
         print("WebSocket connection rejected: Unauthenticated user")
         disconnect()
-        return False
+        return
 
 
 @socketio.on('disconnect')
 def handle_disconnect() -> None:
     """Handle client disconnection"""
-    if current_user.is_authenticated:
-        print(f"WebSocket disconnected: User {current_user.id}, Session {request.sid}")
-    else:
-        print(f"WebSocket disconnected: Anonymous session {request.sid}")
+    try:
+        if current_user.is_authenticated:
+            print(f"WebSocket disconnected: User {current_user.id}, Session {request.sid}")
+        else:
+            print(f"WebSocket disconnected: Anonymous session {request.sid}")
+    except Exception:
+        # Suppress errors during disconnect - connection may already be closed
+        pass
 
 
 @socketio.on('join_project')

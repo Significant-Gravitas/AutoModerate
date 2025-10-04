@@ -36,15 +36,15 @@ def create_app(config_name: str = 'default') -> Flask:
                     if 'Invalid session' in exception_value:
                         # Don't send to Sentry - this is expected connection lifecycle behavior
                         return None
-            
+
             # Filter out log messages about invalid sessions
             if 'logentry' in event:
                 message = event.get('logentry', {}).get('message', '')
                 if 'Invalid session' in message:
                     return None
-            
+
             return event
-        
+
         sentry_sdk.init(
             dsn=app.config['SENTRY_DSN'],
             send_default_pii=True,
@@ -78,15 +78,30 @@ def create_app(config_name: str = 'default') -> Flask:
     # ping_timeout: Time to wait for client response before considering connection dead
     # ping_interval: Time between server pings to check client connection
     socketio.init_app(
-        app, 
+        app,
         async_mode='threading',
         ping_timeout=120,  # Increased from default 60s to 2 minutes
-        ping_interval=25   # Keep default 25s interval
+        ping_interval=25,  # Keep default 25s interval
+        logger=False,      # Disable SocketIO logger to reduce noise
+        engineio_logger=False  # Disable Engine.IO logger
     )
 
     # Disable verbose SocketIO logs
     logging.getLogger('socketio').setLevel(logging.ERROR)
     logging.getLogger('engineio').setLevel(logging.ERROR)
+
+    # Suppress Werkzeug assertion errors from WebSocket disconnections
+    # These occur when clients disconnect abruptly and are harmless
+    werkzeug_logger = logging.getLogger('werkzeug')
+    original_werkzeug_log = werkzeug_logger.error
+
+    def filtered_werkzeug_log(msg, *args, **kwargs):
+        """Filter out write() before start_response errors"""
+        if isinstance(msg, str) and 'write() before start_response' in msg:
+            return  # Suppress this specific error
+        return original_werkzeug_log(msg, *args, **kwargs)
+
+    werkzeug_logger.error = filtered_werkzeug_log
 
     # Initialize CSRF protection
     csrf.init_app(app)
@@ -130,7 +145,8 @@ def create_app(config_name: str = 'default') -> Flask:
             "ws:",  # WebSocket connections (dev)
             "wss:",  # Secure WebSocket connections (prod)
             "https://cdn.socket.io",  # Socket.IO connections
-            "https://cdn.jsdelivr.net"  # Bootstrap source maps
+            "https://cdn.jsdelivr.net",  # Bootstrap source maps
+            "https://cdnjs.cloudflare.com"  # Socket.IO and other CDN source maps
         ]
     }
 
