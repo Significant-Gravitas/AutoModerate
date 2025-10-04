@@ -45,18 +45,17 @@ def handle_connect() -> None:
 
     # Rate limiting check
     if not _check_rate_limit(client_ip):
-        print(f"WebSocket connection rate limited for IP {client_ip}")
-        emit('error', {'message': 'Too many connection attempts. Please try again later.'})
+        print("WebSocket connection rate limited")
         disconnect()
-        return
+        return False
 
     if current_user.is_authenticated:
-        print(f"WebSocket connected: User {current_user.id}, Session {session_id}, IP {client_ip}")
+        print(f"WebSocket connected: User {current_user.id}, Session {session_id}")
         emit('connected', {'message': 'Connected to AutoModerate'})
     else:
-        print(f"WebSocket connection rejected: Unauthenticated user from IP {client_ip}")
-        emit('error', {'message': 'Authentication required'})
+        print("WebSocket connection rejected: Unauthenticated user")
         disconnect()
+        return False
 
 
 @socketio.on('disconnect')
