@@ -1,4 +1,7 @@
 // WebSocket connection for authenticated users
+let reconnectionAttempts = 0;
+const MAX_RECONNECTION_DELAY = 30000; // 30 seconds max delay
+
 function initializeWebSocket() {
     if (typeof io === 'undefined') {
         console.warn('Socket.IO not loaded');
@@ -11,21 +14,80 @@ function initializeWebSocket() {
         return window.socket;
     }
 
-    const socket = io();
+    // Configure Socket.IO with automatic reconnection
+    const socket = io({
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: MAX_RECONNECTION_DELAY,
+        timeout: 20000,
+        transports: ['websocket', 'polling'] // Try websocket first, fallback to polling
+    });
 
     socket.on('connect', function() {
         console.log('Global WebSocket connected');
+        reconnectionAttempts = 0; // Reset reconnection counter on successful connect
+        
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span class="badge bg-success" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Live</span></span>';
+        }
+        
+        // Trigger a custom event that page-specific scripts can listen to
+        window.dispatchEvent(new CustomEvent('websocket-reconnected'));
+    });
+
+    socket.on('disconnect', function(reason) {
+        console.log('Global WebSocket disconnected. Reason:', reason);
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span class="badge bg-danger" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Disconnected</span></span>';
+        }
+        
+        // If disconnect was due to server-side (io server disconnect or io client disconnect)
+        // the client will automatically attempt to reconnect
+        if (reason === 'io server disconnect') {
+            // Server forcefully disconnected, manually reconnect
+            console.log('Server disconnected socket, attempting manual reconnect...');
+            socket.connect();
+        }
+    });
+
+    socket.on('reconnect_attempt', function(attemptNumber) {
+        reconnectionAttempts = attemptNumber;
+        console.log(`WebSocket reconnection attempt ${attemptNumber}`);
+        
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span class="badge bg-warning" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Reconnecting...</span></span>';
+        }
+    });
+
+    socket.on('reconnect', function(attemptNumber) {
+        console.log(`WebSocket reconnected after ${attemptNumber} attempts`);
+        reconnectionAttempts = 0;
+        
         const statusDiv = document.getElementById('connection-status');
         if (statusDiv) {
             statusDiv.innerHTML = '<span class="badge bg-success" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Live</span></span>';
         }
     });
 
-    socket.on('disconnect', function() {
-        console.log('Global WebSocket disconnected');
+    socket.on('reconnect_error', function(error) {
+        console.error('WebSocket reconnection error:', error);
         const statusDiv = document.getElementById('connection-status');
         if (statusDiv) {
-            statusDiv.innerHTML = '<span class="badge bg-danger" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Disconnected</span></span>';
+            const delay = Math.min(1000 * Math.pow(2, reconnectionAttempts), MAX_RECONNECTION_DELAY);
+            const delaySec = Math.round(delay / 1000);
+            statusDiv.innerHTML = `<span class="badge bg-warning" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Retry in ${delaySec}s</span></span>`;
+        }
+    });
+
+    socket.on('reconnect_failed', function() {
+        console.error('WebSocket reconnection failed after all attempts');
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span class="badge bg-danger" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Failed</span></span>';
         }
     });
 
@@ -35,6 +97,11 @@ function initializeWebSocket() {
         if (statusDiv) {
             statusDiv.innerHTML = '<span class="badge bg-warning" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"><i class="fas fa-circle"></i> <span class="connection-text">Error</span></span>';
         }
+    });
+
+    socket.on('error', function(error) {
+        console.error('WebSocket error:', error);
+        // Don't disconnect on errors, let Socket.IO handle reconnection
     });
 
     socket.on('moderation_update', function(data) {

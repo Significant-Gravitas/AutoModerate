@@ -56,7 +56,7 @@ function initializeWebSocket() {
     if (window.socket && window.socket.connected) {
         socket = window.socket;
         // Join the project room immediately
-        socket.emit('join_project', { project_id: projectId });
+        joinProjectRoom();
     } else {
         socket = io();
         window.socket = socket; // Make it available globally
@@ -69,23 +69,31 @@ function initializeWebSocket() {
             }
 
             // Join the project room
-            socket.emit('join_project', { project_id: projectId });
+            joinProjectRoom();
         });
     }
 
+    // Listen for reconnection events from base.js
+    window.addEventListener('websocket-reconnected', function() {
+        console.log('WebSocket reconnected, rejoining project room...');
+        joinProjectRoom();
+    });
+
     socket.on('joined_project', function(data) {
-        // Project room joined successfully
+        console.log('Successfully joined project room:', data.room);
     });
 
     socket.on('moderation_update', function(data) {
         handleModerationUpdate(data);
     });
 
-    socket.on('disconnect', function() {
+    socket.on('disconnect', function(reason) {
+        console.log('WebSocket disconnected from project page. Reason:', reason);
         const realtimeStatus = document.getElementById('realtimeStatus');
         if (realtimeStatus) {
             realtimeStatus.style.display = 'none';
         }
+        // Socket.IO will automatically attempt to reconnect
     });
 
     socket.on('error', function(data) {
@@ -110,6 +118,16 @@ function initializeWebSocket() {
     socket.on('reconnect_error', function(error) {
         console.error('WebSocket reconnection error:', error);
     });
+}
+
+// Helper function to join project room
+function joinProjectRoom() {
+    if (socket && socket.connected && projectId) {
+        console.log('Joining project room:', projectId);
+        socket.emit('join_project', { project_id: projectId });
+    } else {
+        console.warn('Cannot join project room - socket not connected or projectId missing');
+    }
 }
 
 // Handle real-time moderation updates
@@ -559,9 +577,12 @@ function copyToClipboard(text, button) {
 
 
 
-// Clean up WebSocket connection when page unloads
+// Clean up when page unloads - leave project room but keep socket connected
+// for navigation to other pages
 window.addEventListener('beforeunload', function() {
-    if (socket) {
-        socket.disconnect();
+    if (socket && socket.connected && projectId) {
+        // Leave the project room before navigating away
+        socket.emit('leave_project', { project_id: projectId });
     }
+    // Don't disconnect the socket - let it persist for other pages
 });
