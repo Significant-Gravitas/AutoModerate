@@ -593,7 +593,7 @@ async def search_user_data():
 @admin_bp.route('/data-deletion/delete', methods=['POST'])
 @admin_required
 async def delete_user_data():
-    """Delete user data by external_user_id (GDPR compliance)"""
+    """Delete user data by external_user_id"""
     try:
         project_id = request.form.get('project_id', '').strip()
         external_user_id = request.form.get('external_user_id', '').strip()

@@ -1080,7 +1080,7 @@ class DatabaseService:
 
     async def delete_user_data_by_external_id(self, project_id: str, external_user_id: str) -> Dict[str, Any]:
         """
-        Delete all data for a user identified by external_user_id (GDPR compliance)
+        Delete all data for a user identified by external_user_id
 
         Args:
             project_id: The project ID to scope the deletion to

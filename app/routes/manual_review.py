@@ -495,7 +495,7 @@ async def get_api_user_content_details(user_id, content_id):
 @manual_review_bp.route('/api-users/<user_id>/delete', methods=['POST'])
 @login_required
 async def delete_user_data(user_id):
-    """Delete all data for an API user (GDPR compliance)"""
+    """Delete all data for an API user"""
     try:
         api_user = APIUser.query.get_or_404(user_id)
 
