@@ -281,24 +281,27 @@ async def bulk_decision():
 async def api_users():
     """View API users and their moderation history"""
     try:
-        # Get optional project_id from query parameter to track where user came from
+        # Get optional project_id from query parameter for filtering
         from_project_id = request.args.get('project_id')
         from_project = None
 
+        # Determine which projects to show
         if from_project_id:
+            # Show only API users from this specific project
             from_project = Project.query.get(from_project_id)
             if from_project and not from_project.is_member(current_user.id):
-                from_project = None  # Clear if user doesn't have access
-
-        # Get all projects the user has access to
-        user_projects = []
-        if current_user.is_admin:
-            user_projects = Project.query.all()
+                flash('You do not have access to this project', 'error')
+                return redirect(url_for('dashboard.index'))
+            project_ids = [from_project_id]
         else:
-            user_projects = [
-                p for p in Project.query.all() if p.is_member(current_user.id)]
-
-        project_ids = [p.id for p in user_projects]
+            # Show API users from all accessible projects
+            user_projects = []
+            if current_user.is_admin:
+                user_projects = Project.query.all()
+            else:
+                user_projects = [
+                    p for p in Project.query.all() if p.is_member(current_user.id)]
+            project_ids = [p.id for p in user_projects]
 
         # Subquery to count content per user
         content_count_subquery = db.session.query(
@@ -374,21 +377,33 @@ async def api_users():
 async def api_user_by_external_id(external_user_id):
     """Redirect to API user detail by external user ID"""
     try:
-        # Get all projects the user has access to
-        user_projects = []
-        if current_user.is_admin:
-            user_projects = Project.query.all()
+        # Get optional project_id filter from query parameter
+        filter_project_id = request.args.get('project_id')
+
+        # Determine which projects to search
+        if filter_project_id:
+            # Search only in the specified project
+            project = Project.query.get(filter_project_id)
+            if not project or not project.is_member(current_user.id):
+                flash('You do not have access to this project', 'error')
+                return redirect(url_for('dashboard.index'))
+            project_ids = [filter_project_id]
         else:
-            user_projects = [
-                project for project in current_user.projects
-                if project.is_member(current_user.id)
-            ]
+            # Search in all accessible projects
+            user_projects = []
+            if current_user.is_admin:
+                user_projects = Project.query.all()
+            else:
+                user_projects = [
+                    project for project in current_user.projects
+                    if project.is_member(current_user.id)
+                ]
 
-        if not user_projects:
-            flash('You do not have access to any projects', 'error')
-            return redirect(url_for('dashboard.index'))
+            if not user_projects:
+                flash('You do not have access to any projects', 'error')
+                return redirect(url_for('dashboard.index'))
 
-        project_ids = [project.id for project in user_projects]
+            project_ids = [project.id for project in user_projects]
 
         # Find API user by external user ID within accessible projects
         api_user = APIUser.query.filter(
@@ -398,6 +413,9 @@ async def api_user_by_external_id(external_user_id):
 
         if not api_user:
             flash(f'API user with ID "{external_user_id}" not found in your accessible projects', 'error')
+            # Redirect back with project_id if it was provided
+            if filter_project_id:
+                return redirect(url_for('manual_review.api_users', project_id=filter_project_id))
             return redirect(url_for('manual_review.api_users'))
 
         # Redirect to the internal ID route
@@ -500,6 +518,7 @@ async def delete_user_data(user_id):
 
         if result['success']:
             deleted_counts = result['deleted_counts']
+            project_id = api_user.project_id  # Store before deletion
             flash(
                 f'Successfully deleted data for user {api_user.external_user_id}: '
                 f"{deleted_counts['content']} content items, "
@@ -508,9 +527,10 @@ async def delete_user_data(user_id):
             )
             current_app.logger.warning(
                 f"User {current_user.email} deleted user data for external_user_id={api_user.external_user_id} "
-                f"in project_id={api_user.project_id}"
+                f"in project_id={project_id}"
             )
-            return redirect(url_for('manual_review.api_users'))
+            # Redirect back to project-filtered API users view
+            return redirect(url_for('manual_review.api_users', project_id=project_id))
         else:
             flash(f"Error deleting user data: {result.get('error', 'Unknown error')}", 'error')
             return redirect(url_for('manual_review.api_user_detail', user_id=user_id))

@@ -10,7 +10,14 @@
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1>API Users</h1>
+                <div>
+                    <h1>API Users</h1>
+                    {% if from_project %}
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-filter"></i> Filtered by project: <strong>{{ from_project.name }}</strong>
+                    </p>
+                    {% endif %}
+                </div>
                 {% if from_project %}
                 <a href="{{ url_for('dashboard.project_detail', project_id=from_project.id) }}" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left"></i> Back to Project
@@ -144,8 +151,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const userId = userIdInput.value.trim();
 
             if (userId) {
-                // Redirect to the external user ID lookup route
-                window.location.href = `/api-users/external/${encodeURIComponent(userId)}`;
+                // Build URL with project_id parameter if present
+                let url = `/api-users/external/${encodeURIComponent(userId)}`;
+
+                // Preserve project_id filter if it exists
+                const urlParams = new URLSearchParams(window.location.search);
+                const projectId = urlParams.get('project_id');
+                if (projectId) {
+                    url += `?project_id=${encodeURIComponent(projectId)}`;
+                }
+
+                window.location.href = url;
             }
         });
     }

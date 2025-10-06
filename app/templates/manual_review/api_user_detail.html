@@ -20,7 +20,7 @@
                         <i class="fas fa-trash"></i> Delete User Data
                     </button>
                     {% endif %}
-                    <a href="{{ url_for('manual_review.api_users') }}" class="btn btn-outline-secondary">
+                    <a href="{{ url_for('manual_review.api_users', project_id=api_user.project_id) }}" class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-left"></i> Back to API Users
                     </a>
                 </div>
