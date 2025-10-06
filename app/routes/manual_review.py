@@ -315,6 +315,50 @@ async def api_users():
             content_count_subquery.c.content_count > 0  # Only users with content
         ).order_by(desc(APIUser.last_seen)).all()
 
+        # Bulk-load statistics for all API users to avoid N+1 queries
+        if api_users:
+            # Get all user IDs
+            user_ids = [user.id for user in api_users]
+
+            # Execute a single query to get statistics for all users at once
+            # Filter by both api_user_id and project_id for data consistency
+            stats_results = db.session.query(
+                Content.api_user_id,
+                func.count(Content.id).label('total'),
+                func.sum(db.case((Content.status == 'approved', 1), else_=0)).label('approved'),
+                func.sum(db.case((Content.status == 'rejected', 1), else_=0)).label('rejected'),
+                func.sum(db.case((Content.status == 'flagged', 1), else_=0)).label('flagged')
+            ).filter(
+                Content.api_user_id.in_(user_ids),
+                Content.project_id.in_(project_ids)
+            ).group_by(Content.api_user_id).all()
+
+            # Create a mapping of user_id -> stats
+            stats_map = {}
+            for result in stats_results:
+                total_content = result.total or 0
+                approved = result.approved or 0
+                rejected = result.rejected or 0
+                flagged = result.flagged or 0
+
+                stats_map[result.api_user_id] = {
+                    'total_requests': total_content,
+                    'approved_count': approved,
+                    'rejected_count': rejected,
+                    'flagged_count': flagged,
+                    'approval_rate': (approved / total_content * 100) if total_content > 0 else 0
+                }
+
+            # Pre-populate _cached_stats for each user
+            for user in api_users:
+                user._cached_stats = stats_map.get(user.id, {
+                    'total_requests': 0,
+                    'approved_count': 0,
+                    'rejected_count': 0,
+                    'flagged_count': 0,
+                    'approval_rate': 0
+                })
+
         return render_template('manual_review/api_users.html',
                                api_users=api_users,
                                from_project=from_project)
