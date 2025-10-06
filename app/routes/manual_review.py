@@ -319,8 +319,9 @@ async def api_users():
         if api_users:
             # Get all user IDs
             user_ids = [user.id for user in api_users]
-            
+
             # Execute a single query to get statistics for all users at once
+            # Filter by both api_user_id and project_id for data consistency
             stats_results = db.session.query(
                 Content.api_user_id,
                 func.count(Content.id).label('total'),
@@ -328,9 +329,10 @@ async def api_users():
                 func.sum(db.case((Content.status == 'rejected', 1), else_=0)).label('rejected'),
                 func.sum(db.case((Content.status == 'flagged', 1), else_=0)).label('flagged')
             ).filter(
-                Content.api_user_id.in_(user_ids)
+                Content.api_user_id.in_(user_ids),
+                Content.project_id.in_(project_ids)
             ).group_by(Content.api_user_id).all()
-            
+
             # Create a mapping of user_id -> stats
             stats_map = {}
             for result in stats_results:
@@ -338,7 +340,7 @@ async def api_users():
                 approved = result.approved or 0
                 rejected = result.rejected or 0
                 flagged = result.flagged or 0
-                
+
                 stats_map[result.api_user_id] = {
                     'total_requests': total_content,
                     'approved_count': approved,
@@ -346,7 +348,7 @@ async def api_users():
                     'flagged_count': flagged,
                     'approval_rate': (approved / total_content * 100) if total_content > 0 else 0
                 }
-            
+
             # Pre-populate _cached_stats for each user
             for user in api_users:
                 user._cached_stats = stats_map.get(user.id, {
