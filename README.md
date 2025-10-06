@@ -74,41 +74,164 @@ python run.py
 ```
 AutoModerate/
 ├── run.py                      # Application entry point (port 6217)
-├── config/
+├── requirements.txt            # Python dependencies
+├── .env.example                # Example environment configuration
+├── .pre-commit-config.yaml     # Pre-commit hooks configuration
+├── README.md                   # Main documentation
+├── CLAUDE.md                   # Claude Code project instructions
+│
+├── config/                     # Configuration files
 │   ├── config.py               # Environment-based configuration
 │   └── default_rules.py        # Default moderation rules
-├── app/
+│
+├── app/                        # Main application directory
 │   ├── __init__.py             # Flask app factory with database initialization
+│   │
 │   ├── models/                 # SQLAlchemy database models
+│   │   ├── __init__.py         # Models package initialization
 │   │   ├── user.py             # User authentication and management
 │   │   ├── project.py          # Projects with member management
 │   │   ├── api_key.py          # API authentication tokens
 │   │   ├── api_user.py         # API user tracking
 │   │   ├── content.py          # Content submissions for moderation
 │   │   ├── moderation_rule.py  # Custom moderation rules
-│   │   └── moderation_result.py# Moderation decisions and metadata
+│   │   ├── moderation_result.py# Moderation decisions and metadata
+│   │   └── system_settings.py  # System-wide configuration settings
+│   │
 │   ├── routes/                 # Blueprint-based routing
+│   │   ├── __init__.py         # Routes package initialization
 │   │   ├── auth.py             # Authentication (login/register/profile)
 │   │   ├── dashboard.py        # Web interface for project management
 │   │   ├── api.py              # RESTful API for content moderation
 │   │   ├── websocket.py        # Real-time WebSocket endpoints
 │   │   ├── admin.py            # Admin interface for system management
-│   │   └── manual_review.py    # Human review interface
+│   │   ├── manual_review.py    # Human review interface
+│   │   └── monitoring.py       # System monitoring and health checks
+│   │
 │   ├── services/               # Business logic layer
+│   │   ├── __init__.py         # Services package initialization
 │   │   ├── moderation_orchestrator.py  # Main workflow coordinator
 │   │   ├── database_service.py         # Centralized database operations
+│   │   ├── error_tracker.py            # Error tracking and logging
+│   │   │
 │   │   ├── ai/                         # OpenAI integration services
+│   │   │   ├── __init__.py             # AI services initialization
 │   │   │   ├── ai_moderator.py         # AI moderation strategies with chunking
 │   │   │   ├── openai_client.py        # OpenAI client management
 │   │   │   └── result_cache.py         # AI result caching
-│   │   └── moderation/                 # Core moderation logic
-│   │       ├── rule_processor.py       # Rule evaluation (keyword/regex/AI)
-│   │       ├── rule_cache.py           # Rule caching
-│   │       └── websocket_notifier.py   # Real-time update handling
+│   │   │
+│   │   ├── moderation/                 # Core moderation logic
+│   │   │   ├── __init__.py             # Moderation services initialization
+│   │   │   ├── rule_processor.py       # Rule evaluation (keyword/regex/AI)
+│   │   │   └── websocket_notifier.py   # Real-time update handling
+│   │   │
+│   │   └── notifications/              # Notification services
+│   │       ├── __init__.py             # Notifications initialization
+│   │       └── discord_notifier.py     # Discord webhook notifications
+│   │
+│   ├── schemas/                # Request/Response schemas
+│   │   ├── __init__.py         # Schemas package initialization
+│   │   └── api_schemas.py      # API validation schemas
+│   │
+│   ├── utils/                  # Utility functions
+│   │   ├── __init__.py         # Utils package initialization
+│   │   ├── error_handlers.py   # Error handling utilities
+│   │   └── project_access.py   # Project access control helpers
+│   │
 │   ├── templates/              # Jinja2 templates for web interface
-│   ├── static/                 # CSS, JS assets (modular structure)
-│   └── utils/                  # Utility functions
-└── tests/                      # E2E and unit tests
+│   │   ├── base.html           # Base template with common layout
+│   │   │
+│   │   ├── auth/               # Authentication templates
+│   │   │   ├── login.html      # Login page
+│   │   │   ├── register.html   # Registration page
+│   │   │   └── profile.html    # User profile page
+│   │   │
+│   │   ├── dashboard/          # Dashboard templates
+│   │   │   ├── index.html      # Dashboard home
+│   │   │   ├── projects.html   # Projects list
+│   │   │   ├── project_detail.html     # Project overview
+│   │   │   ├── project_settings.html   # Project configuration
+│   │   │   ├── project_analytics.html  # Project statistics
+│   │   │   ├── create_project.html     # New project form
+│   │   │   ├── api_keys.html   # API keys management
+│   │   │   ├── rules.html      # Rules list
+│   │   │   ├── create_rule.html# Rule creation form
+│   │   │   ├── content.html    # Content moderation history
+│   │   │   └── members.html    # Project members management
+│   │   │
+│   │   ├── admin/              # Admin templates
+│   │   │   ├── index.html      # Admin dashboard
+│   │   │   ├── users.html      # User management
+│   │   │   ├── user_detail.html# User details
+│   │   │   ├── projects.html   # All projects overview
+│   │   │   ├── analytics.html  # System analytics
+│   │   │   └── system_health.html  # System health monitoring
+│   │   │
+│   │   ├── manual_review/      # Manual review templates
+│   │   │   ├── index.html      # Review queue
+│   │   │   ├── review_content.html    # Content review interface
+│   │   │   ├── api_users.html  # API users list
+│   │   │   └── api_user_detail.html   # API user statistics
+│   │   │
+│   │   └── api/                # API documentation templates
+│   │       └── docs.html       # Interactive API documentation
+│   │
+│   └── static/                 # Static assets (CSS, JS)
+│       ├── css/                # Stylesheets
+│       │   ├── core/           # Core styles
+│       │   │   ├── layout.css  # Base layout styles
+│       │   │   └── dark-mode.css   # Dark mode theme
+│       │   ├── components/     # Reusable components
+│       │   │   ├── forms.css   # Form styles
+│       │   │   ├── modals.css  # Modal dialog styles
+│       │   │   └── tables.css  # Table styles
+│       │   ├── dashboard/      # Dashboard-specific styles
+│       │   │   ├── project_detail.css  # Project detail page
+│       │   │   └── rules.css   # Rules page styles
+│       │   ├── api/            # API documentation styles
+│       │   │   └── docs.css    # API docs styling
+│       │   └── utilities/      # Utility styles
+│       │       └── responsive.css  # Responsive design utilities
+│       │
+│       └── js/                 # JavaScript files
+│           ├── base.js         # Global JavaScript utilities
+│           ├── auth/           # Authentication scripts
+│           │   └── profile.js  # Profile page functionality
+│           ├── dashboard/      # Dashboard scripts
+│           │   ├── project_detail.js   # Project detail page
+│           │   ├── project_settings.js # Project settings
+│           │   ├── api_keys.js         # API key management
+│           │   ├── rules.js            # Rules management
+│           │   ├── create_rule.js      # Rule creation form
+│           │   ├── content.js          # Content viewing
+│           │   └── members.js          # Member management
+│           └── api/            # API documentation scripts
+│               └── docs.js     # Interactive API testing
+│
+├── tests/                      # Test suite
+│   └── e2e_test.py             # End-to-end integration tests
+│
+├── docs/                       # Additional documentation
+│   ├── README.md               # Documentation index
+│   ├── api/                    # API documentation
+│   │   ├── overview.md         # API overview
+│   │   ├── moderation.md       # Moderation endpoints
+│   │   ├── statistics.md       # Statistics endpoints
+│   │   └── websockets.md       # WebSocket documentation
+│   └── guides/                 # Implementation guides
+│       ├── installation.md     # Installation guide
+│       └── architecture.md     # Architecture details
+│
+├── docker/                     # Docker development setup
+│   ├── Dockerfile              # Development Docker image
+│   ├── docker-compose.yml      # Docker Compose configuration
+│   ├── .env.docker.example     # Docker environment template
+│   └── README.md               # Docker deployment guide
+│
+└── deploy/                     # Production deployment
+    ├── Dockerfile              # Production Docker image
+    ├── cloudbuild.yaml         # Google Cloud Build configuration
+    └── README.md               # Deployment documentation
 ```
 
 ### Content Moderation Pipeline
