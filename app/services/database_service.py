@@ -1078,6 +1078,146 @@ class DatabaseService:
         result = await self._safe_execute(_bulk_save)
         return result is not None
 
+    async def delete_user_data_by_external_id(self, project_id: str, external_user_id: str) -> Dict[str, Any]:
+        """
+        Delete all data for a user identified by external_user_id (GDPR compliance)
+
+        Args:
+            project_id: The project ID to scope the deletion to
+            external_user_id: The external user ID to delete data for
+
+        Returns:
+            Dictionary containing deletion statistics and success status
+        """
+        def _delete_user_data():
+            try:
+                # Find the APIUser record
+                api_user = APIUser.query.filter_by(
+                    project_id=project_id,
+                    external_user_id=external_user_id
+                ).first()
+
+                if not api_user:
+                    return {
+                        'success': False,
+                        'error': 'User not found',
+                        'external_user_id': external_user_id,
+                        'project_id': project_id
+                    }
+
+                # Get counts before deletion for reporting
+                content_count = Content.query.filter_by(api_user_id=api_user.id).count()
+
+                # Get moderation results count
+                moderation_results_count = db.session.query(func.count(ModerationResult.id)).join(
+                    Content, ModerationResult.content_id == Content.id
+                ).filter(Content.api_user_id == api_user.id).scalar()
+
+                # Get all content IDs for this user
+                content_ids = [c.id for c in Content.query.filter_by(api_user_id=api_user.id).with_entities(Content.id).all()]
+
+                # Delete in correct order to avoid foreign key violations:
+                # 1. Delete moderation results first
+                if content_ids:
+                    ModerationResult.query.filter(
+                        ModerationResult.content_id.in_(content_ids)).delete(
+                        synchronize_session=False)
+
+                # 2. Delete content
+                Content.query.filter_by(api_user_id=api_user.id).delete(synchronize_session=False)
+
+                # 3. Delete the APIUser record
+                db.session.delete(api_user)
+
+                # Commit the transaction
+                db.session.commit()
+
+                logger.info(
+                    f"Deleted user data for external_user_id={external_user_id} "
+                    f"in project_id={project_id}: "
+                    f"{content_count} content items, {moderation_results_count} moderation results"
+                )
+
+                return {
+                    'success': True,
+                    'external_user_id': external_user_id,
+                    'project_id': project_id,
+                    'deleted_counts': {
+                        'api_user': 1,
+                        'content': content_count,
+                        'moderation_results': moderation_results_count
+                    }
+                }
+
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                logger.error(f"Error deleting user data for {external_user_id}: {str(e)}")
+                return {
+                    'success': False,
+                    'error': str(e),
+                    'external_user_id': external_user_id,
+                    'project_id': project_id
+                }
+
+        return await self._safe_execute(_delete_user_data)
+
+    async def search_user_by_external_id(self, project_id: str, external_user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Search for a user by external_user_id and return their data summary
+
+        Args:
+            project_id: The project ID to scope the search to
+            external_user_id: The external user ID to search for
+
+        Returns:
+            Dictionary containing user information and data counts, or None if not found
+        """
+        def _search_user():
+            try:
+                # Find the APIUser record
+                api_user = APIUser.query.filter_by(
+                    project_id=project_id,
+                    external_user_id=external_user_id
+                ).first()
+
+                if not api_user:
+                    return None
+
+                # Get content count
+                content_count = Content.query.filter_by(api_user_id=api_user.id).count()
+
+                # Get moderation results count
+                moderation_results_count = db.session.query(func.count(ModerationResult.id)).join(
+                    Content, ModerationResult.content_id == Content.id
+                ).filter(Content.api_user_id == api_user.id).scalar()
+
+                # Get status breakdown
+                status_breakdown = db.session.query(
+                    Content.status,
+                    func.count(Content.id).label('count')
+                ).filter(
+                    Content.api_user_id == api_user.id
+                ).group_by(Content.status).all()
+
+                return {
+                    'api_user_id': api_user.id,
+                    'external_user_id': api_user.external_user_id,
+                    'project_id': api_user.project_id,
+                    'first_seen': api_user.first_seen.isoformat() if api_user.first_seen else None,
+                    'last_seen': api_user.last_seen.isoformat() if api_user.last_seen else None,
+                    'data_counts': {
+                        'content': content_count,
+                        'moderation_results': moderation_results_count,
+                        'status_breakdown': {status: count for status, count in status_breakdown}
+                    }
+                }
+
+            except SQLAlchemyError as e:
+                logger.error(f"Error searching user by external_id {external_user_id}: {str(e)}")
+                return None
+
+        return await self._safe_execute(_search_user)
+
 
 # Global async database service instance
 db_service = DatabaseService()

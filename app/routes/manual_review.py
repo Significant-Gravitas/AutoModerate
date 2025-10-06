@@ -472,3 +472,50 @@ async def get_api_user_content_details(user_id, content_id):
         current_app.logger.error(
             f"Get API user content details error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@manual_review_bp.route('/api-users/<user_id>/delete', methods=['POST'])
+@login_required
+async def delete_user_data(user_id):
+    """Delete all data for an API user (GDPR compliance)"""
+    try:
+        api_user = APIUser.query.get_or_404(user_id)
+
+        # Check if user has permission (admin or project owner)
+        if not current_user.is_admin and not api_user.project.is_owner(current_user.id):
+            flash('You do not have permission to delete user data', 'error')
+            return redirect(url_for('manual_review.api_user_detail', user_id=user_id))
+
+        # Get confirmation
+        confirm = request.form.get('confirm', '').strip()
+        if confirm != api_user.external_user_id:
+            flash('Confirmation does not match. Data deletion cancelled.', 'error')
+            return redirect(url_for('manual_review.api_user_detail', user_id=user_id))
+
+        # Delete user data using database service
+        result = await db_service.delete_user_data_by_external_id(
+            api_user.project_id,
+            api_user.external_user_id
+        )
+
+        if result['success']:
+            deleted_counts = result['deleted_counts']
+            flash(
+                f'Successfully deleted data for user {api_user.external_user_id}: '
+                f"{deleted_counts['content']} content items, "
+                f"{deleted_counts['moderation_results']} moderation results",
+                'success'
+            )
+            current_app.logger.warning(
+                f"User {current_user.email} deleted user data for external_user_id={api_user.external_user_id} "
+                f"in project_id={api_user.project_id}"
+            )
+            return redirect(url_for('manual_review.api_users'))
+        else:
+            flash(f"Error deleting user data: {result.get('error', 'Unknown error')}", 'error')
+            return redirect(url_for('manual_review.api_user_detail', user_id=user_id))
+
+    except Exception as e:
+        current_app.logger.error(f"Error deleting user data: {str(e)}")
+        flash(f'Error deleting user data: {str(e)}', 'error')
+        return redirect(url_for('manual_review.api_users'))

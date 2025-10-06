@@ -22,6 +22,35 @@
                 {% endif %}
             </div>
 
+            <!-- Search Bar -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3">
+                        <i class="fas fa-search"></i> Quick Search by External User ID
+                    </h5>
+                    <form id="searchUserForm">
+                        <div class="row g-2">
+                            <div class="col-md-10">
+                                <input type="text"
+                                       class="form-control"
+                                       id="searchUserId"
+                                       name="external_user_id"
+                                       placeholder="Enter external user ID (e.g., user_123, discord_456)"
+                                       required>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted mt-2 d-block">
+                            Enter the external user ID to quickly navigate to their profile
+                        </small>
+                    </form>
+                </div>
+            </div>
+
             <!-- API Users Table -->
             <div class="card">
                 <div class="card-header">
@@ -100,4 +129,26 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle search form submission
+    const searchForm = document.getElementById('searchUserForm');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const userIdInput = document.getElementById('searchUserId');
+            const userId = userIdInput.value.trim();
+
+            if (userId) {
+                // Redirect to the external user ID lookup route
+                window.location.href = `/api-users/external/${encodeURIComponent(userId)}`;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

@@ -22,7 +22,7 @@ This guide will walk you through setting up AutoModerate on your local machine o
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/AutoModerate.git
+git clone https://github.com/Significant-Gravitas/AutoModerate.git
 cd AutoModerate
 ```
 

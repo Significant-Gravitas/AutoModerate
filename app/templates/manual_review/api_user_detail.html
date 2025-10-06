@@ -14,9 +14,16 @@
                     <h1>API User Details</h1>
                     <p class="text-muted">User ID: {{ api_user.external_user_id }}</p>
                 </div>
-                <a href="{{ url_for('manual_review.api_users') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to API Users
-                </a>
+                <div>
+                    {% if current_user.is_admin or api_user.project.is_owner(current_user.id) %}
+                    <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteUserDataModal">
+                        <i class="fas fa-trash"></i> Delete User Data
+                    </button>
+                    {% endif %}
+                    <a href="{{ url_for('manual_review.api_users') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to API Users
+                    </a>
+                </div>
             </div>
 
             <div class="row">
@@ -249,6 +256,59 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete User Data Modal -->
+<div class="modal fade" id="deleteUserDataModal" tabindex="-1" aria-labelledby="deleteUserDataModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserDataModalLabel">
+                    <i class="fas fa-exclamation-triangle"></i> Delete User Data (GDPR Compliance)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('manual_review.delete_user_data', user_id=api_user.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>Warning:</strong> This action cannot be undone!
+                    </div>
+
+                    <p>You are about to permanently delete all data for:</p>
+                    <ul>
+                        <li><strong>External User ID:</strong> {{ api_user.external_user_id }}</li>
+                        <li><strong>Project:</strong> {{ api_user.project.name }}</li>
+                        <li><strong>Content Items:</strong> {{ api_user.current_total_requests }}</li>
+                    </ul>
+
+                    <p>This will delete:</p>
+                    <ul>
+                        <li>All content submissions by this user</li>
+                        <li>All moderation results for this user's content</li>
+                        <li>The API user record</li>
+                    </ul>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label for="confirmUserId" class="form-label">
+                            To confirm, type the external user ID: <strong>{{ api_user.external_user_id }}</strong>
+                        </label>
+                        <input type="text" class="form-control" id="confirmUserId" name="confirm" required
+                               placeholder="Enter external user ID to confirm">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Permanently Delete User Data
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

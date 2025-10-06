@@ -542,3 +542,92 @@ async def system_health():
                            db_stats=db_stats,
                            error_stats=error_stats,
                            recent_errors=recent_errors)
+
+
+@admin_bp.route('/data-deletion')
+@admin_required
+async def data_deletion():
+    """Data deletion page for GDPR compliance"""
+    # Get all projects for the dropdown
+    projects = Project.query.order_by(Project.name).all()
+
+    return render_template('admin/data_deletion.html', projects=projects)
+
+
+@admin_bp.route('/data-deletion/search', methods=['POST'])
+@admin_required
+async def search_user_data():
+    """Search for user data by external_user_id"""
+    try:
+        project_id = request.form.get('project_id', '').strip()
+        external_user_id = request.form.get('external_user_id', '').strip()
+
+        if not project_id or not external_user_id:
+            flash('Both project and external user ID are required.', 'error')
+            return redirect(url_for('admin.data_deletion'))
+
+        # Search for user data
+        user_data = await db_service.search_user_by_external_id(project_id, external_user_id)
+
+        if not user_data:
+            flash(f'No data found for external user ID: {external_user_id}', 'warning')
+            return redirect(url_for('admin.data_deletion'))
+
+        # Get project info
+        project = Project.query.get(project_id)
+
+        # Get all projects for the dropdown
+        projects = Project.query.order_by(Project.name).all()
+
+        return render_template('admin/data_deletion.html',
+                               projects=projects,
+                               user_data=user_data,
+                               selected_project=project)
+
+    except Exception as e:
+        current_app.logger.error(f"Error searching user data: {str(e)}")
+        flash(f'Error searching user data: {str(e)}', 'error')
+        return redirect(url_for('admin.data_deletion'))
+
+
+@admin_bp.route('/data-deletion/delete', methods=['POST'])
+@admin_required
+async def delete_user_data():
+    """Delete user data by external_user_id (GDPR compliance)"""
+    try:
+        project_id = request.form.get('project_id', '').strip()
+        external_user_id = request.form.get('external_user_id', '').strip()
+        confirm = request.form.get('confirm', '').strip()
+
+        if not project_id or not external_user_id:
+            flash('Both project and external user ID are required.', 'error')
+            return redirect(url_for('admin.data_deletion'))
+
+        if confirm != external_user_id:
+            flash('Confirmation does not match. Data deletion cancelled.', 'error')
+            return redirect(url_for('admin.data_deletion'))
+
+        # Delete user data
+        result = await db_service.delete_user_data_by_external_id(project_id, external_user_id)
+
+        if result['success']:
+            deleted_counts = result['deleted_counts']
+            flash(
+                f'Successfully deleted data for user {external_user_id}: '
+                f"{deleted_counts['content']} content items, "
+                f"{deleted_counts['moderation_results']} moderation results",
+                'success'
+            )
+            current_app.logger.warning(
+                f"Admin {current_user.email} deleted user data for external_user_id={external_user_id} "
+                f"in project_id={project_id}"
+            )
+        else:
+            flash(f"Error deleting user data: {result.get('error', 'Unknown error')}", 'error')
+
+        return redirect(url_for('admin.data_deletion'))
+
+    except Exception as e:
+        current_app.logger.error(f"Error deleting user data: {str(e)}")
+        flash(f'Error deleting user data: {str(e)}', 'error')
+        return redirect(url_for('admin.data_deletion'))
