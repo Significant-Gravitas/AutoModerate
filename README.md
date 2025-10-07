@@ -526,11 +526,15 @@ OPENAI_API_KEY=sk-your-key docker-compose up -d
 
 ### Key Relationships
 
-- User -> Projects (1:N ownership)
-- User <-> Projects (N:M membership via ProjectMember)
-- Project -> APIKeys, Content, ModerationRules (1:N)
-- Content -> ModerationResults (1:N)
-- APIUser -> Content (1:N)
+**Detailed Relationships:**
+- **User → Project**: 1:N ownership (creator)
+- **User ↔ Project**: N:M membership via ProjectMember (owner/admin/member roles)
+- **Project → APIKey**: 1:N (multiple keys per project)
+- **Project → Content**: 1:N (all content submissions)
+- **Project → ModerationRule**: 1:N (custom rules per project)
+- **Project → ProjectInvitation**: 1:N (pending invitations)
+- **Content → ModerationResult**: 1:N (multiple moderation checks)
+- **APIUser → Content**: 1:N (tracks external user submissions)
 
 ### Advanced Features
 
