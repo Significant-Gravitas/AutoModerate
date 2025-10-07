@@ -403,14 +403,17 @@ function showBulkActionModal(action) {
     }
 
     // Show selected content details
-    let contentListHtml = '<strong>Selected content:</strong><br>';
+    selectedContentList.innerHTML = '<strong>Selected content:</strong><br>';
     selectedCheckboxes.forEach(checkbox => {
         const row = checkbox.closest('tr');
         const preview = row.querySelector('.content-preview').textContent.trim();
         const project = checkbox.dataset.projectName;
-        contentListHtml += `• ${project}: ${preview.substring(0, 50)}...<br>`;
+
+        // Create safe DOM elements instead of HTML string concatenation
+        const item = document.createElement('div');
+        item.textContent = `• ${project}: ${preview.substring(0, 50)}...`;
+        selectedContentList.appendChild(item);
     });
-    selectedContentList.innerHTML = contentListHtml;
 
     // Clear previous form data
     document.getElementById('bulkReason').value = '';

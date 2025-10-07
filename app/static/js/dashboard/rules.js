@@ -1,5 +1,12 @@
 // Rules page functionality
 document.addEventListener('DOMContentLoaded', function() {
+    // Helper function to escape HTML to prevent XSS
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // Store rule data in a hidden element to avoid HTML attribute issues
     const ruleDataElement = document.getElementById('ruleDataStore');
     const ruleDataStore = ruleDataElement ? JSON.parse(ruleDataElement.textContent) : {};
@@ -21,27 +28,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Populate modal
             document.getElementById('modalRuleName').textContent = ruleName;
-            document.getElementById('modalRuleType').innerHTML = `<span class="badge bg-info">${ruleType}</span>`;
+            document.getElementById('modalRuleType').innerHTML = `<span class="badge bg-info">${escapeHtml(ruleType)}</span>`;
             document.getElementById('modalRuleDescription').textContent = ruleDescription || 'No description provided';
-            document.getElementById('modalRuleAction').innerHTML = `<span class="badge bg-primary">${ruleAction}</span>`;
+            document.getElementById('modalRuleAction').innerHTML = `<span class="badge bg-primary">${escapeHtml(ruleAction)}</span>`;
             document.getElementById('modalRulePriority').textContent = rulePriority;
 
             // Format rule configuration based on type
             let configHtml = '';
             if (ruleType === 'keyword') {
+                const keywords = ruleData.keywords ? ruleData.keywords.map(k => escapeHtml(k)).join(', ') : 'None';
                 configHtml = `
-                    <strong>Keywords:</strong> ${ruleData.keywords ? ruleData.keywords.join(', ') : 'None'}<br>
+                    <strong>Keywords:</strong> ${keywords}<br>
                     <strong>Case Sensitive:</strong> ${ruleData.case_sensitive ? 'Yes' : 'No'}
                 `;
             } else if (ruleType === 'regex') {
                 configHtml = `
-                    <strong>Pattern:</strong> <code>${ruleData.pattern || 'None'}</code><br>
-                    <strong>Flags:</strong> ${ruleData.flags || 'None'}
+                    <strong>Pattern:</strong> <code>${escapeHtml(ruleData.pattern || 'None')}</code><br>
+                    <strong>Flags:</strong> ${escapeHtml(ruleData.flags || 'None')}
                 `;
             } else if (ruleType === 'ai_prompt') {
                 configHtml = `
                     <strong>Custom Prompt:</strong><br>
-                    <pre class="mt-2">${ruleData.prompt || 'None'}</pre>
+                    <pre class="mt-2">${escapeHtml(ruleData.prompt || 'None')}</pre>
                 `;
             }
 
@@ -79,6 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Populate rule-specific configuration
             let configHtml = '';
             if (ruleType === 'keyword') {
+                const keywordsValue = ruleData.keywords ? (Array.isArray(ruleData.keywords) ? ruleData.keywords.join('\n') : ruleData.keywords) : '';
                 configHtml = `
                     <div class="card bg-light">
                         <div class="card-header">
@@ -87,7 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="card-body">
                             <div class="mb-3">
                                 <label for="editKeywords" class="form-label">Keywords *</label>
-                                <textarea class="form-control" id="editKeywords" name="keywords" rows="3" placeholder="Enter keywords, one per line or comma-separated">${ruleData.keywords ? (Array.isArray(ruleData.keywords) ? ruleData.keywords.join('\n') : ruleData.keywords) : ''}</textarea>
+                                <textarea class="form-control" id="editKeywords" name="keywords" rows="3" placeholder="Enter keywords, one per line or comma-separated">${escapeHtml(keywordsValue)}</textarea>
                                 <div class="form-text">Enter keywords to match. One per line or comma-separated.</div>
                             </div>
                             <div class="form-check">
@@ -108,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="card-body">
                             <div class="mb-3">
                                 <label for="editRegexPattern" class="form-label">Pattern *</label>
-                                <input type="text" class="form-control" id="editRegexPattern" name="pattern" value="${ruleData.pattern || ''}" placeholder="Enter regex pattern">
+                                <input type="text" class="form-control" id="editRegexPattern" name="pattern" value="${escapeHtml(ruleData.pattern || '')}" placeholder="Enter regex pattern">
                                 <div class="form-text">Enter a valid regular expression pattern.</div>
                             </div>
                         </div>
@@ -123,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="card-body">
                             <div class="mb-3">
                                 <label for="editAiPrompt" class="form-label">Custom Prompt *</label>
-                                <textarea class="form-control" id="editAiPrompt" name="prompt" rows="4" placeholder="Enter your custom prompt for AI analysis...">${ruleData.prompt || ''}</textarea>
+                                <textarea class="form-control" id="editAiPrompt" name="prompt" rows="4" placeholder="Enter your custom prompt for AI analysis...">${escapeHtml(ruleData.prompt || '')}</textarea>
                                 <div class="form-text">Describe what you want the AI to analyze and how it should respond.</div>
                             </div>
                         </div>
