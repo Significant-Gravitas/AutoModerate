@@ -290,9 +290,9 @@ async def update_rule(project_id, rule_id):
 
         return jsonify({'success': True, 'message': 'Rule updated successfully'})
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': 'An error occurred while updating the rule'}), 400
 
 
 @dashboard_bp.route('/projects/<project_id>/rules/<rule_id>/toggle', methods=['POST'])
@@ -326,9 +326,9 @@ async def toggle_rule(project_id, rule_id):
             'is_active': rule.is_active
         })
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': 'An error occurred while toggling the rule'}), 400
 
 
 @dashboard_bp.route('/projects/<project_id>/rules/<rule_id>/delete', methods=['POST'])
@@ -353,9 +353,9 @@ async def delete_rule(project_id, rule_id):
             'message': f'Rule "{rule_name}" deleted successfully'
         })
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': 'An error occurred while deleting the rule'}), 400
 
 
 @dashboard_bp.route('/projects/<project_id>/content')
@@ -494,9 +494,9 @@ async def toggle_api_key(project_id, key_id):
             'is_active': api_key.is_active
         })
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': 'An error occurred while creating the API key'}), 400
 
 
 @dashboard_bp.route('/projects/<project_id>/api-keys/<key_id>/delete', methods=['POST'])
@@ -521,9 +521,9 @@ async def delete_api_key(project_id, key_id):
             'message': f'API key "{key_name}" deleted successfully'
         })
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': 'An error occurred while deleting the API key'}), 400
 
 
 @dashboard_bp.route('/projects/<project_id>/settings')

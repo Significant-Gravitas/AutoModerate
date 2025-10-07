@@ -150,10 +150,10 @@ async def moderate_content(validated_data=None):
         current_app.logger.error(f"Moderation error for content {content_id}: {error_msg}")
         error_tracker.track_error('api', error_msg, content_id=content_id)
 
-        # ALWAYS return content_id even on error
+        # ALWAYS return content_id even on error, but sanitize error message
         return jsonify({
             'success': False,
-            'error': error_msg,
+            'error': 'An error occurred during content moderation',
             'content_id': content_id,
             'status': result.get('decision', 'rejected'),
             'moderation_results': result.get('results', []),

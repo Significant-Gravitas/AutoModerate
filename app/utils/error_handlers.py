@@ -68,7 +68,7 @@ def handle_api_error(f):
             # Log full exception details with traceback
             logger.error(f"Unexpected error in {f.__name__}: {str(e)}", exc_info=True)
             return api_error_response(
-                f"Internal server error: {str(e)}",
+                "An internal server error occurred",
                 500,
                 error_code="INTERNAL_ERROR"
             )

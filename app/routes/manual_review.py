@@ -169,7 +169,7 @@ async def make_decision(content_id):
     except Exception as e:
         current_app.logger.error(f"Make decision error: {str(e)}")
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An error occurred while processing your request'}), 500
 
 
 @manual_review_bp.route('/manual-review/bulk-decision', methods=['POST'])
@@ -273,7 +273,7 @@ async def bulk_decision():
     except Exception as e:
         current_app.logger.error(f"Bulk decision error: {str(e)}")
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An error occurred while processing bulk decision'}), 500
 
 
 @manual_review_bp.route('/api-users')
@@ -489,7 +489,7 @@ async def get_api_user_content_details(user_id, content_id):
     except Exception as e:
         current_app.logger.error(
             f"Get API user content details error: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An error occurred while retrieving content details'}), 500
 
 
 @manual_review_bp.route('/api-users/<user_id>/delete', methods=['POST'])
