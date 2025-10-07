@@ -112,7 +112,7 @@ class AutoModerateE2ETest:
                 # Successful registration should redirect to dashboard
                 location = response.headers.get('Location', '')
                 if '/dashboard' in location:
-                    self.log(f"✅ User registered successfully: {self.test_user['email']}")
+                    self.log("✅ User registered successfully")
                     return True
                 else:
                     self.log(f"❌ Registration redirect unexpected: {location}", "ERROR")
@@ -120,7 +120,7 @@ class AutoModerateE2ETest:
             elif response.status_code == 200:
                 # Check if it's a success response
                 if 'success' in response.text.lower() or 'dashboard' in response.text.lower():
-                    self.log(f"✅ User registered successfully: {self.test_user['email']}")
+                    self.log("✅ User registered successfully")
                     return True
                 else:
                     self.log(f"❌ Registration form error: {response.text[:200]}", "ERROR")
@@ -160,7 +160,7 @@ class AutoModerateE2ETest:
             if response.status_code == 302:
                 location = response.headers.get('Location', '')
                 if '/dashboard' in location:
-                    self.log(f"✅ User logged in successfully: {self.test_user['email']}")
+                    self.log("✅ User logged in successfully")
                     return True
                 else:
                     self.log(f"❌ Login redirect unexpected: {location}", "ERROR")
@@ -168,7 +168,7 @@ class AutoModerateE2ETest:
             elif response.status_code == 200:
                 # Check if it's a success response
                 if 'dashboard' in response.text.lower() and 'error' not in response.text.lower():
-                    self.log(f"✅ User logged in successfully: {self.test_user['email']}")
+                    self.log("✅ User logged in successfully")
                     return True
                 else:
                     self.log(f"❌ Login form error: {response.text[:200]}", "ERROR")
@@ -291,7 +291,7 @@ class AutoModerateE2ETest:
 
                 if matches:
                     self.api_key = matches[0]  # Get the first (default) key
-                    self.log(f"✅ Default API key retrieved: {self.api_key[:10]}...")
+                    self.log("✅ Default API key retrieved")
                     return True
                 else:
                     self.log("❌ No API keys found, trying to create one", "WARNING")
@@ -342,7 +342,7 @@ class AutoModerateE2ETest:
 
                     if matches:
                         self.api_key = matches[-1]  # Get the last (newest) key
-                        self.log(f"✅ API key created and retrieved: {self.api_key[:10]}...")
+                        self.log("✅ API key created and retrieved")
                         return True
                     else:
                         self.log("❌ API key not found in response after creation", "ERROR")
@@ -381,7 +381,7 @@ class AutoModerateE2ETest:
                 'Content-Type': 'application/json'
             }
 
-            self.log(f"Submitting safe content with API key: {self.api_key[:10]}...")
+            self.log("Submitting safe content for moderation")
 
             response = self.session.post(
                 f"{self.base_url}/api/moderate",
@@ -454,7 +454,7 @@ class AutoModerateE2ETest:
                 'Content-Type': 'application/json'
             }
 
-            self.log(f"Submitting suspicious content with API key: {self.api_key[:10]}...")
+            self.log("Submitting suspicious content for moderation")
 
             response = self.session.post(
                 f"{self.base_url}/api/moderate",
@@ -555,7 +555,6 @@ class AutoModerateE2ETest:
         """Run simplified end-to-end tests for core platform functionality"""
         self.log("🚀 Starting AutoModerate Core Platform Tests")
         self.log(f"   Base URL: {self.base_url}")
-        self.log(f"   Test User: {self.test_user['email']}")
 
         # Core platform tests - what we actually need to validate deployment
         tests = [
