@@ -115,7 +115,7 @@ class AutoModerateE2ETest:
                     self.log("✅ User registered successfully")
                     return True
                 else:
-                    self.log(f"❌ Registration redirect unexpected: {location}", "ERROR")
+                    self.log("❌ Registration redirect unexpected", "ERROR")
                     return False
             elif response.status_code == 200:
                 # Check if it's a success response
@@ -123,10 +123,10 @@ class AutoModerateE2ETest:
                     self.log("✅ User registered successfully")
                     return True
                 else:
-                    self.log(f"❌ Registration form error: {response.text[:200]}", "ERROR")
+                    self.log("❌ Registration form error", "ERROR")
                     return False
             else:
-                self.log(f"❌ User registration failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
+                self.log(f"❌ User registration failed: HTTP {response.status_code}", "ERROR")
                 return False
 
         except Exception as e:
@@ -163,7 +163,7 @@ class AutoModerateE2ETest:
                     self.log("✅ User logged in successfully")
                     return True
                 else:
-                    self.log(f"❌ Login redirect unexpected: {location}", "ERROR")
+                    self.log("❌ Login redirect unexpected", "ERROR")
                     return False
             elif response.status_code == 200:
                 # Check if it's a success response
@@ -171,10 +171,10 @@ class AutoModerateE2ETest:
                     self.log("✅ User logged in successfully")
                     return True
                 else:
-                    self.log(f"❌ Login form error: {response.text[:200]}", "ERROR")
+                    self.log("❌ Login form error", "ERROR")
                     return False
             else:
-                self.log(f"❌ User login failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
+                self.log(f"❌ User login failed: HTTP {response.status_code}", "ERROR")
                 return False
 
         except Exception as e:
@@ -208,7 +208,6 @@ class AutoModerateE2ETest:
             if response.status_code in [302, 301]:
                 # Extract project ID from Location header
                 location = response.headers.get('Location', '')
-                self.log(f"Redirect location: {location}")
 
                 if '/dashboard/projects/' in location and location != f"{self.base_url}/dashboard/projects/create":
                     # Extract project ID from URL like /dashboard/projects/uuid-here
@@ -217,7 +216,7 @@ class AutoModerateE2ETest:
                         project_part = path_parts[1].split('/')[0]  # Get first part after projects/
                         if project_part and len(project_part) > 10:  # Should be a UUID
                             self.created_project_id = project_part
-                            self.log(f"✅ Project created successfully: {project_data['name']} (ID: {self.created_project_id})")
+                            self.log(f"✅ Project created successfully: {project_data['name']}")
                             return True
 
                 # If we get redirected back to projects list, try to find the project there
@@ -233,13 +232,13 @@ class AutoModerateE2ETest:
                         matches = re.findall(uuid_pattern, projects_response.text)
                         if matches:
                             self.created_project_id = matches[-1]  # Get the last (newest) project
-                            self.log(f"✅ Project created successfully: {project_data['name']} (ID: {self.created_project_id})")
+                            self.log(f"✅ Project created successfully: {project_data['name']}")
                             return True
 
-                self.log(f"❌ Project creation: Redirect location unclear - {location}", "ERROR")
+                self.log("❌ Project creation: Redirect location unclear", "ERROR")
                 return False
             else:
-                self.log(f"❌ Project creation failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
+                self.log(f"❌ Project creation failed: HTTP {response.status_code}", "ERROR")
                 return False
 
         except Exception as e:
@@ -351,7 +350,7 @@ class AutoModerateE2ETest:
                     self.log(f"❌ Failed to retrieve API key after creation: HTTP {response.status_code}", "ERROR")
                     return False
             else:
-                self.log(f"❌ API key creation failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
+                self.log(f"❌ API key creation failed: HTTP {response.status_code}", "ERROR")
                 return False
 
         except Exception as e:
@@ -390,41 +389,22 @@ class AutoModerateE2ETest:
                 timeout=120  # Longer timeout for GPT-5 processing
             )
 
-            self.log(f"Safe content response: {response.status_code}")
-
             if response.status_code == 200:
                 data = response.json()
-                self.log(f"Safe content response: success={data.get('success')}, status={data.get('status')}")
 
                 if data.get('success'):
                     status = data.get('status')
                     if status == 'approved':
                         self.log(f"✅ Safe content moderation passed: {status}")
-                        self.log(f"   Content ID: {data.get('content_id')}")
-                        moderation_results = data.get('moderation_results', [])
-                        if moderation_results:
-                            self.log(f"   Moderation details: {moderation_results[0].get('reason', 'No reason')}")
                         return True
                     else:
                         self.log(f"❌ Safe content was incorrectly {status}", "ERROR")
-                        self.log(f"   Content ID: {data.get('content_id')}")
-                        moderation_results = data.get('moderation_results', [])
-                        if moderation_results:
-                            self.log(f"   Reason: {moderation_results[0].get('reason', 'No reason')}", "ERROR")
                         return False
                 else:
-                    self.log(f"❌ Safe content API returned success=false: {data}", "ERROR")
+                    self.log("❌ Safe content API returned success=false", "ERROR")
                     return False
             else:
-                try:
-                    error_data = response.json()
-                    error_detail = error_data.get('error', 'Unknown error')
-                except:
-                    error_detail = response.text[:500]
-
                 self.log(f"❌ Safe content moderation failed: HTTP {response.status_code}", "ERROR")
-                self.log(f"   Error: {error_detail}", "ERROR")
-
                 return False
 
         except Exception as e:
@@ -463,42 +443,23 @@ class AutoModerateE2ETest:
                 timeout=120  # Longer timeout for GPT-5 processing
             )
 
-            self.log(f"Suspicious content response: {response.status_code}")
-
             if response.status_code == 200:
                 data = response.json()
-                self.log(f"Suspicious content response: success={data.get('success')}, status={data.get('status')}")
 
                 if data.get('success'):
                     status = data.get('status')
                     if status in ['rejected', 'flagged']:
                         self.log(f"✅ Suspicious content was properly moderated: {status}")
-                        self.log(f"   Content ID: {data.get('content_id')}")
-                        moderation_results = data.get('moderation_results', [])
-                        if moderation_results:
-                            self.log(f"   Rule triggered: {moderation_results[0].get('rule_name', 'Unknown')}")
-                            self.log(f"   Reason: {moderation_results[0].get('reason', 'No reason')}")
                         return True
                     else:
                         self.log(f"❌ Suspicious content was incorrectly {status} - should have been rejected!", "ERROR")
-                        self.log(f"   Content ID: {data.get('content_id')}", "ERROR")
-                        moderation_results = data.get('moderation_results', [])
-                        if moderation_results:
-                            self.log(f"   Reason: {moderation_results[0].get('reason', 'No reason')}", "ERROR")
                         self.log("   This indicates the AI moderation rules may need adjustment", "ERROR")
                         return False
                 else:
-                    self.log(f"❌ Suspicious content API returned success=false: {data}", "ERROR")
+                    self.log("❌ Suspicious content API returned success=false", "ERROR")
                     return False
             else:
-                try:
-                    error_data = response.json()
-                    error_detail = error_data.get('error', 'Unknown error')
-                except:
-                    error_detail = response.text[:500]
-
                 self.log(f"❌ Suspicious content moderation failed: HTTP {response.status_code}", "ERROR")
-                self.log(f"   Error: {error_detail}", "ERROR")
                 return False
 
         except Exception as e:
@@ -523,18 +484,13 @@ class AutoModerateE2ETest:
             if response.status_code == 200:
                 data = response.json()
                 if data.get('success'):
-                    stats = data.get('stats', {})
-                    self.log(f"✅ API stats retrieved successfully:")
-                    self.log(f"   Total content: {stats.get('total_content', 0)}")
-                    self.log(f"   Approved: {stats.get('approved', 0)}")
-                    self.log(f"   Rejected: {stats.get('rejected', 0)}")
-                    self.log(f"   Flagged: {stats.get('flagged', 0)}")
+                    self.log("✅ API stats retrieved successfully")
                     return True
                 else:
-                    self.log(f"❌ API stats failed: {data}", "ERROR")
+                    self.log("❌ API stats failed", "ERROR")
                     return False
             else:
-                self.log(f"❌ API stats failed: HTTP {response.status_code} - {response.text[:200]}", "ERROR")
+                self.log(f"❌ API stats failed: HTTP {response.status_code}", "ERROR")
                 return False
 
         except Exception as e:
@@ -554,7 +510,6 @@ class AutoModerateE2ETest:
     def run_all_tests(self) -> bool:
         """Run simplified end-to-end tests for core platform functionality"""
         self.log("🚀 Starting AutoModerate Core Platform Tests")
-        self.log(f"   Base URL: {self.base_url}")
 
         # Core platform tests - what we actually need to validate deployment
         tests = [
