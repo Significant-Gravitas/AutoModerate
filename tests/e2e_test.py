@@ -375,39 +375,33 @@ class AutoModerateE2ETest:
 
     def run_all_tests(self) -> bool:
         """Run simplified end-to-end tests for core platform functionality"""
-        print("🚀 Starting AutoModerate Core Platform Tests")
+        print("Starting AutoModerate Core Platform Tests")
 
         tests = [
-            ("Health Check", self.test_health_check),
-            ("User Registration", self.register_user),
-            ("User Login", self.login_user),
-            ("Project Creation", self.create_project),
-            ("API Key Creation", self.get_api_key),
+            self.test_health_check,
+            self.register_user,
+            self.login_user,
+            self.create_project,
+            self.get_api_key,
         ]
 
         passed = 0
         total = len(tests)
 
-        for test_name, test_func in tests:
+        for test_func in tests:
             try:
                 if test_func():
                     passed += 1
-                    print(f"✅ {test_name}")
+                    print(".", end="", flush=True)
                 else:
-                    print(f"❌ {test_name}")
-            except Exception as e:
-                print(f"❌ {test_name} (exception: {type(e).__name__})")
+                    print("F", end="", flush=True)
+            except Exception:
+                print("E", end="", flush=True)
 
         self.cleanup()
 
-        print(f"\n📊 {passed}/{total} tests passed")
-
-        if passed == total:
-            print("✅ All tests passed")
-            return True
-        else:
-            print(f"❌ {total - passed} tests failed")
-            return False
+        print(f"\n\n{passed}/{total} tests passed")
+        return passed == total
 
 
 def main():
