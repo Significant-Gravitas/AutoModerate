@@ -40,16 +40,11 @@ class AutoModerateE2ETest:
         self.created_project_id = None
         self.api_key = None
 
-    def log(self, message: str, level: str = "INFO"):
-        """Log a message with timestamp"""
-        print(f"[{time.strftime('%H:%M:%S')}] {level}: {message}")
-
     def get_csrf_token(self, url: str) -> str:
         """Extract CSRF token from a form page"""
         try:
             response = self.session.get(url, timeout=30)
             if response.status_code != 200:
-                self.log(f"Failed to get CSRF token from {url}: HTTP {response.status_code}", "ERROR")
                 return None
 
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -62,37 +57,25 @@ class AutoModerateE2ETest:
                 if csrf_meta:
                     return csrf_meta.get('content')
 
-            self.log(f"No CSRF token found in {url}", "ERROR")
             return None
-        except Exception as e:
-            self.log(f"Error extracting CSRF token: {str(e)}", "ERROR")
+        except Exception:
             return None
 
     def test_health_check(self) -> bool:
         """Test that the application is running"""
         try:
             response = self.session.get(f"{self.base_url}/api/health", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                self.log(f"✅ Health check passed: {data.get('service', 'AutoModerate')} is {data.get('status', 'unknown')}")
-                return True
-            else:
-                self.log(f"❌ Health check failed: HTTP {response.status_code}", "ERROR")
-                return False
-        except Exception as e:
-            self.log(f"❌ Health check failed: {str(e)}", "ERROR")
+            return response.status_code == 200
+        except Exception:
             return False
 
     def register_user(self) -> bool:
         """Register a new user account"""
         try:
-            # Get CSRF token from registration form
             csrf_token = self.get_csrf_token(f"{self.base_url}/auth/register")
             if not csrf_token:
-                self.log("❌ Failed to get CSRF token for registration", "ERROR")
                 return False
 
-            # Submit form data with CSRF token
             form_data = {
                 'csrf_token': csrf_token,
                 'username': self.test_user['username'],
@@ -104,45 +87,27 @@ class AutoModerateE2ETest:
                 f"{self.base_url}/auth/register",
                 data=form_data,
                 timeout=30,
-                allow_redirects=False  # Handle redirects manually
+                allow_redirects=False
             )
 
-            # Check for successful registration (redirect to dashboard or 200 with success)
             if response.status_code == 302:
-                # Successful registration should redirect to dashboard
                 location = response.headers.get('Location', '')
-                if '/dashboard' in location:
-                    self.log("✅ User registered successfully")
-                    return True
-                else:
-                    self.log("❌ Registration redirect unexpected", "ERROR")
-                    return False
+                return '/dashboard' in location
             elif response.status_code == 200:
-                # Check if it's a success response
-                if 'success' in response.text.lower() or 'dashboard' in response.text.lower():
-                    self.log("✅ User registered successfully")
-                    return True
-                else:
-                    self.log("❌ Registration form error", "ERROR")
-                    return False
+                return 'success' in response.text.lower() or 'dashboard' in response.text.lower()
             else:
-                self.log(f"❌ User registration failed: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ User registration failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def login_user(self) -> bool:
         """Login with the test user"""
         try:
-            # Get CSRF token from login form
             csrf_token = self.get_csrf_token(f"{self.base_url}/auth/login")
             if not csrf_token:
-                self.log("❌ Failed to get CSRF token for login", "ERROR")
                 return False
 
-            # Submit form data with CSRF token
             form_data = {
                 'csrf_token': csrf_token,
                 'email': self.test_user['email'],
@@ -153,44 +118,27 @@ class AutoModerateE2ETest:
                 f"{self.base_url}/auth/login",
                 data=form_data,
                 timeout=30,
-                allow_redirects=False  # Handle redirects manually
+                allow_redirects=False
             )
 
-            # Check for successful login (redirect to dashboard)
             if response.status_code == 302:
                 location = response.headers.get('Location', '')
-                if '/dashboard' in location:
-                    self.log("✅ User logged in successfully")
-                    return True
-                else:
-                    self.log("❌ Login redirect unexpected", "ERROR")
-                    return False
+                return '/dashboard' in location
             elif response.status_code == 200:
-                # Check if it's a success response
-                if 'dashboard' in response.text.lower() and 'error' not in response.text.lower():
-                    self.log("✅ User logged in successfully")
-                    return True
-                else:
-                    self.log("❌ Login form error", "ERROR")
-                    return False
+                return 'dashboard' in response.text.lower() and 'error' not in response.text.lower()
             else:
-                self.log(f"❌ User login failed: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ User login failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def create_project(self) -> bool:
         """Create a new project"""
         try:
-            # Get CSRF token from project creation form
             csrf_token = self.get_csrf_token(f"{self.base_url}/dashboard/projects/create")
             if not csrf_token:
-                self.log("❌ Failed to get CSRF token for project creation", "ERROR")
                 return False
 
-            # Submit form data with CSRF token
             project_data = {
                 'csrf_token': csrf_token,
                 'name': f'Test Project {self.test_suffix}',
@@ -201,55 +149,40 @@ class AutoModerateE2ETest:
                 f"{self.base_url}/dashboard/projects/create",
                 data=project_data,
                 timeout=30,
-                allow_redirects=False  # Handle redirects manually
+                allow_redirects=False
             )
 
-            # Handle redirect response
             if response.status_code in [302, 301]:
-                # Extract project ID from Location header
                 location = response.headers.get('Location', '')
 
                 if '/dashboard/projects/' in location and location != f"{self.base_url}/dashboard/projects/create":
-                    # Extract project ID from URL like /dashboard/projects/uuid-here
                     path_parts = location.split('/dashboard/projects/')
                     if len(path_parts) > 1:
-                        project_part = path_parts[1].split('/')[0]  # Get first part after projects/
-                        if project_part and len(project_part) > 10:  # Should be a UUID
+                        project_part = path_parts[1].split('/')[0]
+                        if project_part and len(project_part) > 10:
                             self.created_project_id = project_part
-                            self.log(f"✅ Project created successfully: {project_data['name']}")
                             return True
 
-                # If we get redirected back to projects list, try to find the project there
                 if '/dashboard/projects' in location:
-                    # Follow the redirect to see if project was created
                     projects_response = self.session.get(location, timeout=30)
                     if projects_response.status_code == 200 and project_data['name'] in projects_response.text:
-                        # Try to extract project ID from the HTML
-                        import re
-
-                        # Look for project links in the HTML
                         uuid_pattern = r'/dashboard/projects/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
                         matches = re.findall(uuid_pattern, projects_response.text)
                         if matches:
-                            self.created_project_id = matches[-1]  # Get the last (newest) project
-                            self.log(f"✅ Project created successfully: {project_data['name']}")
+                            self.created_project_id = matches[-1]
                             return True
 
-                self.log("❌ Project creation: Redirect location unclear", "ERROR")
                 return False
             else:
-                self.log(f"❌ Project creation failed: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ Project creation failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def get_api_key(self) -> bool:
         """Get the default API key for the project"""
         try:
             if not self.created_project_id:
-                self.log("❌ No project ID available to get API key", "ERROR")
                 return False
 
             response = self.session.get(
@@ -258,62 +191,46 @@ class AutoModerateE2ETest:
             )
 
             if response.status_code == 200:
-                # Parse HTML response to find API key
-                # Since this is an HTML page, we need to create an API key first
                 return self.create_api_key()
             else:
-                self.log(f"❌ Failed to access API keys page: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ Getting API key failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def create_api_key(self) -> bool:
         """Get the default API key (created automatically with project)"""
         try:
             if not self.created_project_id:
-                self.log("❌ No project ID available to get API key", "ERROR")
                 return False
 
-            # First try to get the default API key that should already exist
             response = self.session.get(
                 f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys",
                 timeout=30
             )
 
             if response.status_code == 200:
-                # Extract API key from HTML (look for pattern am_xxxx)
-                import re
                 api_key_pattern = r'am_[a-zA-Z0-9_-]+'
                 matches = re.findall(api_key_pattern, response.text)
 
                 if matches:
-                    self.api_key = matches[0]  # Get the first (default) key
-                    self.log("✅ Default API key retrieved")
+                    self.api_key = matches[0]
                     return True
                 else:
-                    self.log("❌ No API keys found, trying to create one", "WARNING")
-                    # If no default key exists, create one
                     return self.create_additional_api_key()
             else:
-                self.log(f"❌ Failed to access API keys page: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ API key retrieval failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def create_additional_api_key(self) -> bool:
         """Create an additional API key if default doesn't exist"""
         try:
-            # Get CSRF token for API key creation
             csrf_token = self.get_csrf_token(f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys")
             if not csrf_token:
-                self.log("❌ Failed to get CSRF token for API key creation", "ERROR")
                 return False
 
-            # Create API key via form submission with CSRF token
             form_data = {
                 'csrf_token': csrf_token,
                 'name': f'E2E Test Key {self.test_suffix}'
@@ -327,44 +244,34 @@ class AutoModerateE2ETest:
             )
 
             if response.status_code in [302, 301]:
-                # API key was created, now get it from the API keys page
                 response = self.session.get(
                     f"{self.base_url}/dashboard/projects/{self.created_project_id}/api-keys",
                     timeout=30
                 )
 
                 if response.status_code == 200:
-                    # Extract API key from HTML (look for pattern am_xxxx)
-                    import re
                     api_key_pattern = r'am_[a-zA-Z0-9_-]+'
                     matches = re.findall(api_key_pattern, response.text)
 
                     if matches:
-                        self.api_key = matches[-1]  # Get the last (newest) key
-                        self.log("✅ API key created and retrieved")
+                        self.api_key = matches[-1]
                         return True
                     else:
-                        self.log("❌ API key not found in response after creation", "ERROR")
                         return False
                 else:
-                    self.log(f"❌ Failed to retrieve API key after creation: HTTP {response.status_code}", "ERROR")
                     return False
             else:
-                self.log(f"❌ API key creation failed: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ API key creation failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def test_safe_content_moderation(self) -> bool:
         """Test content that should pass moderation"""
         try:
             if not self.api_key:
-                self.log("❌ No API key available for content moderation", "ERROR")
                 return False
 
-            # Use clear, unambiguously safe content
             safe_content = {
                 "type": "text",
                 "content": "I appreciate your help with this project. The documentation is very clear and well-written. Thank you for the excellent customer service!",
@@ -380,45 +287,31 @@ class AutoModerateE2ETest:
                 'Content-Type': 'application/json'
             }
 
-            self.log("Submitting safe content for moderation")
-
             response = self.session.post(
                 f"{self.base_url}/api/moderate",
                 json=safe_content,
                 headers=headers,
-                timeout=120  # Longer timeout for GPT-5 processing
+                timeout=120
             )
 
             if response.status_code == 200:
                 data = response.json()
-
                 if data.get('success'):
-                    status = data.get('status')
-                    if status == 'approved':
-                        self.log(f"✅ Safe content moderation passed: {status}")
-                        return True
-                    else:
-                        self.log(f"❌ Safe content was incorrectly {status}", "ERROR")
-                        return False
+                    return data.get('status') == 'approved'
                 else:
-                    self.log("❌ Safe content API returned success=false", "ERROR")
                     return False
             else:
-                self.log(f"❌ Safe content moderation failed: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ Safe content moderation failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def test_suspicious_content_moderation(self) -> bool:
         """Test content that should trigger moderation"""
         try:
             if not self.api_key:
-                self.log("❌ No API key available for content moderation", "ERROR")
                 return False
 
-            # Use content that should clearly trigger fraud/phishing detection
             suspicious_content = {
                 "type": "text",
                 "content": "🚨 URGENT SECURITY ALERT 🚨 Your account will be suspended in 24 hours! Click this link immediately: fake-bank-security.com/verify-now and enter your social security number, credit card details, and online banking password to prevent account closure. This is NOT a scam - we are your bank! Act now or lose access forever!",
@@ -434,43 +327,29 @@ class AutoModerateE2ETest:
                 'Content-Type': 'application/json'
             }
 
-            self.log("Submitting suspicious content for moderation")
-
             response = self.session.post(
                 f"{self.base_url}/api/moderate",
                 json=suspicious_content,
                 headers=headers,
-                timeout=120  # Longer timeout for GPT-5 processing
+                timeout=120
             )
 
             if response.status_code == 200:
                 data = response.json()
-
                 if data.get('success'):
-                    status = data.get('status')
-                    if status in ['rejected', 'flagged']:
-                        self.log(f"✅ Suspicious content was properly moderated: {status}")
-                        return True
-                    else:
-                        self.log(f"❌ Suspicious content was incorrectly {status} - should have been rejected!", "ERROR")
-                        self.log("   This indicates the AI moderation rules may need adjustment", "ERROR")
-                        return False
+                    return data.get('status') in ['rejected', 'flagged']
                 else:
-                    self.log("❌ Suspicious content API returned success=false", "ERROR")
                     return False
             else:
-                self.log(f"❌ Suspicious content moderation failed: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ Suspicious content moderation failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def test_api_stats(self) -> bool:
         """Test getting project statistics"""
         try:
             if not self.api_key:
-                self.log("❌ No API key available for stats test", "ERROR")
                 return False
 
             headers = {'X-API-Key': self.api_key}
@@ -483,70 +362,46 @@ class AutoModerateE2ETest:
 
             if response.status_code == 200:
                 data = response.json()
-                if data.get('success'):
-                    self.log("✅ API stats retrieved successfully")
-                    return True
-                else:
-                    self.log("❌ API stats failed", "ERROR")
-                    return False
+                return data.get('success', False)
             else:
-                self.log(f"❌ API stats failed: HTTP {response.status_code}", "ERROR")
                 return False
 
-        except Exception as e:
-            self.log(f"❌ API stats failed: {str(e)}", "ERROR")
+        except Exception:
             return False
 
     def cleanup(self):
         """Clean up test resources"""
-        try:
-            self.log("🧹 Cleaning up test resources...")
-            # The test user and project will be cleaned up when the test database is reset
-            # For production environments, you might want to add explicit cleanup
-            self.log("✅ Cleanup completed")
-        except Exception as e:
-            self.log(f"❌ Cleanup failed: {str(e)}", "ERROR")
+        pass
 
     def run_all_tests(self) -> bool:
         """Run simplified end-to-end tests for core platform functionality"""
-        self.log("🚀 Starting AutoModerate Core Platform Tests")
+        print("Starting AutoModerate Core Platform Tests")
 
-        # Core platform tests - what we actually need to validate deployment
         tests = [
-            ("Health Check", self.test_health_check),
-            ("User Registration", self.register_user),
-            ("User Login", self.login_user),
-            ("Project Creation", self.create_project),
-            ("API Key Creation", self.get_api_key),
+            self.test_health_check,
+            self.register_user,
+            self.login_user,
+            self.create_project,
+            self.get_api_key,
         ]
 
         passed = 0
         total = len(tests)
 
-        for test_name, test_func in tests:
-            self.log(f"\n📋 Running: {test_name}")
+        for test_func in tests:
             try:
                 if test_func():
                     passed += 1
-                    self.log(f"✅ {test_name} PASSED")
+                    print(".", end="", flush=True)
                 else:
-                    self.log(f"❌ {test_name} FAILED", "ERROR")
-            except Exception as e:
-                self.log(f"❌ {test_name} FAILED with exception: {str(e)}", "ERROR")
+                    print("F", end="", flush=True)
+            except Exception:
+                print("E", end="", flush=True)
 
         self.cleanup()
 
-        # Summary
-        self.log(f"\n📊 Test Results: {passed}/{total} tests passed")
-
-        if passed == total:
-            self.log("🎉 All core platform tests passed! AutoModerate is deployed and working correctly.")
-            self.log("✅ Users can register, login, create projects, and get API keys")
-            self.log("✅ Platform is ready for content moderation workflows")
-            return True
-        else:
-            self.log(f"💥 {total - passed} core tests failed - platform deployment has issues", "ERROR")
-            return False
+        print(f"\n\n{passed}/{total} tests passed")
+        return passed == total
 
 
 def main():
