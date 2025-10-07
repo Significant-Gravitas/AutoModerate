@@ -221,7 +221,7 @@ class ModerationOrchestrator:
             return {
                 'decision': 'rejected',
                 'confidence': 0.0,
-                'reason': f'AI error: {str(e)}',
+                'reason': 'An internal error occurred during AI moderation',
                 'moderator_type': 'ai',
                 'processing_time': time.time() - start_time,
                 'categories': {'error': True},
