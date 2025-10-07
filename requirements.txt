@@ -31,4 +31,4 @@ beautifulsoup4==4.13.5
 
 # Async support
 asyncio
-asyncpg==0.29.0
+asyncpg==0.30.0
