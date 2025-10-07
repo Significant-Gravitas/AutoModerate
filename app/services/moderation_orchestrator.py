@@ -108,12 +108,12 @@ class ModerationOrchestrator:
             await self._save_error_result(content_id, 'database', str(e))
 
             return {
-                'error': f'Database error: {str(e)}',
+                'error': 'Database error occurred',
                 'decision': 'error',
                 'results': [{
                     'decision': 'error',
                     'confidence': 0.0,
-                    'reason': f'Database error: {str(e)}',
+                    'reason': 'A database error occurred during moderation',
                     'moderator_type': 'system',
                     'processing_time': 0.0
                 }],
@@ -129,12 +129,12 @@ class ModerationOrchestrator:
             await self._save_error_result(content_id, 'processing', str(e))
 
             return {
-                'error': f'Processing error: {str(e)}',
+                'error': 'Processing error occurred',
                 'decision': 'error',
                 'results': [{
                     'decision': 'error',
                     'confidence': 0.0,
-                    'reason': f'Processing error: {str(e)}',
+                    'reason': 'A data processing error occurred during moderation',
                     'moderator_type': 'system',
                     'processing_time': 0.0
                 }],
@@ -151,12 +151,12 @@ class ModerationOrchestrator:
             await self._save_error_result(content_id, 'unexpected', str(e))
 
             return {
-                'error': f'Unexpected error: {str(e)}',
+                'error': 'Unexpected error occurred',
                 'decision': 'error',
                 'results': [{
                     'decision': 'error',
                     'confidence': 0.0,
-                    'reason': f'Unexpected error: {str(e)}',
+                    'reason': 'An unexpected error occurred during moderation',
                     'moderator_type': 'system',
                     'processing_time': 0.0
                 }],
