@@ -5,7 +5,10 @@
       "Bash(mv:*)",
       "Bash(grep:*)",
       "Bash(autopep8:*)",
-      "Bash(isort:*)"
+      "Bash(isort:*)",
+      "Bash(curl:*)",
+      "Bash(openssl dgst:*)",
+      "Bash(openssl base64:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
