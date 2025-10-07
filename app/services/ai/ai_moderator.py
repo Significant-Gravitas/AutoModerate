@@ -6,6 +6,7 @@ import tiktoken
 from flask import current_app
 
 from .openai_client import OpenAIClient
+from .openrouter_client import OpenRouterClient
 from .result_cache import ResultCache
 
 
@@ -14,6 +15,7 @@ class AIModerator:
 
     def __init__(self):
         self.client_manager = OpenAIClient()
+        self.openrouter_client = OpenRouterClient()
         self.cache = ResultCache()
         # Load model and token settings from config
         cfg = current_app.config
@@ -374,6 +376,53 @@ Does content violate this rule? JSON only:"""
         # If we exhausted all retries, raise the last exception
         raise last_exception
 
+    def _fallback_to_openrouter(self, messages, params=None):
+        """
+        Fallback to OpenRouter when OpenAI fails.
+        Uses OpenRouter's auto-routing to pick the best available model.
+        Uses the OpenAI SDK with OpenRouter base URL for compatibility.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            params: Optional dict of additional parameters (top_p, frequency_penalty, etc.)
+
+        Returns:
+            OpenAI ChatCompletion response object
+
+        Raises:
+            Exception: If OpenRouter is not configured or request fails
+        """
+        if not self.openrouter_client.is_configured():
+            raise Exception("OpenRouter fallback not configured - API key missing")
+
+        current_app.logger.info("Falling back to OpenRouter auto-routing")
+
+        try:
+            # Get OpenRouter client (configured as OpenAI client with different base_url)
+            client = self.openrouter_client.get_client()
+
+            # Build request parameters
+            request_params = {
+                "model": self.openrouter_client.auto_model,
+                "messages": messages
+            }
+
+            # Add optional parameters if provided
+            if params:
+                request_params.update(params)
+
+            # Make request using OpenAI SDK
+            response = client.chat.completions.create(**request_params)
+
+            # Log the model used
+            model_used = getattr(response, 'model', self.openrouter_client.auto_model)
+            current_app.logger.info(f"OpenRouter fallback successful using model: {model_used}")
+
+            return response
+        except Exception as e:
+            current_app.logger.error(f"OpenRouter fallback failed: {str(e)}")
+            raise
+
     def _analyze_with_custom_prompt(self, content, custom_prompt):
         """Use GPT with custom prompts for specialized moderation rules"""
         try:
@@ -396,7 +445,7 @@ CONTENT: {content}
 
 Does content violate this rule? JSON only:"""
 
-            # Wrap API call with retry logic
+            # Wrap API call with retry logic and OpenRouter fallback
             def make_api_call():
                 client = self.client_manager.get_client()
                 return client.chat.completions.create(
@@ -410,9 +459,29 @@ Does content violate this rule? JSON only:"""
                     presence_penalty=0
                 )
 
-            response = self._retry_api_call(make_api_call)
-
-            result_text = response.choices[0].message.content.strip()
+            try:
+                response = self._retry_api_call(make_api_call)
+                result_text = response.choices[0].message.content.strip()
+            except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as openai_error:
+                # OpenAI failed after retries, try OpenRouter fallback
+                current_app.logger.warning(
+                    f"OpenAI failed in custom prompt analysis, attempting OpenRouter fallback: {str(openai_error)}")
+                try:
+                    messages = [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ]
+                    params = {
+                        "top_p": 1.0,
+                        "frequency_penalty": 0,
+                        "presence_penalty": 0
+                    }
+                    response = self._fallback_to_openrouter(messages, params)
+                    result_text = response.choices[0].message.content.strip()
+                except Exception as fallback_error:
+                    # Both OpenAI and OpenRouter failed, re-raise original OpenAI error
+                    current_app.logger.error(f"OpenRouter fallback also failed: {str(fallback_error)}")
+                    raise openai_error
 
             # Parse JSON response
             try:
@@ -637,7 +706,7 @@ Does content violate this rule? JSON only:"""
 
 Is this harmful? JSON only:"""
 
-            # Wrap API call with retry logic
+            # Wrap API call with retry logic and OpenRouter fallback
             def make_api_call():
                 client = self.client_manager.get_client()
                 return client.chat.completions.create(
@@ -651,9 +720,29 @@ Is this harmful? JSON only:"""
                     presence_penalty=0
                 )
 
-            response = self._retry_api_call(make_api_call)
-
-            result_text = response.choices[0].message.content.strip()
+            try:
+                response = self._retry_api_call(make_api_call)
+                result_text = response.choices[0].message.content.strip()
+            except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as openai_error:
+                # OpenAI failed after retries, try OpenRouter fallback
+                current_app.logger.warning(
+                    f"OpenAI failed in enhanced moderation, attempting OpenRouter fallback: {str(openai_error)}")
+                try:
+                    messages = [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ]
+                    params = {
+                        "top_p": 1.0,
+                        "frequency_penalty": 0,
+                        "presence_penalty": 0
+                    }
+                    response = self._fallback_to_openrouter(messages, params)
+                    result_text = response.choices[0].message.content.strip()
+                except Exception as fallback_error:
+                    # Both OpenAI and OpenRouter failed, re-raise original OpenAI error
+                    current_app.logger.error(f"OpenRouter fallback also failed: {str(fallback_error)}")
+                    raise openai_error
 
             # Parse JSON response
             try:

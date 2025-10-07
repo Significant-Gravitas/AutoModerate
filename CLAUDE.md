@@ -55,7 +55,7 @@ AutoModerate is a Flask-based content moderation platform with OpenAI integratio
 |-----------|------------|---------|
 | **Backend** | Flask 2.3.3 + Flask-SocketIO | Web framework with real-time capabilities |
 | **Database** | SQLAlchemy (SQLite dev, PostgreSQL prod) | ORM with connection pooling |
-| **AI Integration** | OpenAI API (GPT models) | Content analysis and moderation |
+| **AI Integration** | OpenAI API (GPT models) + OpenRouter fallback | Content analysis and moderation with automatic failover |
 | **Authentication** | Flask-Login + API Keys | Session-based web auth + API authentication |
 | **Real-time** | WebSocket (Flask-SocketIO) | Live moderation result updates |
 | **Caching** | In-memory caches | Rule caching + AI result caching |
@@ -88,9 +88,10 @@ AutoModerate/
 │   ├── services/               # Business logic layer
 │   │   ├── moderation_orchestrator.py  # Main workflow coordinator
 │   │   ├── database_service.py         # Centralized database operations
-│   │   ├── ai/                         # OpenAI integration services
-│   │   │   ├── ai_moderator.py         # AI moderation strategies with chunking
+│   │   ├── ai/                         # AI integration services
+│   │   │   ├── ai_moderator.py         # AI moderation strategies with chunking and failover
 │   │   │   ├── openai_client.py        # OpenAI client management
+│   │   │   ├── openrouter_client.py    # OpenRouter fallback client
 │   │   │   └── result_cache.py         # AI result caching
 │   │   └── moderation/                 # Core moderation logic
 │   │       ├── rule_processor.py       # Rule evaluation (keyword/regex/AI)
@@ -155,6 +156,7 @@ AutoModerate/
 1. **Custom Prompt Analysis**: Rule-specific AI evaluation using custom prompts
 2. **Smart Chunking**: Automatic content splitting at sentence boundaries for large content
 3. **Token Management**: Dynamic content chunking based on model context windows
+4. **Automatic Failover**: OpenRouter fallback when OpenAI fails after retries
 
 ### Performance Optimizations
 
@@ -162,6 +164,8 @@ AutoModerate/
 - **Multi-level Caching**: Rule cache + AI result cache
 - **Bulk Operations**: Efficient database writes for moderation results
 - **Priority-based**: Fast rules (keyword/regex) processed first
+- **Retry with Backoff**: Exponential backoff for transient API errors
+- **Fallback Routing**: OpenRouter auto-selects best available LLM on failure
 
 ---
 
@@ -175,6 +179,7 @@ AutoModerate/
 | `OPENAI_CHAT_MODEL` | GPT model for analysis | `gpt-5-nano-2025-08-07` | `gpt-4` |
 | `OPENAI_CONTEXT_WINDOW` | Model context window size | `400000` | `128000` |
 | `OPENAI_MAX_OUTPUT_TOKENS` | Maximum output tokens | `128000` | `4096` |
+| `OPENROUTER_API_KEY` | **Optional** - OpenRouter fallback API | - | `sk-or-...` |
 | `DATABASE_URL` | Database connection | SQLite local | `postgresql://...` |
 | `FLASK_CONFIG` | Environment mode | `default` | `production` |
 | `SECRET_KEY` | Flask session security | Auto-generated | `your-secret-key` |
@@ -205,6 +210,30 @@ SQLALCHEMY_ENGINE_OPTIONS = {
     'echo': False
 }
 ```
+
+### OpenRouter Fallback Configuration
+
+AutoModerate implements automatic failover to OpenRouter when OpenAI is unavailable:
+
+**How it works:**
+1. All AI moderation requests attempt OpenAI first with 3 retries (exponential backoff)
+2. If OpenAI fails after retries (connection timeout, API errors), the system automatically falls back to OpenRouter
+3. OpenRouter integration uses the OpenAI SDK with a different base URL (`https://openrouter.ai/api/v1`)
+4. Uses the `openrouter/auto` model identifier for automatic LLM selection
+5. OpenRouter's auto-routing picks the best available model (powered by NotDiamond)
+6. The selected model processes the request and returns results in the same format
+
+**Configuration:**
+- Add `OPENROUTER_API_KEY=sk-or-your-key` to `.env` file
+- Get your API key from [openrouter.ai](https://openrouter.ai)
+- Fallback is automatic - no code changes needed
+- Logs indicate which service processed each request
+
+**Benefits:**
+- Increased reliability: System continues working even if OpenAI is down
+- No manual intervention required
+- Seamless experience for end users
+- Cost optimization: OpenRouter may route to cheaper models
 
 ---
 

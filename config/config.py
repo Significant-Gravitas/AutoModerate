@@ -23,6 +23,8 @@ class Config:
     # Upper bound for output tokens; actual requests may use much less
     OPENAI_MAX_OUTPUT_TOKENS = int(os.environ.get(
         'OPENAI_MAX_OUTPUT_TOKENS', '128000'))
+    # OpenRouter fallback configuration
+    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
