@@ -236,101 +236,49 @@ AutoModerate/
 
 ### Content Moderation Pipeline
 
-```
-┌─────────────┐
-│   Client    │
-│ Application │
-└──────┬──────┘
-       │ POST /api/moderate
-       │ { content, metadata }
-       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      AutoModerate API                       │
-└──────┬──────────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────┐
-│ Validate API Key    │
-│ & Extract Project   │
-└──────┬──────────────┘
-       │
-       ▼
-┌─────────────────────┐
-│  Store Content in   │
-│     Database        │
-└──────┬──────────────┘
-       │
-       ▼
-┌─────────────────────┐
-│  Token Analysis &   │
-│  Chunking Decision  │
-└──────┬──────────────┘
-       │
-       ▼
-┌───────────────────────────────────────────────────────────────┐
-│                    Rule Processing                            │
-├───────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────────┐     ┌────────────────────┐              │
-│  │  Fast Rules      │───> │ Match Found?       │─── YES ───┐  │
-│  │  (Keyword/Regex) │     └────────────────────┘           │  │
-│  └──────────────────┘               │                      │  │
-│                                    NO                      │  │
-│                                     │                      │  │
-│                                     ▼                      │  │
-│  ┌─────────────────────────────────────────────┐           │  │
-│  │         AI Rules (Parallel Processing)      │           │  │
-│  ├─────────────────────────────────────────────┤           │  │
-│  │                                             │           │  │
-│  │  ┌──────────────┐      ┌──────────────┐     │           │  │
-│  │  │ OpenAI API   │      │ OpenAI API   │     │           │  │
-│  │  │   Call #1    │      │   Call #2    │     │           │  │
-│  │  │ (w/ caching) │      │ (w/ caching) │     │           │  │
-│  │  └──────┬───────┘      └──────┬───────┘     │           │  │
-│  │         │                     │             │           │  │
-│  │         └─────────┬───────────┘             │           │  │
-│  │                   ▼                         │           │  │
-│  │         ┌──────────────────┐                │           │  │
-│  │         │  First Match or  │────────────────┼───────────┘  │
-│  │         │  All Processed   │                │              │
-│  │         └──────────────────┘                │              │
-│  └─────────────────────────────────────────────┘              │
-└───────────────────────┬───────────────────────────────────────┘
-                        │
-                        ▼
-             ┌──────────────────────┐
-             │  Generate Decision   │
-             │ (approve/reject/flag)│
-             └──────────┬───────────┘
-                        │
-                        ▼
-             ┌──────────────────────┐
-             │ Low Confidence?      │
-             │    (< 0.3)           │
-             └──────┬───────────────┘
-                    │
-         ┌──────────┴──────────┐
-         │                     │
-        YES                    NO
-         │                     │
-         ▼                     ▼
-  ┌──────────────┐    ┌──────────────┐
-  │ Flag for     │    │  Final       │
-  │ Manual Review│    │  Decision    │
-  └──────┬───────┘    └──────┬───────┘
-         │                   │
-         └─────────┬─────────┘
-                   ▼
-        ┌──────────────────────┐
-        │ Save Result to DB    │
-        │ + WebSocket Notify   │
-        └──────────┬───────────┘
-                   │
-                   ▼
-        ┌──────────────────────┐
-        │  Return Response     │
-        │  to Client           │
-        └──────────────────────┘
+```mermaid
+flowchart TD
+    A[Client Application] -->|POST /api/moderate<br/>content + metadata| B[AutoModerate API]
+    B --> C[Validate API Key<br/>& Extract Project]
+    C --> D[Store Content in Database]
+    D --> E[Token Analysis &<br/>Chunking Decision]
+    E --> F{Rule Processing}
+
+    F --> G[Fast Rules<br/>Keyword/Regex]
+    G --> H{Match Found?}
+    H -->|Yes| M[Generate Decision]
+    H -->|No| I[AI Rules<br/>Parallel Processing]
+
+    I --> J[OpenAI API Call #1<br/>w/ caching]
+    I --> K[OpenAI API Call #2<br/>w/ caching]
+    J --> L{First Match or<br/>All Processed}
+    K --> L
+    L --> M
+
+    M --> N{Low Confidence?<br/>< 0.3}
+    N -->|Yes| O[Flag for Manual Review]
+    N -->|No| P[Final Decision<br/>approve/reject/flag]
+    O --> Q[Save Result to DB<br/>+ WebSocket Notify]
+    P --> Q
+    Q --> R[Return Response to Client]
+
+    style A fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    style B fill:#F5A623,stroke:#C47F1A,stroke-width:2px,color:#fff
+    style C fill:#7B68EE,stroke:#5A4DB5,stroke-width:2px,color:#fff
+    style D fill:#50E3C2,stroke:#3AB39A,stroke-width:2px,color:#000
+    style E fill:#9013FE,stroke:#6B0FBF,stroke-width:2px,color:#fff
+    style G fill:#FF6B6B,stroke:#CC5555,stroke-width:2px,color:#fff
+    style H fill:#FFA07A,stroke:#CC8061,stroke-width:2px,color:#000
+    style I fill:#E91E63,stroke:#B71850,stroke-width:2px,color:#fff
+    style J fill:#EC407A,stroke:#BD3361,stroke-width:2px,color:#fff
+    style K fill:#EC407A,stroke:#BD3361,stroke-width:2px,color:#fff
+    style L fill:#F06292,stroke:#C04F75,stroke-width:2px,color:#fff
+    style M fill:#4CAF50,stroke:#3D8B40,stroke-width:2px,color:#fff
+    style N fill:#FF9800,stroke:#CC7A00,stroke-width:2px,color:#fff
+    style O fill:#FFC107,stroke:#CC9A06,stroke-width:2px,color:#000
+    style P fill:#8BC34A,stroke:#6F9C3B,stroke-width:2px,color:#000
+    style Q fill:#9C27B0,stroke:#7D1F8D,stroke-width:2px,color:#fff
+    style R fill:#2196F3,stroke:#1A78C2,stroke-width:2px,color:#fff
 ```
 
 **Processing Flow:**
