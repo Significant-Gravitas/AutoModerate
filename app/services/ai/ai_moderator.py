@@ -21,7 +21,7 @@ class AIModerator:
         self.model_context_window = int(
             cfg.get('OPENAI_CONTEXT_WINDOW', 272000))
         self.max_output_tokens = int(
-            cfg.get('OPENAI_MAX_OUTPUT_TOKENS', 128000))
+            cfg.get('OPENAI_MAX_OUTPUT_TOKENS', 500))
 
         # Initialize tokenizer; prefer model-specific, fallback to cl100k_base
         try:
