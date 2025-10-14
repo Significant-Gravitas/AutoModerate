@@ -42,6 +42,7 @@ class AIModerator:
         """
         Calculate the maximum tokens available for content based on prompt size.
         Dynamically adjusts for custom prompts to prevent exceeding context window.
+        Uses conservative estimates to account for tokenizer inaccuracies.
         """
         # Calculate custom prompt tokens if provided
         prompt_tokens = 0
@@ -60,19 +61,37 @@ CONTENT: {{content}}
 Does content violate this rule? JSON only:"""
             # Count tokens for the prompt parts (excluding content placeholder)
             prompt_tokens = self.count_tokens(system_message) + self.count_tokens(user_template)
+
+            # Log large prompts for debugging
+            if prompt_tokens > 10000:
+                current_app.logger.warning(
+                    f"Large custom prompt detected: {prompt_tokens} tokens. "
+                    f"This will significantly reduce available content space."
+                )
         else:
             # For default moderation, estimate prompt overhead
             prompt_tokens = 150  # Typical system + user message without content
 
-        # Total overhead = prompt + output tokens + small buffer for message formatting
-        total_overhead = prompt_tokens + self.max_output_tokens + 50  # 50 for message structure overhead
-        safety_margin = 0.90  # Use 90% of available capacity
+        # Total overhead = prompt + output tokens + larger buffer for safety
+        # Add 15% buffer to prompt tokens to account for tokenizer inaccuracies
+        # (being extra conservative for large prompts)
+        safe_prompt_tokens = int(prompt_tokens * 1.15)
+        total_overhead = safe_prompt_tokens + self.max_output_tokens + 500  # 500 for message structure overhead
+
+        # Use VERY conservative safety margin (70%) to account for tokenizer differences
+        # between our counting and OpenAI's counting. Better to chunk more than fail.
+        safety_margin = 0.70
 
         available_for_content = int(
             (self.model_context_window - total_overhead) * safety_margin)
 
+        # Hard cap: never allow more than 180k tokens for content
+        # This ensures we stay well under the 272k limit even with large prompts
+        available_for_content = min(available_for_content, 180000)
+
         # Ensure a sensible lower bound
-        return max(12000, available_for_content)
+        available_for_content = max(12000, available_for_content)
+        return available_for_content
 
     def split_text_into_chunks(self, text, max_tokens_per_chunk):
         """
