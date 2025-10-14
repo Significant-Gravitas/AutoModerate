@@ -43,6 +43,9 @@ class AIModerator:
         Calculate the maximum tokens available for content based on prompt size.
         Dynamically adjusts for custom prompts to prevent exceeding context window.
         Uses conservative estimates to account for tokenizer inaccuracies.
+
+        Raises:
+            ValueError: If custom prompt is too large to leave any space for content
         """
         # Calculate custom prompt tokens if provided
         prompt_tokens = 0
@@ -61,6 +64,22 @@ CONTENT: {{content}}
 Does content violate this rule? JSON only:"""
             # Count tokens for the prompt parts (excluding content placeholder)
             prompt_tokens = self.count_tokens(system_message) + self.count_tokens(user_template)
+
+            # Check if prompt alone exceeds safe limits
+            # Reserve at least 20k tokens for content + output + safety margin
+            MIN_CONTENT_SPACE = 20000
+            max_allowed_prompt = self.model_context_window - self.max_output_tokens - MIN_CONTENT_SPACE - 1000
+
+            if prompt_tokens > max_allowed_prompt:
+                current_app.logger.error(
+                    f"Custom prompt is too large: {prompt_tokens} tokens exceeds maximum of {max_allowed_prompt}. "
+                    f"This rule cannot be processed."
+                )
+                raise ValueError(
+                    f"Custom moderation rule is too large ({prompt_tokens} tokens). "
+                    f"Maximum allowed is {max_allowed_prompt} tokens. "
+                    f"Please reduce the size of your custom rule."
+                )
 
             # Log large prompts for debugging
             if prompt_tokens > 10000:
@@ -414,6 +433,19 @@ Does content violate this rule? JSON only:"""
 CONTENT: {content}
 
 Does content violate this rule? JSON only:"""
+
+            # DEBUG: Log exact token counts before API call
+            system_tokens = self.count_tokens(system_message)
+            user_tokens = self.count_tokens(user_message)
+            total_tokens = system_tokens + user_tokens
+            current_app.logger.info(
+                f"[DEBUG] About to call OpenAI API - "
+                f"System: {system_tokens} tokens, "
+                f"User: {user_tokens} tokens, "
+                f"Total: {total_tokens} tokens, "
+                f"Custom prompt length: {len(custom_prompt)} chars, "
+                f"Content length: {len(content)} chars"
+            )
 
             # Wrap API call with retry logic
             def make_api_call():
