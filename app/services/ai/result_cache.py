@@ -10,7 +10,7 @@ class ResultCache:
 
     # Shared cache across all instances with better memory management
     _shared_cache = {}
-    _shared_cache_ttl = 1800  # 30 minutes (reduced from 1 hour)
+    _shared_cache_ttl = 3600  # 1 hour
     _current_request_stores = 0  # Track stores per request
     _cache_lock = RLock()  # Thread-safe operations
     _max_cache_size = 500  # Reduced from 1000 for high-volume deployments
