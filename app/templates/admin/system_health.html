@@ -52,7 +52,7 @@
 
 <!-- Cache Statistics -->
 <div class="row mb-4">
-    <div class="col-md-6">
+    <div class="col-md-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-brain"></i> AI Result Cache</h5>
@@ -79,28 +79,6 @@
                         <tr>
                             <td><strong>Oldest Entry Age</strong></td>
                             <td>{{ (cache_stats.ai_cache.oldest_entry_age / 60)|int }} minutes</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-list"></i> Rule Cache</h5>
-            </div>
-            <div class="card-body">
-                <table class="table table-sm">
-                    <tbody>
-                        <tr>
-                            <td><strong>Cached Projects</strong></td>
-                            <td>{{ cache_stats.rule_cache.cached_projects }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Oldest Cache Age</strong></td>
-                            <td>{{ (cache_stats.rule_cache.oldest_cache_age / 60)|int }} minutes</td>
                         </tr>
                     </tbody>
                 </table>
