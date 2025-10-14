@@ -295,30 +295,40 @@ Does content violate this rule? JSON only:"""
 
             # STEP 1: If custom prompt is provided, use ONLY custom prompt analysis
             if custom_prompt:
-                # Calculate max content tokens based on custom prompt size
-                max_content_tokens = self.calculate_max_content_tokens(custom_prompt)
-                current_app.logger.info(
-                    f"Content has {content_tokens} tokens, max allowed: {max_content_tokens}")
+                # CRITICAL FIX: Hard limit on character count (tiktoken is broken for some content)
+                # Assume worst case: 1 char = 1 token for safety
+                MAX_CHARS_PER_CHUNK = 50000  # ~50k tokens worst case, safe for any prompt
+                content_chars = len(content)
 
-                if content_tokens <= max_content_tokens:
-                    return self._analyze_with_custom_prompt(content, custom_prompt)
-                else:
-                    # Split content and analyze each chunk
-                    chunks = self.split_text_into_chunks(content, max_content_tokens)
+                current_app.logger.info(
+                    f"Content: {content_tokens} tokens (tiktoken), {content_chars} chars")
+
+                # Force chunking if content is too large BY CHARACTER COUNT
+                if content_chars > MAX_CHARS_PER_CHUNK:
+                    current_app.logger.warning(
+                        f"FORCING CHUNKING: Content too large ({content_chars} chars > {MAX_CHARS_PER_CHUNK})")
+
+                    # Split by character count, not tokens
+                    chunks = []
+                    for i in range(0, content_chars, MAX_CHARS_PER_CHUNK):
+                        chunks.append(content[i:i + MAX_CHARS_PER_CHUNK])
+
                     current_app.logger.info(
-                        f"Split content into {len(chunks)} chunks for custom prompt analysis")
+                        f"Split content into {len(chunks)} chunks by character count")
 
                     chunk_results = []
                     for i, chunk in enumerate(chunks):
-                        result = self._analyze_with_custom_prompt(
-                            chunk, custom_prompt)
+                        result = self._analyze_with_custom_prompt(chunk, custom_prompt)
                         chunk_results.append(result)
 
-                        # Early exit if chunk is rejected (for efficiency)
+                        # Early exit if chunk is rejected
                         if result['decision'] == 'rejected':
                             break
 
                     return self._combine_chunk_results(chunk_results, len(content))
+                else:
+                    # Content is small enough, process normally
+                    return self._analyze_with_custom_prompt(content, custom_prompt)
 
             # STEP 2: For default moderation, run baseline check first
             # Note: OpenAI moderation API has its own limits, but typically handles larger content
