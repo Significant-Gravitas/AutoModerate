@@ -434,17 +434,15 @@ CONTENT: {content}
 
 Does content violate this rule? JSON only:"""
 
-            # DEBUG: Log exact token counts before API call
-            system_tokens = self.count_tokens(system_message)
-            user_tokens = self.count_tokens(user_message)
-            total_tokens = system_tokens + user_tokens
-            current_app.logger.info(
-                f"[DEBUG] About to call OpenAI API - "
-                f"System: {system_tokens} tokens, "
-                f"User: {user_tokens} tokens, "
-                f"Total: {total_tokens} tokens, "
+            # CRITICAL: Log what we're actually sending to identify cost issue
+            current_app.logger.error(
+                f"[COST INVESTIGATION] Sending to OpenAI - "
+                f"Content length: {len(content)} chars, "
                 f"Custom prompt length: {len(custom_prompt)} chars, "
-                f"Content length: {len(content)} chars"
+                f"System message length: {len(system_message)} chars, "
+                f"User message length: {len(user_message)} chars, "
+                f"Content type: {type(content).__name__}, "
+                f"Content first 200 chars: {content[:200] if len(content) > 0 else 'EMPTY'}"
             )
 
             # Wrap API call with retry logic
