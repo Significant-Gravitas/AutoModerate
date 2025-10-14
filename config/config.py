@@ -21,8 +21,9 @@ class Config:
     OPENAI_CONTEXT_WINDOW = int(os.environ.get(
         'OPENAI_CONTEXT_WINDOW', '272000'))
     # Upper bound for output tokens; actual requests may use much less
+    # AI moderator only returns small JSON responses (~100-200 tokens), so 500 is plenty
     OPENAI_MAX_OUTPUT_TOKENS = int(os.environ.get(
-        'OPENAI_MAX_OUTPUT_TOKENS', '128000'))
+        'OPENAI_MAX_OUTPUT_TOKENS', '500'))
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 

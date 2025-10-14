@@ -43,9 +43,6 @@ class AIModerator:
         Calculate the maximum tokens available for content based on prompt size.
         Dynamically adjusts for custom prompts to prevent exceeding context window.
         """
-        # Base system prompt size estimation
-        base_system_tokens = 100  # System message overhead
-
         # Calculate custom prompt tokens if provided
         prompt_tokens = 0
         if custom_prompt:
@@ -63,9 +60,12 @@ CONTENT: {{content}}
 Does content violate this rule? JSON only:"""
             # Count tokens for the prompt parts (excluding content placeholder)
             prompt_tokens = self.count_tokens(system_message) + self.count_tokens(user_template)
+        else:
+            # For default moderation, estimate prompt overhead
+            prompt_tokens = 150  # Typical system + user message without content
 
-        # Total overhead = base + prompt + output + safety margin
-        total_overhead = base_system_tokens + prompt_tokens + self.max_output_tokens
+        # Total overhead = prompt + output tokens + small buffer for message formatting
+        total_overhead = prompt_tokens + self.max_output_tokens + 50  # 50 for message structure overhead
         safety_margin = 0.90  # Use 90% of available capacity
 
         available_for_content = int(
