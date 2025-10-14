@@ -40,12 +40,14 @@
     <link href="{{ url_for('static', filename='css/utilities/responsive.css') }}" rel="stylesheet">
 </head>
 <body>
-    <!-- Real-time connection indicator -->
+    <!-- Real-time connection indicator (only for authenticated users) -->
+    {% if current_user.is_authenticated %}
     <div id="connection-status" class="real-time-indicator">
         <span class="badge bg-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
             <i class="fas fa-circle"></i> <span class="connection-text">Connecting...</span>
         </span>
     </div>
+    {% endif %}
 
     <!-- Toast Notification Container -->
     <div aria-live="polite" aria-atomic="true" class="position-fixed top-0 end-0 p-3" style="z-index: 1080; min-width: 300px;">

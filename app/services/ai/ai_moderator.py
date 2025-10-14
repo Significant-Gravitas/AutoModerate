@@ -1,5 +1,6 @@
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import openai
 import tiktoken
@@ -310,14 +311,19 @@ Does content violate this rule? JSON only:"""
                     for i in range(0, content_chars, MAX_CHARS_PER_CHUNK):
                         chunks.append(content[i:i + MAX_CHARS_PER_CHUNK])
 
+                    # Process all chunks IN PARALLEL for maximum speed
                     chunk_results = []
-                    for i, chunk in enumerate(chunks):
-                        result = self._analyze_with_custom_prompt(chunk, custom_prompt)
-                        chunk_results.append(result)
+                    with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
+                        # Submit all chunks at once
+                        future_to_chunk = {
+                            executor.submit(self._analyze_with_custom_prompt, chunk, custom_prompt): i
+                            for i, chunk in enumerate(chunks)
+                        }
 
-                        # Early exit if chunk is rejected
-                        if result['decision'] == 'rejected':
-                            break
+                        # Collect results as they complete
+                        for future in as_completed(future_to_chunk):
+                            result = future.result()
+                            chunk_results.append(result)
 
                     return self._combine_chunk_results(chunk_results, len(content))
                 else:
@@ -340,14 +346,19 @@ Does content violate this rule? JSON only:"""
                 # Split content and analyze each chunk
                 chunks = self.split_text_into_chunks(content, max_content_tokens)
 
+                # Process all chunks IN PARALLEL for maximum speed
                 chunk_results = []
-                for i, chunk in enumerate(chunks):
-                    result = self._run_enhanced_default_moderation(chunk)
-                    chunk_results.append(result)
+                with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
+                    # Submit all chunks at once
+                    future_to_chunk = {
+                        executor.submit(self._run_enhanced_default_moderation, chunk): i
+                        for i, chunk in enumerate(chunks)
+                    }
 
-                    # Early exit if chunk is rejected (for efficiency)
-                    if result['decision'] == 'rejected':
-                        break
+                    # Collect results as they complete
+                    for future in as_completed(future_to_chunk):
+                        result = future.result()
+                        chunk_results.append(result)
 
                 return self._combine_chunk_results(chunk_results, len(content))
 
