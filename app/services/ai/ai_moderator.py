@@ -300,9 +300,6 @@ Does content violate this rule? JSON only:"""
                 MAX_CHARS_PER_CHUNK = 50000  # ~50k tokens worst case, safe for any prompt
                 content_chars = len(content)
 
-                current_app.logger.info(
-                    f"Content: {content_tokens} tokens (tiktoken), {content_chars} chars")
-
                 # Force chunking if content is too large BY CHARACTER COUNT
                 if content_chars > MAX_CHARS_PER_CHUNK:
                     current_app.logger.warning(
@@ -312,9 +309,6 @@ Does content violate this rule? JSON only:"""
                     chunks = []
                     for i in range(0, content_chars, MAX_CHARS_PER_CHUNK):
                         chunks.append(content[i:i + MAX_CHARS_PER_CHUNK])
-
-                    current_app.logger.info(
-                        f"Split content into {len(chunks)} chunks by character count")
 
                     chunk_results = []
                     for i, chunk in enumerate(chunks):
@@ -332,7 +326,6 @@ Does content violate this rule? JSON only:"""
 
             # STEP 2: For default moderation, run baseline check first
             # Note: OpenAI moderation API has its own limits, but typically handles larger content
-            current_app.logger.info(f"Content has {content_tokens} tokens")
             baseline_result = self._run_baseline_moderation(content)
             if baseline_result['decision'] == 'rejected':
                 return baseline_result
@@ -346,8 +339,6 @@ Does content violate this rule? JSON only:"""
             else:
                 # Split content and analyze each chunk
                 chunks = self.split_text_into_chunks(content, max_content_tokens)
-                current_app.logger.info(
-                    f"Split content into {len(chunks)} chunks for enhanced moderation")
 
                 chunk_results = []
                 for i, chunk in enumerate(chunks):
@@ -443,17 +434,6 @@ Does content violate this rule? JSON only:"""
 CONTENT: {content}
 
 Does content violate this rule? JSON only:"""
-
-            # CRITICAL: Log what we're actually sending to identify cost issue
-            current_app.logger.error(
-                f"[COST INVESTIGATION] Sending to OpenAI - "
-                f"Content length: {len(content)} chars, "
-                f"Custom prompt length: {len(custom_prompt)} chars, "
-                f"System message length: {len(system_message)} chars, "
-                f"User message length: {len(user_message)} chars, "
-                f"Content type: {type(content).__name__}, "
-                f"Content first 200 chars: {content[:200] if len(content) > 0 else 'EMPTY'}"
-            )
 
             # Wrap API call with retry logic
             def make_api_call():
