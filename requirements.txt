@@ -24,7 +24,7 @@ psutil==7.1.0
 sentry-sdk[flask]
 
 # Database support
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.11
 
 # BeautifulSoup
 beautifulsoup4==4.14.2
