@@ -313,8 +313,9 @@ Does content violate this rule? JSON only:"""
 
                 # Force chunking if content is too large BY CHARACTER COUNT
                 if content_chars > MAX_CHARS_PER_CHUNK:
-                    current_app.logger.debug(f"Chunking content: {content_chars} chars split into {
-                        (content_chars // MAX_CHARS_PER_CHUNK) + 1} chunks")
+                    num_chunks = (content_chars // MAX_CHARS_PER_CHUNK) + 1
+                    current_app.logger.debug(
+                        f"Chunking content: {content_chars} chars split into {num_chunks} chunks")
 
                     # Split by character count, not tokens
                     chunks = []
