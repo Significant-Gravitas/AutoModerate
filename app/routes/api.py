@@ -256,6 +256,51 @@ async def health_check():
     })
 
 
+@api_bp.route('/test/error', methods=['GET'])
+async def test_error():
+    """
+    Test endpoint to trigger various exceptions for error monitoring (e.g., Sentry).
+
+    Usage:
+        GET /api/test/error                      - Triggers ZeroDivisionError (default)
+        GET /api/test/error?type=divide_by_zero  - Triggers ZeroDivisionError
+        GET /api/test/error?type=key_error       - Triggers KeyError
+        GET /api/test/error?type=value_error     - Triggers ValueError
+        GET /api/test/error?type=type_error      - Triggers TypeError
+        GET /api/test/error?type=index_error     - Triggers IndexError
+        GET /api/test/error?type=attribute_error - Triggers AttributeError
+
+    WARNING: This endpoint is for testing purposes only. Remove or disable in production.
+    """
+    error_type = request.args.get('type', 'divide_by_zero').strip().lower()
+
+    current_app.logger.info(f"Test error endpoint triggered with type: {error_type}")
+
+    if error_type == 'divide_by_zero':
+        1 / 0  # ZeroDivisionError
+    elif error_type == 'key_error':
+        d = {}
+        return d['nonexistent_key']  # KeyError
+    elif error_type == 'value_error':
+        int('not a number')  # ValueError
+    elif error_type == 'type_error':
+        None + 5  # TypeError
+    elif error_type == 'index_error':
+        lst = []
+        return lst[999]  # IndexError
+    elif error_type == 'attribute_error':
+        obj = None
+        return obj.some_attribute  # AttributeError
+    else:
+        return api_error_response(
+            f'Unknown error type: {error_type}. Available types: '
+            'divide_by_zero, key_error, value_error, type_error, index_error, attribute_error',
+            400
+        )
+
+    return jsonify({'status': 'no error triggered'})
+
+
 def _is_valid_api_key_format(api_key):
     """Validate API key format"""
     if not api_key or len(api_key) < 10 or len(api_key) > 100:
