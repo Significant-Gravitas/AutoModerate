@@ -308,7 +308,8 @@ Does content violate this rule? JSON only:"""
             if custom_prompt:
                 # CRITICAL FIX: Hard limit on character count (tiktoken is broken for some content)
                 # Assume worst case: 1 char = 1 token for safety
-                MAX_CHARS_PER_CHUNK = 50000  # ~50k tokens worst case, safe for any prompt
+                # Increased from 50k to 100k for better performance (fewer chunks = faster)
+                MAX_CHARS_PER_CHUNK = 100000  # ~100k tokens worst case, safe for large context models
                 content_chars = len(content)
 
                 # Force chunking if content is too large BY CHARACTER COUNT
@@ -331,10 +332,24 @@ Does content violate this rule? JSON only:"""
                             for i, chunk in enumerate(chunks)
                         }
 
-                        # Collect results as they complete
+                        # Collect results as they complete with early exit on rejection
                         for future in as_completed(future_to_chunk):
                             result = future.result()
                             chunk_results.append(result)
+
+                            # Early exit: if any chunk is rejected, cancel remaining and return immediately
+                            if result.get('decision') == 'rejected':
+                                current_app.logger.info(
+                                    f"Early exit: Chunk rejected, cancelling {
+                                        len(future_to_chunk) - len(chunk_results)} remaining chunks")
+
+                                # Cancel all pending futures
+                                for f in future_to_chunk:
+                                    if not f.done():
+                                        f.cancel()
+
+                                # Return immediately with rejection
+                                return self._combine_chunk_results(chunk_results, len(content))
 
                     return self._combine_chunk_results(chunk_results, len(content))
                 else:
@@ -366,10 +381,25 @@ Does content violate this rule? JSON only:"""
                         for i, chunk in enumerate(chunks)
                     }
 
-                    # Collect results as they complete
+                    # Collect results as they complete with early exit on rejection
                     for future in as_completed(future_to_chunk):
                         result = future.result()
                         chunk_results.append(result)
+
+                        # Early exit: if any chunk is rejected, cancel remaining and return immediately
+                        if result.get('decision') == 'rejected':
+                            current_app.logger.info(
+                                f"Early exit: Chunk rejected, cancelling {
+                                    len(future_to_chunk) -
+                                    len(chunk_results)} remaining chunks")
+
+                            # Cancel all pending futures
+                            for f in future_to_chunk:
+                                if not f.done():
+                                    f.cancel()
+
+                            # Return immediately with rejection
+                            return self._combine_chunk_results(chunk_results, len(content))
 
                 return self._combine_chunk_results(chunk_results, len(content))
 

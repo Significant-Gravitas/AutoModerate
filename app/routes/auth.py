@@ -13,6 +13,10 @@ oauth = OAuth()
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 async def login():
+    # Redirect to dashboard if already logged in
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+
     if request.method == 'POST':
         # Input validation and sanitization
         if request.is_json:
@@ -97,6 +101,10 @@ async def login():
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 async def register():
+    # Redirect to dashboard if already logged in
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+
     # Check if registration is enabled
     if not SystemSettings.is_registration_enabled():
         flash('Registration is currently disabled. Please contact an administrator.', 'error')

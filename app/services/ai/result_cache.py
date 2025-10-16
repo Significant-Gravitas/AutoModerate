@@ -13,10 +13,10 @@ class ResultCache:
     _shared_cache_ttl = 3600  # 1 hour
     _current_request_stores = 0  # Track stores per request
     _cache_lock = RLock()  # Thread-safe operations
-    _max_cache_size = 500  # Reduced from 1000 for high-volume deployments
-    _cleanup_threshold = 400  # Start cleanup earlier
+    _max_cache_size = 10000  # Maximum cache entries (increased to handle high volume)
+    _cleanup_threshold = 9000  # Start cleanup when reaching 90% capacity
     _last_cleanup_time = 0
-    _cleanup_interval = 180  # Cleanup every 3 minutes (more frequent)
+    _cleanup_interval = 900  # Check for expired entries every 15 minutes
 
     def __init__(self, cache_ttl=3600):  # 1 hour default
         self._cache_ttl = cache_ttl
@@ -144,24 +144,27 @@ class ResultCache:
             current_app.logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
 
     def _aggressive_cleanup(self):
-        """Perform aggressive cleanup when cache is full"""
+        """Perform aggressive cleanup when cache is full - ONLY remove expired entries"""
         current_time = time.time()
         entries_to_remove = []
 
-        # Remove entries older than 50% of TTL
+        # ONLY remove entries that are actually expired (>= 1 hour old)
+        # This guarantees all entries last at least the full TTL
         for key, data in list(ResultCache._shared_cache.items()):
-            if current_time - data['timestamp'] >= ResultCache._shared_cache_ttl * 0.5:
+            if current_time - data['timestamp'] >= ResultCache._shared_cache_ttl:
                 entries_to_remove.append((key, data['timestamp']))
 
-        # If not enough old entries, remove oldest 25%
-        if len(entries_to_remove) < len(ResultCache._shared_cache) * 0.25:
-            all_entries = [(key, data['timestamp']) for key, data in ResultCache._shared_cache.items()]
-            all_entries.sort(key=lambda x: x[1])  # Sort by timestamp
-            entries_to_remove.extend(all_entries[:len(ResultCache._shared_cache) // 4])
+        # If no expired entries and cache is full, log warning but don't remove valid entries
+        if not entries_to_remove:
+            current_app.logger.warning(
+                f"Cache full at {len(ResultCache._shared_cache)} entries with no expired entries. "
+                "Consider increasing max_cache_size or reducing TTL."
+            )
+            return
 
-        # Remove the entries
+        # Remove the entries (increased limit from 500 to 1000 for larger cache)
         removed_count = 0
-        for key, _ in entries_to_remove[:500]:  # Limit to prevent blocking
+        for key, _ in entries_to_remove[:1000]:  # Limit to prevent blocking
             if ResultCache._shared_cache.pop(key, None) is not None:
                 removed_count += 1
 
