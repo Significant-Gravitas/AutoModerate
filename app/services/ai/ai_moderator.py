@@ -16,6 +16,8 @@ class AIModerator:
     def __init__(self):
         self.client_manager = OpenAIClient()
         self.cache = ResultCache()
+        # Capture Flask app instance for context propagation in parallel processing
+        self.app = current_app._get_current_object()
         # Load model and token settings from config
         cfg = current_app.config
         self.model_name = cfg.get('OPENAI_CHAT_MODEL', 'gpt-5-2025-08-07')
@@ -29,6 +31,14 @@ class AIModerator:
             self.tokenizer = tiktoken.encoding_for_model(self.model_name)
         except (KeyError, ValueError):
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
+
+    def _context_wrapper(self, func, *args, **kwargs):
+        """
+        Wrapper to execute functions within Flask application context.
+        Required for parallel processing to access current_app.
+        """
+        with self.app.app_context():
+            return func(*args, **kwargs)
 
     def count_tokens(self, text):
         """Count the number of tokens in a text string"""
@@ -303,8 +313,8 @@ Does content violate this rule? JSON only:"""
 
                 # Force chunking if content is too large BY CHARACTER COUNT
                 if content_chars > MAX_CHARS_PER_CHUNK:
-                    current_app.logger.warning(
-                        f"FORCING CHUNKING: Content too large ({content_chars} chars > {MAX_CHARS_PER_CHUNK})")
+                    current_app.logger.debug(f"Chunking content: {content_chars} chars split into {
+                        (content_chars // MAX_CHARS_PER_CHUNK) + 1} chunks")
 
                     # Split by character count, not tokens
                     chunks = []
@@ -314,9 +324,9 @@ Does content violate this rule? JSON only:"""
                     # Process all chunks IN PARALLEL for maximum speed
                     chunk_results = []
                     with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
-                        # Submit all chunks at once
+                        # Submit all chunks at once with context wrapper
                         future_to_chunk = {
-                            executor.submit(self._analyze_with_custom_prompt, chunk, custom_prompt): i
+                            executor.submit(self._context_wrapper, self._analyze_with_custom_prompt, chunk, custom_prompt): i
                             for i, chunk in enumerate(chunks)
                         }
 
@@ -349,9 +359,9 @@ Does content violate this rule? JSON only:"""
                 # Process all chunks IN PARALLEL for maximum speed
                 chunk_results = []
                 with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
-                    # Submit all chunks at once
+                    # Submit all chunks at once with context wrapper
                     future_to_chunk = {
-                        executor.submit(self._run_enhanced_default_moderation, chunk): i
+                        executor.submit(self._context_wrapper, self._run_enhanced_default_moderation, chunk): i
                         for i, chunk in enumerate(chunks)
                     }
 
