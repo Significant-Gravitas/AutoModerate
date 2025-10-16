@@ -339,9 +339,9 @@ Does content violate this rule? JSON only:"""
 
                             # Early exit: if any chunk is rejected, cancel remaining and return immediately
                             if result.get('decision') == 'rejected':
+                                remaining = len(future_to_chunk) - len(chunk_results)
                                 current_app.logger.info(
-                                    f"Early exit: Chunk rejected, cancelling {
-                                        len(future_to_chunk) - len(chunk_results)} remaining chunks")
+                                    f"Early exit: Chunk rejected, cancelling {remaining} remaining chunks")
 
                                 # Cancel all pending futures
                                 for f in future_to_chunk:
@@ -388,10 +388,9 @@ Does content violate this rule? JSON only:"""
 
                         # Early exit: if any chunk is rejected, cancel remaining and return immediately
                         if result.get('decision') == 'rejected':
+                            remaining = len(future_to_chunk) - len(chunk_results)
                             current_app.logger.info(
-                                f"Early exit: Chunk rejected, cancelling {
-                                    len(future_to_chunk) -
-                                    len(chunk_results)} remaining chunks")
+                                f"Early exit: Chunk rejected, cancelling {remaining} remaining chunks")
 
                             # Cancel all pending futures
                             for f in future_to_chunk:
