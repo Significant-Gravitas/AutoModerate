@@ -856,27 +856,29 @@ class DatabaseService:
 
     # Content Query Operations
     async def get_content_counts_by_status(self, project_id: str) -> Dict[str, int]:
-        """Get content counts by moderation status"""
+        """Get content counts by moderation status - optimized single query"""
         def _get_counts():
-            total = Content.query.filter_by(project_id=project_id).count()
-            approved = Content.query.filter_by(
-                project_id=project_id, status='approved').count()
-            rejected = Content.query.filter_by(
-                project_id=project_id, status='rejected').count()
-            flagged = Content.query.filter_by(
-                project_id=project_id, status='flagged').count()
-            pending = Content.query.filter_by(
-                project_id=project_id, status='pending').count()
-            error = Content.query.filter_by(
-                project_id=project_id, status='error').count()
+            # Use GROUP BY to get all counts in a single query
+            status_counts = db.session.query(
+                Content.status,
+                func.count(Content.id).label('count')
+            ).filter(
+                Content.project_id == project_id
+            ).group_by(Content.status).all()
+
+            # Convert to dictionary
+            counts = {status: count for status, count in status_counts}
+
+            # Calculate total from the status counts
+            total = sum(counts.values())
 
             return {
                 'total': total,
-                'approved': approved,
-                'rejected': rejected,
-                'flagged': flagged,
-                'pending': pending,
-                'error': error
+                'approved': counts.get('approved', 0),
+                'rejected': counts.get('rejected', 0),
+                'flagged': counts.get('flagged', 0),
+                'pending': counts.get('pending', 0),
+                'error': counts.get('error', 0)
             }
 
         return await self._safe_execute(_get_counts) or {

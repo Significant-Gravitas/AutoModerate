@@ -425,13 +425,8 @@ async def project_content(project_id):
         page=page, per_page=25, error_out=False
     )
 
-    # Get total project statistics (not just current page)
-    total_stats = {
-        'total': Content.query.filter_by(project_id=project.id).count(),
-        'approved': Content.query.filter_by(project_id=project.id, status='approved').count(),
-        'rejected': Content.query.filter_by(project_id=project.id, status='rejected').count(),
-        'flagged': Content.query.filter_by(project_id=project.id, status='flagged').count(),
-    }
+    # Get total project statistics (not just current page) - optimized single query
+    total_stats = await db_service.get_content_counts_by_status(project.id)
 
     return render_template('dashboard/content.html',
                            project=project,
@@ -537,14 +532,12 @@ async def project_settings(project_id):
         flash('You do not have access to this project', 'error')
         return redirect(url_for('dashboard.projects'))
 
-    # Get comprehensive stats
-    total_content = Content.query.filter_by(project_id=project.id).count()
-    approved_content = Content.query.filter_by(
-        project_id=project.id, status='approved').count()
-    rejected_content = Content.query.filter_by(
-        project_id=project.id, status='rejected').count()
-    flagged_content = Content.query.filter_by(
-        project_id=project.id, status='flagged').count()
+    # Get comprehensive stats - optimized single query for content counts
+    content_counts = await db_service.get_content_counts_by_status(project.id)
+    total_content = content_counts.get('total', 0)
+    approved_content = content_counts.get('approved', 0)
+    rejected_content = content_counts.get('rejected', 0)
+    flagged_content = content_counts.get('flagged', 0)
     rules_count = ModerationRule.query.filter_by(project_id=project.id).count()
     api_keys_count = APIKey.query.filter_by(project_id=project.id).count()
 
