@@ -325,9 +325,8 @@ Does content violate this rule? JSON only:"""
                         chunks.append(content[i:i + MAX_CHARS_PER_CHUNK])
 
                     # Process all chunks IN PARALLEL for maximum speed
-                    # Increased from 10 -> 50 -> 200 workers for OpenAI API concurrency
                     chunk_results = []
-                    with ThreadPoolExecutor(max_workers=min(len(chunks), 200)) as executor:
+                    with ThreadPoolExecutor(max_workers=min(len(chunks), 100)) as executor:
                         # Submit all chunks at once with context wrapper
                         future_to_chunk = {
                             executor.submit(self._context_wrapper, self._analyze_with_custom_prompt, chunk, custom_prompt): i
@@ -375,9 +374,8 @@ Does content violate this rule? JSON only:"""
                 chunks = self.split_text_into_chunks(content, max_content_tokens)
 
                 # Process all chunks IN PARALLEL for maximum speed
-                # Increased from 10 -> 50 -> 200 workers for OpenAI API concurrency
                 chunk_results = []
-                with ThreadPoolExecutor(max_workers=min(len(chunks), 200)) as executor:
+                with ThreadPoolExecutor(max_workers=min(len(chunks), 100)) as executor:
                     # Submit all chunks at once with context wrapper
                     future_to_chunk = {
                         executor.submit(self._context_wrapper, self._run_enhanced_default_moderation, chunk): i
