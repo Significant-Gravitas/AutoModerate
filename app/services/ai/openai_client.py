@@ -37,9 +37,9 @@ class OpenAIClient:
                     pool=2.0
                 ),
                 limits=httpx.Limits(
-                    max_keepalive_connections=200,  # Increased connection pool
-                    max_connections=1000,           # Increased total connections
-                    keepalive_expiry=300.0          # Longer keepalive
+                    max_keepalive_connections=500,  # Increased from 200 to 500 for high concurrency
+                    max_connections=2000,           # Increased from 1000 to 2000 for burst handling
+                    keepalive_expiry=300.0          # Longer keepalive (5 minutes)
                 ),
                 http2=True
             )

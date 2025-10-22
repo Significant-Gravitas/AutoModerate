@@ -308,8 +308,9 @@ Does content violate this rule? JSON only:"""
             if custom_prompt:
                 # CRITICAL FIX: Hard limit on character count (tiktoken is broken for some content)
                 # Assume worst case: 1 char = 1 token for safety
-                # Increased from 50k to 100k for better performance (fewer chunks = faster)
-                MAX_CHARS_PER_CHUNK = 100000  # ~100k tokens worst case, safe for large context models
+                # Increased from 50k -> 100k -> 150k for better performance (fewer chunks = faster)
+                # With 400k context window and 70% safety margin, 150k is safe
+                MAX_CHARS_PER_CHUNK = 150000  # ~150k tokens worst case, safe for large context models
                 content_chars = len(content)
 
                 # Force chunking if content is too large BY CHARACTER COUNT
@@ -324,8 +325,9 @@ Does content violate this rule? JSON only:"""
                         chunks.append(content[i:i + MAX_CHARS_PER_CHUNK])
 
                     # Process all chunks IN PARALLEL for maximum speed
+                    # Increased from 10 to 50 workers for better concurrency under load
                     chunk_results = []
-                    with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
+                    with ThreadPoolExecutor(max_workers=min(len(chunks), 50)) as executor:
                         # Submit all chunks at once with context wrapper
                         future_to_chunk = {
                             executor.submit(self._context_wrapper, self._analyze_with_custom_prompt, chunk, custom_prompt): i
@@ -373,8 +375,9 @@ Does content violate this rule? JSON only:"""
                 chunks = self.split_text_into_chunks(content, max_content_tokens)
 
                 # Process all chunks IN PARALLEL for maximum speed
+                # Increased from 10 to 50 workers for better concurrency under load
                 chunk_results = []
-                with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
+                with ThreadPoolExecutor(max_workers=min(len(chunks), 50)) as executor:
                     # Submit all chunks at once with context wrapper
                     future_to_chunk = {
                         executor.submit(self._context_wrapper, self._run_enhanced_default_moderation, chunk): i

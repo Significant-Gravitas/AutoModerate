@@ -13,8 +13,8 @@ class ResultCache:
     _shared_cache_ttl = 3600  # 1 hour
     _current_request_stores = 0  # Track stores per request
     _cache_lock = RLock()  # Thread-safe operations
-    _max_cache_size = 10000  # Maximum cache entries (increased to handle high volume)
-    _cleanup_threshold = 9000  # Start cleanup when reaching 90% capacity
+    _max_cache_size = 50000  # Maximum cache entries (increased from 10k to 50k for high concurrency)
+    _cleanup_threshold = 45000  # Start cleanup when reaching 90% capacity
     _last_cleanup_time = 0
     _cleanup_interval = 900  # Check for expired entries every 15 minutes
 
