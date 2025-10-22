@@ -103,8 +103,8 @@ class RuleProcessor:
                 return (rule.id, None)
 
         # Execute in parallel
-        # Increased from 10 to 50 workers for better concurrency under load
-        with ThreadPoolExecutor(max_workers=min(len(ai_rules), 50)) as executor:
+        # Increased from 10 -> 50 -> 200 workers for OpenAI API concurrency
+        with ThreadPoolExecutor(max_workers=min(len(ai_rules), 200)) as executor:
             futures = {executor.submit(
                 process_single_ai_rule, rule): rule for rule in ai_rules}
 

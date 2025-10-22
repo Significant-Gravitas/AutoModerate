@@ -41,16 +41,16 @@ class Config:
 
     # SQLAlchemy connection pool configuration
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 5,                    # Number of connections to maintain in pool
-        'pool_timeout': 30,                # Seconds to wait for connection from pool
+        'pool_size': 50,                   # Number of connections to maintain in pool (was 5)
+        'pool_timeout': 60,                # Seconds to wait for connection from pool (was 30)
         'pool_recycle': 1800,              # Seconds before recreating connection (30 min)
         'pool_pre_ping': True,             # Verify connections before use
-        'max_overflow': 10,                # Additional connections beyond pool_size
+        'max_overflow': 100,               # Additional connections beyond pool_size (was 10)
         'echo': bool(os.environ.get('SQL_DEBUG', False))  # SQL debugging via env var
     }
 
     # ThreadPoolExecutor configuration for async database operations
-    DB_THREAD_POOL_WORKERS = int(os.environ.get('DB_THREAD_POOL_WORKERS', '8'))
+    DB_THREAD_POOL_WORKERS = int(os.environ.get('DB_THREAD_POOL_WORKERS', '100'))
 
 
 class DevelopmentConfig(Config):
