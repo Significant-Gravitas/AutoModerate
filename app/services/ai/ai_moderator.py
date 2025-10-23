@@ -326,7 +326,7 @@ Does content violate this rule? JSON only:"""
 
                     # Process all chunks IN PARALLEL for maximum speed
                     chunk_results = []
-                    with ThreadPoolExecutor(max_workers=min(len(chunks), 150)) as executor:
+                    with ThreadPoolExecutor(max_workers=min(len(chunks), 200)) as executor:
                         # Submit all chunks at once with context wrapper
                         future_to_chunk = {
                             executor.submit(self._context_wrapper, self._analyze_with_custom_prompt, chunk, custom_prompt): i
@@ -375,7 +375,7 @@ Does content violate this rule? JSON only:"""
 
                 # Process all chunks IN PARALLEL for maximum speed
                 chunk_results = []
-                with ThreadPoolExecutor(max_workers=min(len(chunks), 150)) as executor:
+                with ThreadPoolExecutor(max_workers=min(len(chunks), 200)) as executor:
                     # Submit all chunks at once with context wrapper
                     future_to_chunk = {
                         executor.submit(self._context_wrapper, self._run_enhanced_default_moderation, chunk): i
