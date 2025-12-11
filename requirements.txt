@@ -27,7 +27,7 @@ sentry-sdk[flask]
 psycopg2-binary==2.9.11
 
 # BeautifulSoup
-beautifulsoup4==4.14.2
+beautifulsoup4==4.14.3
 
 # Async support
 asyncio
