@@ -87,8 +87,7 @@ jobs:
     - name: Run core platform tests
       env:
         BASE_URL: http://localhost:6217
-        ADMIN_EMAIL: admin@example.com
-        ADMIN_PASSWORD: admin123
+        OPENAI_API_KEY: "test-key"  # Signals to skip moderation tests
       run: |
         python tests/e2e_test.py
 
