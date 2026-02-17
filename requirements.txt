@@ -3,7 +3,7 @@ Flask[async]==3.1.2
 Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
 Flask-WTF==1.2.2
-Flask-SocketIO==5.5.1
+Flask-SocketIO==5.6.0
 WTForms==3.2.1
 Werkzeug==3.1.5
 
