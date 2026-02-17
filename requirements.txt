@@ -3,9 +3,9 @@ Flask[async]==3.1.2
 Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
 Flask-WTF==1.2.2
-Flask-SocketIO==5.5.1
+Flask-SocketIO==5.6.0
 WTForms==3.2.1
-Werkzeug==3.1.4
+Werkzeug==3.1.5
 
 # OpenAI integration
 openai>=1.55.3
@@ -14,21 +14,22 @@ httpx[http2]
 
 # Security and utilities
 bcrypt==5.0.0
-python-dotenv==1.1.1
+python-dotenv==1.2.1
 requests==2.32.5
-pre-commit==4.3.0
-pydantic==2.12.0
+urllib3>=2.6.0  # Security fix for CVE-2024-37891
+pre-commit==4.5.1
+pydantic==2.12.5
 Flask-Talisman==1.1.0
-Authlib==1.6.5
-psutil==7.1.0
+Authlib==1.6.8
+psutil==7.2.2
 sentry-sdk[flask]
 
 # Database support
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.11
 
 # BeautifulSoup
-beautifulsoup4==4.14.2
+beautifulsoup4==4.14.3
 
 # Async support
 asyncio
-asyncpg==0.30.0
+asyncpg==0.31.0
