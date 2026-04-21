@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from flask import current_app, request
@@ -44,14 +45,17 @@ class ModerationOrchestrator:
             content._temp_token_count = content_tokens
             t_after_tokens = time.time()
 
-            # Process rules and get final decision
-            final_decision, results = self._process_rules(
+            # Process rules and get final decision. _process_rules wraps the
+            # blocking OpenAI call in asyncio.to_thread so it doesn't stall
+            # the event loop — under eventlet/threading this is what keeps
+            # concurrent requests actually concurrent.
+            final_decision, results = await self._process_rules(
                 content, fast_rules, ai_rules)
             t_after_rule_eval = time.time()
 
             # Handle edge cases
             if not results:
-                final_decision, results = self._handle_no_matches(
+                final_decision, results = await self._handle_no_matches(
                     all_rules, content)
             t_after_handle_no_matches = time.time()
 
@@ -182,8 +186,14 @@ class ModerationOrchestrator:
                 'content_id': content_id
             }
 
-    def _process_rules(self, content, fast_rules, ai_rules):
-        """Process both fast and AI rules, returning first match"""
+    async def _process_rules(self, content, fast_rules, ai_rules):
+        """Process both fast and AI rules, returning first match.
+
+        Fast rules (keyword / regex) are pure in-memory checks against
+        ``content.content_data`` and run inline. AI rules involve a network
+        round-trip to OpenAI, so we hand them to ``asyncio.to_thread`` to
+        keep the event loop responsive while waiting.
+        """
         results = []
 
         # Process fast rules first - batch processing for better performance
@@ -197,8 +207,8 @@ class ModerationOrchestrator:
         # rule matched. Returns only rules where the content violated them,
         # so the priority-order walk still early-exits on the first match.
         if ai_rules:
-            ai_results = self.rule_processor.process_ai_rules_batched(
-                ai_rules, content)
+            ai_results = await asyncio.to_thread(
+                self.rule_processor.process_ai_rules_batched, ai_rules, content)
             for rule in ai_rules:  # Maintain priority order
                 if rule.id in ai_results:
                     result = ai_results[rule.id]
@@ -207,13 +217,14 @@ class ModerationOrchestrator:
 
         return None, results
 
-    def _handle_no_matches(self, all_rules, content):
+    async def _handle_no_matches(self, all_rules, content):
         """Handle case when no rules matched"""
         if not all_rules:
-            # No rules defined - use default AI moderation
+            # No rules defined - use default AI moderation. The OpenAI call
+            # is blocking, so push it to a worker thread to keep the loop free.
             current_app.logger.info(
                 "No rules defined, using default AI moderation")
-            result = self._apply_default_ai_moderation(content)
+            result = await asyncio.to_thread(self._apply_default_ai_moderation, content)
             return result['decision'], [result]
         else:
             # Rules exist but none matched - approve by default
@@ -283,12 +294,14 @@ class ModerationOrchestrator:
         # Update content status using database service to ensure persistence
         await db_service.update_content_status(content.id, status=final_decision)
 
-        # Update API user stats efficiently
+        # Update API user stats atomically. Previously we fetched the row,
+        # mutated the detached ORM instance, and hoped a later commit in a
+        # different thread-pool worker would pick it up — it didn't, so
+        # counters drifted. Now the query + update + commit all run inside
+        # one session.
         if content.api_user_id:
             try:
-                api_user = await db_service.get_api_user_by_id(content.api_user_id)
-                if api_user:
-                    api_user.update_stats(final_decision)
+                await db_service.increment_api_user_stats(content.api_user_id, final_decision)
             except Exception as e:
                 current_app.logger.error(
                     f"Error updating API user stats: {str(e)}")
@@ -434,8 +447,9 @@ class ModerationOrchestrator:
             # Construct base URL from request context
             base_url = request.url_root.rstrip('/') if request else 'http://localhost:6217'
 
-            # Send notification
-            notifier.send_flagged_content_notification(
+            # Async-wrapped POST so we don't pin the moderation request on
+            # Discord latency or any 429 retry backoff.
+            await notifier.send_flagged_content_notification_async(
                 content_id=content.id,
                 project_id=content.project_id,
                 project_name=project.name,
@@ -444,7 +458,7 @@ class ModerationOrchestrator:
                 reason=reason,
                 moderator_type=moderator_type,
                 metadata=metadata,
-                base_url=base_url
+                base_url=base_url,
             )
 
             current_app.logger.info(

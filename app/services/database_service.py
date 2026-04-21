@@ -5,12 +5,11 @@ High-performance async database operations with consistent error handling
 
 import asyncio
 import logging
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from app import db
@@ -26,7 +25,16 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseService:
-    """Async centralized database operations with consistent error handling"""
+    """Async centralized database operations with consistent error handling.
+
+    Every call runs inside a thread-pool worker so it doesn't block the event
+    loop. There is intentionally NO global lock around these operations:
+    Flask-SQLAlchemy's ``scoped_session`` hands each thread its own session,
+    and the underlying connection pool is already thread-safe. A previous
+    implementation held a single ``threading.RLock`` across every call, which
+    silently serialised every DB op in the entire process (turning the 8-wide
+    thread pool into a 1-wide one) and defeated the point of the async layer.
+    """
 
     def __init__(self):
         from flask import current_app
@@ -35,78 +43,56 @@ class DatabaseService:
         except RuntimeError:
             # No app context available during initialization
             max_workers = 8
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
-        self._operation_lock = threading.RLock()  # Reentrant lock for thread safety
+        self._executor = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix='db-service')
 
     async def _safe_execute(self, operation_func, *args, **kwargs):
-        """Execute database operation asynchronously in thread pool with proper synchronization"""
+        """Execute a blocking DB operation in the thread pool, preserving
+        Flask's app context and normalising error handling.
+        """
         from flask import current_app, has_app_context
 
         loop = asyncio.get_event_loop()
 
-        # If we have an app context, we need to preserve it for the thread pool
+        def _run_with_rollback(op):
+            try:
+                return op()
+            except SQLAlchemyError as e:
+                logger.error(f"Database error in thread: {str(e)}")
+                try:
+                    db.session.rollback()
+                except SQLAlchemyError as rollback_error:
+                    logger.error(f"Rollback error: {str(rollback_error)}")
+                raise
+            except (ValueError, TypeError, AttributeError) as e:
+                logger.error(f"Data processing error in thread: {str(e)}")
+                try:
+                    db.session.rollback()
+                except SQLAlchemyError as rollback_error:
+                    logger.error(f"Rollback error: {str(rollback_error)}")
+                raise
+
         if has_app_context():
             app = current_app._get_current_object()
 
             def context_operation():
-                # Use thread-safe operation with locking
-                with self._operation_lock:
-                    with app.app_context():
-                        try:
-                            result = operation_func(*args, **kwargs)
-                            # Ensure session is properly handled
-                            if hasattr(db.session, 'commit'):
-                                # Session will be committed by the operation if needed
-                                pass
-                            return result
-                        except SQLAlchemyError as e:
-                            logger.error(f"Database error in thread: {str(e)}")
-                            try:
-                                db.session.rollback()
-                            except SQLAlchemyError as rollback_error:
-                                logger.error(f"Rollback error: {str(rollback_error)}")
-                            raise
-                        except (ValueError, TypeError, AttributeError) as e:
-                            logger.error(f"Data processing error in thread: {str(e)}")
-                            try:
-                                db.session.rollback()
-                            except SQLAlchemyError as rollback_error:
-                                logger.error(f"Rollback error: {str(rollback_error)}")
-                            raise
-
-            try:
-                return await loop.run_in_executor(self._executor, context_operation)
-            except SQLAlchemyError as e:
-                logger.error(f"Database error: {str(e)}")
-                return None
-            except (ValueError, TypeError, RuntimeError) as e:
-                logger.error(f"Runtime error: {str(e)}")
-                return None
+                with app.app_context():
+                    return _run_with_rollback(lambda: operation_func(*args, **kwargs))
+            target = context_operation
         else:
             # No app context, run directly (shouldn't happen in normal operation)
-            def safe_operation():
-                with self._operation_lock:
-                    try:
-                        return operation_func(*args, **kwargs)
-                    except SQLAlchemyError as e:
-                        logger.error(f"Database error (no context): {str(e)}")
-                        try:
-                            db.session.rollback()
-                        except SQLAlchemyError:
-                            pass
-                        raise
-                    except (ValueError, TypeError, AttributeError) as e:
-                        logger.error(f"Data processing error (no context): {str(e)}")
-                        raise
+            def bare_operation():
+                return _run_with_rollback(lambda: operation_func(*args, **kwargs))
+            target = bare_operation
 
-            try:
-                return await loop.run_in_executor(self._executor, safe_operation)
-            except SQLAlchemyError as e:
-                logger.error(f"Database error: {str(e)}")
-                return None
-            except (ValueError, TypeError, RuntimeError) as e:
-                logger.error(f"Runtime error: {str(e)}")
-                return None
+        try:
+            return await loop.run_in_executor(self._executor, target)
+        except SQLAlchemyError as e:
+            logger.error(f"Database error: {str(e)}")
+            return None
+        except (ValueError, TypeError, RuntimeError) as e:
+            logger.error(f"Runtime error: {str(e)}")
+            return None
 
     # User Operations
     async def create_user(self, username: str, email: str, password: str,
@@ -827,23 +813,37 @@ class DatabaseService:
 
     # API User Operations
     async def get_or_create_api_user(self, external_user_id: str, project_id: str) -> Optional[str]:
-        """Get existing API user or create new one, returns the user ID"""
+        """Get existing API user or create new one, returns the user ID.
+
+        Races safely against the (project_id, external_user_id) unique
+        constraint: if a concurrent request inserts the same pair first we
+        catch the IntegrityError, roll back, and re-read the row the winner
+        committed.
+        """
         def _get_or_create():
             api_user = APIUser.query.filter_by(
                 external_user_id=external_user_id,
                 project_id=project_id
             ).first()
 
-            if not api_user:
-                api_user = APIUser(
-                    external_user_id=external_user_id,
-                    project_id=project_id
-                )
-                db.session.add(api_user)
-                db.session.commit()
+            if api_user:
+                return api_user.id
 
-            # Return the ID string instead of the object to avoid detached instance issues
-            return api_user.id
+            api_user = APIUser(
+                external_user_id=external_user_id,
+                project_id=project_id,
+            )
+            db.session.add(api_user)
+            try:
+                db.session.commit()
+                return api_user.id
+            except IntegrityError:
+                db.session.rollback()
+                existing = APIUser.query.filter_by(
+                    external_user_id=external_user_id,
+                    project_id=project_id,
+                ).first()
+                return existing.id if existing else None
 
         return await self._safe_execute(_get_or_create)
 
@@ -853,6 +853,33 @@ class DatabaseService:
             return APIUser.query.get(api_user_id)
 
         return await self._safe_execute(_get_user)
+
+    async def increment_api_user_stats(self, api_user_id: str, status: str) -> bool:
+        """Atomically bump an APIUser's request counters for a moderation decision.
+
+        The previous pattern ``api_user = await get_api_user_by_id(); api_user.update_stats(...)``
+        mutated a detached ORM instance outside any session / app_context, so the
+        updates silently never persisted. This keeps the fetch, mutation, and
+        commit inside a single ``_safe_execute`` call so the session that owns
+        the instance is the same session that commits it.
+
+        Returns True on success, False if the user wasn't found or the update
+        failed.
+        """
+        def _increment():
+            api_user = APIUser.query.get(api_user_id)
+            if api_user is None:
+                return False
+            try:
+                api_user.update_stats(status)
+                db.session.commit()
+                return True
+            except SQLAlchemyError:
+                db.session.rollback()
+                raise
+
+        result = await self._safe_execute(_increment)
+        return bool(result)
 
     # Content Query Operations
     async def get_content_counts_by_status(self, project_id: str) -> Dict[str, int]:

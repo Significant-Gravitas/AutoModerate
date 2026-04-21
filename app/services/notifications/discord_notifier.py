@@ -1,7 +1,9 @@
 """Discord webhook notification service for content moderation alerts."""
 
+import asyncio
 import logging
 import os
+import threading
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -10,6 +12,33 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
+
+
+# Module-level shared session. Discord webhook traffic doesn't need a fresh
+# requests.Session per project — sharing one keeps the connection pool warm
+# and avoids spinning up TLS for every notification. Built lazily under a
+# lock so the first parallel notifications don't race to construct it.
+_SESSION: Optional[requests.Session] = None
+_SESSION_LOCK = threading.Lock()
+
+
+def _get_shared_session() -> requests.Session:
+    global _SESSION
+    if _SESSION is None:
+        with _SESSION_LOCK:
+            if _SESSION is None:
+                session = requests.Session()
+                retry_strategy = Retry(
+                    total=3,
+                    backoff_factor=1,
+                    status_forcelist=[429, 500, 502, 503, 504],
+                    allowed_methods=["POST"],
+                )
+                adapter = HTTPAdapter(max_retries=retry_strategy)
+                session.mount("https://", adapter)
+                session.mount("http://", adapter)
+                _SESSION = session
+    return _SESSION
 
 
 class DiscordNotifier:
@@ -21,6 +50,7 @@ class DiscordNotifier:
     - Automatic retries with exponential backoff
     - Error handling and logging
     - Support for both global and per-project webhooks
+    - Module-level shared HTTP session with connection pooling
     """
 
     # Discord embed color codes
@@ -36,18 +66,9 @@ class DiscordNotifier:
             webhook_url: Discord webhook URL. If None, uses DISCORD_WEBHOOK_URL from env.
         """
         self.webhook_url = webhook_url or os.getenv('DISCORD_WEBHOOK_URL')
-
-        # Configure session with retry logic
-        self.session = requests.Session()
-        retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["POST"]
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self.session.mount("https://", adapter)
-        self.session.mount("http://", adapter)
+        # All instances share one underlying requests.Session so the
+        # connection pool / HTTPS handshake is reused across notifications.
+        self.session = _get_shared_session()
 
     def is_configured(self) -> bool:
         """Check if webhook URL is configured."""
@@ -248,5 +269,16 @@ class DiscordNotifier:
             return False
 
     def close(self):
-        """Close the session."""
-        self.session.close()
+        """No-op: the underlying session is shared at module level and lives
+        for the process lifetime. Kept for backward compatibility with any
+        callers that may have invoked it on the old per-instance session.
+        """
+        return
+
+    async def send_flagged_content_notification_async(self, **kwargs) -> bool:
+        """Async wrapper around the blocking POST so async callers (the
+        moderation orchestrator) don't pin their event loop on Discord
+        latency or 429 retry backoff.
+        """
+        return await asyncio.to_thread(
+            self.send_flagged_content_notification, **kwargs)

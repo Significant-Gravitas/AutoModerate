@@ -149,13 +149,16 @@ async def make_decision(content_id):
         )
         db.session.add(manual_result)
 
-        # Update API user stats if available
+        # Commit the content + moderation result first, then atomically bump
+        # API user stats in a separate transaction. Both happen in the same
+        # request context so we do them synchronously here.
+        db.session.commit()
+
         if content.api_user_id:
             api_user = APIUser.query.get(content.api_user_id)
             if api_user:
                 api_user.update_stats(decision)
-
-        db.session.commit()
+                db.session.commit()
 
         current_app.logger.info(
             f"Manual decision made on content {content_id}: {decision} by {current_user.username}")
@@ -238,7 +241,9 @@ async def bulk_decision():
                 )
                 db.session.add(manual_result)
 
-                # Update API user stats if available
+                # Update API user stats — mutates the attached instance
+                # inside this request's session; flushed by the single
+                # db.session.commit() below.
                 if content.api_user_id:
                     api_user = APIUser.query.get(content.api_user_id)
                     if api_user:

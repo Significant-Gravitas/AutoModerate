@@ -758,7 +758,12 @@ Does content violate this rule? JSON only:"""
 
             response = self._retry_api_call(make_api_call)
 
-            result_text = response.choices[0].message.content.strip()
+            # OpenAI returns content=None when the model refuses to generate
+            # (safety filter, function-call response, etc). `.strip()` on None
+            # raises AttributeError which the surrounding except clauses do
+            # not catch — guard with `or ""` so the empty-string path is
+            # handled by the JSON parser fallback.
+            result_text = (response.choices[0].message.content or "").strip()
 
             # Parse JSON response
             try:
@@ -999,7 +1004,12 @@ Is this harmful? JSON only:"""
 
             response = self._retry_api_call(make_api_call)
 
-            result_text = response.choices[0].message.content.strip()
+            # OpenAI returns content=None when the model refuses to generate
+            # (safety filter, function-call response, etc). `.strip()` on None
+            # raises AttributeError which the surrounding except clauses do
+            # not catch — guard with `or ""` so the empty-string path is
+            # handled by the JSON parser fallback.
+            result_text = (response.choices[0].message.content or "").strip()
 
             # Parse JSON response
             try:

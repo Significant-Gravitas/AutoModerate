@@ -200,34 +200,15 @@ def create_app(config_name: str = 'default') -> Flask:
         }
     )
 
-    # User loader for Flask-Login
+    # User loader for Flask-Login. Called on every authenticated request, so
+    # keep it cheap: a simple synchronous primary-key lookup inside the
+    # existing app context. The previous implementation spun up a fresh
+    # ThreadPoolExecutor AND a fresh asyncio event loop per call just to
+    # await an async method that ultimately wraps ``User.query.get(user_id)``.
     @login_manager.user_loader
     def load_user(user_id):
-        import asyncio
-        import concurrent.futures
-
-        from flask import current_app, has_app_context
-
-        from app.services.database_service import db_service
-
-        # Get the current app reference before creating the thread
-        if has_app_context():
-            app = current_app._get_current_object()
-        else:
-            # If no app context, return None (user not authenticated)
-            return None
-
-        def run_async_with_context():
-            def async_operation():
-                with app.app_context():
-                    return asyncio.run(db_service.get_user_by_id(user_id))
-
-            return async_operation()
-
-        # Run in a separate thread with proper app context
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async_with_context)
-            return future.result()
+        from app.models.user import User
+        return User.query.get(user_id)
 
     # Initialize OAuth
     from app.routes.auth import oauth

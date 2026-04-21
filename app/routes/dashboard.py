@@ -768,7 +768,10 @@ async def invite_member(project_id):
         flash('You do not have permission to invite members', 'error')
         return redirect(url_for('dashboard.project_members', project_id=project_id))
 
-    email = request.form.get('email')
+    # Normalise to lowercase so invitations match regardless of how the
+    # invitee typed their email at signup. Mixed-case stored invitations
+    # would silently lock the recipient out of accepting their own invite.
+    email = (request.form.get('email') or '').strip().lower()
     role = request.form.get('role', 'member')
 
     if not email:
@@ -916,8 +919,9 @@ async def accept_invitation(token):
         flash('Please log in to accept the invitation', 'info')
         return redirect(url_for('auth.login'))
 
-    # Check if user email matches invitation
-    if current_user.email != invitation.email:
+    # Case-insensitive comparison: invitations stored lowercase by invite_member,
+    # but defend against legacy mixed-case data on either side.
+    if (current_user.email or '').lower() != (invitation.email or '').lower():
         flash('This invitation was sent to a different email address', 'error')
         return redirect(url_for('dashboard.index'))
 
@@ -929,7 +933,10 @@ async def accept_invitation(token):
         flash('You are already a member of this project', 'info')
         return redirect(url_for('dashboard.project_detail', project_id=project.id))
 
-    # Add user as member
+    # Add user as member. The (project_id, user_id) unique constraint on
+    # ProjectMember races-safes this: if two accept clicks arrive at once and
+    # both passed the is_member() check above, only one INSERT commits; the
+    # other rolls back and we treat it as a benign duplicate.
     membership = ProjectMember(
         project_id=project.id,
         user_id=current_user.id,
@@ -938,7 +945,12 @@ async def accept_invitation(token):
 
     invitation.status = 'accepted'
     db.session.add(membership)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash('You are already a member of this project', 'info')
+        return redirect(url_for('dashboard.project_detail', project_id=project.id))
 
     flash(
         f'You have successfully joined the project "{project.name}"', 'success')
@@ -955,7 +967,7 @@ async def decline_invitation(token):
         flash('This invitation is no longer valid', 'error')
         return redirect(url_for('dashboard.index'))
 
-    if current_user.email != invitation.email:
+    if (current_user.email or '').lower() != (invitation.email or '').lower():
         flash('This invitation was sent to a different email address', 'error')
         return redirect(url_for('dashboard.index'))
 

@@ -164,7 +164,10 @@ async def create_user():
     """Create a new user"""
     try:
         username = request.form.get('username', '').strip()
-        email = request.form.get('email', '').strip()
+        # Lowercase to match the public registration / login flows so admins
+        # can't accidentally create case-duplicated accounts that
+        # get_user_by_email(email.lower()) then fetches non-deterministically.
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
         is_admin = request.form.get('is_admin') == '1'
@@ -179,8 +182,11 @@ async def create_user():
             flash('Passwords do not match.', 'error')
             return redirect(url_for('admin.users'))
 
-        if len(password) < 6:
-            flash('Password must be at least 6 characters long.', 'error')
+        # Match the public registration policy (auth.py:_is_valid_password):
+        # 8 chars min. The previous 6-char floor was weaker than the public
+        # path despite admin-created accounts often being privileged.
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'error')
             return redirect(url_for('admin.users'))
 
         # Check if username or email already exists
