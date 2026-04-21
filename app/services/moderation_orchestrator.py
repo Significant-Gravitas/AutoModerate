@@ -24,31 +24,36 @@ class ModerationOrchestrator:
     async def moderate_content(self, content_id, request_start_time=None):
         """Main moderation function with optimized parallel processing"""
         try:
+            t_start = time.time()
             content = await db_service.get_content_by_id(content_id)
             if not content:
                 return {'error': 'Content not found'}
+            t_after_get_content = time.time()
 
             # Get rules directly from database and separate by type
             all_rules = await db_service.get_all_rules_for_project(content.project_id, include_inactive=False)
             fast_rules = [
                 r for r in all_rules if r.rule_type in ['keyword', 'regex']]
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
+            t_after_rules = time.time()
 
             # Count tokens once and cache for processing decisions
             content_tokens = self.ai_moderator.count_tokens(
                 content.content_data)
-
             # Store token count temporarily for processing optimization
             content._temp_token_count = content_tokens
+            t_after_tokens = time.time()
 
             # Process rules and get final decision
             final_decision, results = self._process_rules(
                 content, fast_rules, ai_rules)
+            t_after_rule_eval = time.time()
 
             # Handle edge cases
             if not results:
                 final_decision, results = self._handle_no_matches(
                     all_rules, content)
+            t_after_handle_no_matches = time.time()
 
             # Check for manual review flagging
             if self._should_flag_for_manual_review(results, ai_rules):
@@ -65,8 +70,22 @@ class ModerationOrchestrator:
 
             # Save to database and send updates
             await self._save_results(content, final_decision, results, total_time)
+            t_after_save = time.time()
             self.websocket_notifier.send_update_async(
                 content, final_decision, results, total_time)
+
+            # Per-stage timing breakdown is only useful while debugging latency;
+            # leave it at DEBUG so INFO-level logs stay uncluttered.
+            current_app.logger.debug(
+                f"[perf] content={content_id} "
+                f"get_content={t_after_get_content - t_start:.3f}s "
+                f"rules_fetch={t_after_rules - t_after_get_content:.3f}s "
+                f"tokens={t_after_tokens - t_after_rules:.3f}s "
+                f"rule_eval={t_after_rule_eval - t_after_tokens:.3f}s "
+                f"no_match={t_after_handle_no_matches - t_after_rule_eval:.3f}s "
+                f"save={t_after_save - t_after_handle_no_matches:.3f}s "
+                f"total={t_after_save - t_start:.3f}s"
+            )
 
             # Send Discord notification if content is flagged or rejected
             if final_decision in ['flagged', 'rejected']:
@@ -174,9 +193,11 @@ class ModerationOrchestrator:
                 results.append(result)
                 return result['decision'], results
 
-        # Process AI rules in parallel if no fast rule matched
+        # Evaluate all AI rules in a single batched OpenAI call when no fast
+        # rule matched. Returns only rules where the content violated them,
+        # so the priority-order walk still early-exits on the first match.
         if ai_rules:
-            ai_results = self.rule_processor.process_ai_rules_parallel(
+            ai_results = self.rule_processor.process_ai_rules_batched(
                 ai_rules, content)
             for rule in ai_rules:  # Maintain priority order
                 if rule.id in ai_results:

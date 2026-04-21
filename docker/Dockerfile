@@ -21,12 +21,21 @@ COPY . .
 # Create instance directory for SQLite if needed
 RUN mkdir -p instance
 
+# Run as a non-root user for defence in depth
+RUN useradd --create-home --uid 1000 app && chown -R app:app /app
+USER app
+
 # Expose the port the app runs on
 EXPOSE 6217
 
 # Set environment variables
-ENV FLASK_ENV=production
+ENV FLASK_CONFIG=production
 ENV PYTHONPATH=/app
 
-# Run the application
-CMD ["python", "run.py"]
+# Serve via gunicorn with eventlet for Flask-SocketIO compatibility.
+# A single worker is required because SocketIO clients need to stick to one
+# process; scale horizontally by running multiple containers behind a load
+# balancer with sticky sessions + a shared message queue.
+CMD ["gunicorn", "--worker-class", "eventlet", "--workers", "1", \
+     "--bind", "0.0.0.0:6217", "--timeout", "120", "--access-logfile", "-", \
+     "wsgi:app"]

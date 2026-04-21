@@ -15,7 +15,7 @@
                     <p class="text-muted">User ID: {{ api_user.external_user_id }}</p>
                 </div>
                 <div>
-                    {% if current_user.is_admin or api_user.project.is_owner(current_user.id) %}
+                    {% if current_user.is_admin or api_user.project.user_id == current_user.id %}
                     <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteUserDataModal">
                         <i class="fas fa-trash"></i> Delete User Data
                     </button>

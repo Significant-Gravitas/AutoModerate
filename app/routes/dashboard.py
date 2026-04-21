@@ -196,10 +196,10 @@ async def create_rule(project_id):
     """Create new moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
+    # Mutating rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
+        flash('You do not have permission to create rules for this project', 'error')
+        return redirect(url_for('dashboard.project_rules', project_id=project_id))
 
     if request.method == 'POST':
         name = request.form.get('name')
@@ -251,8 +251,8 @@ async def update_rule(project_id, rule_id):
     """Update existing moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Mutating rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     rule = ModerationRule.query.filter_by(
         id=rule_id, project_id=project.id).first_or_404()
@@ -301,8 +301,8 @@ async def toggle_rule(project_id, rule_id):
     """Toggle rule active/inactive status"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Mutating rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     rule = ModerationRule.query.filter_by(
         id=rule_id, project_id=project.id).first_or_404()
@@ -337,8 +337,8 @@ async def delete_rule(project_id, rule_id):
     """Delete moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Deleting rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     rule = ModerationRule.query.filter_by(
         id=rule_id, project_id=project.id).first_or_404()
@@ -464,8 +464,8 @@ async def toggle_api_key(project_id, key_id):
     """Toggle API key active/inactive status"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Mutating API keys requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     api_key = APIKey.query.filter_by(
         id=key_id, project_id=project.id).first_or_404()
@@ -500,8 +500,8 @@ async def delete_api_key(project_id, key_id):
     """Delete API key"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Deleting API keys requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     api_key = APIKey.query.filter_by(
         id=key_id, project_id=project.id).first_or_404()
@@ -573,10 +573,10 @@ async def update_project(project_id):
     """Update project information"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
+    # Updating project identity requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
+        flash('You do not have permission to modify project settings', 'error')
+        return redirect(url_for('dashboard.project_settings', project_id=project_id))
 
     name = request.form.get('name')
     description = request.form.get('description', '')

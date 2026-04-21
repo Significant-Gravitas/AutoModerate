@@ -6,6 +6,7 @@ from functools import wraps
 
 from flask import flash, jsonify, redirect, request, url_for
 from pydantic import BaseModel, ValidationError
+from werkzeug.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +149,40 @@ def validate_json_request(schema_class: BaseModel):
                     "VALIDATION_ERROR",
                     {"field_errors": error_details}
                 )
+            except BadRequest as e:
+                # werkzeug.exceptions.BadRequest fires when request.get_json()
+                # can't parse the body — malformed JSON, invalid UTF-8, etc.
+                # These are client errors, not server errors. Surface a useful
+                # 400 so clients can debug their encoding/payload instead of
+                # chasing a phantom "internal server error".
+                description = getattr(e, 'description', str(e))
+                logger.warning(
+                    f"Malformed request body in {request.endpoint}: {description}"
+                )
+                message = "Malformed JSON body"
+                if "codec can't decode" in str(description):
+                    message = (
+                        "Request body is not valid UTF-8. Encode your JSON "
+                        "payload as UTF-8 (common culprit: Windows CP-1252 "
+                        "em dash / smart quotes)."
+                    )
+                return api_error_response(
+                    message,
+                    400,
+                    "MALFORMED_REQUEST_BODY",
+                    {"detail": str(description)}
+                )
             except Exception as e:
-                logger.error(f"Validation error in {f.__name__}: {str(e)}")
-                return api_error_response("Internal server error", 500)
+                logger.error(
+                    f"Unexpected error in validate_json_request for "
+                    f"{f.__name__}: {str(e)}",
+                    exc_info=True,
+                )
+                return api_error_response(
+                    "An internal server error occurred",
+                    500,
+                    "INTERNAL_ERROR",
+                )
 
         return decorated_function
     return decorator

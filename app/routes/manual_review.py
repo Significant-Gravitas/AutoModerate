@@ -500,7 +500,7 @@ async def delete_user_data(user_id):
         api_user = APIUser.query.get_or_404(user_id)
 
         # Check if user has permission (admin or project owner)
-        if not current_user.is_admin and not api_user.project.is_owner(current_user.id):
+        if not current_user.is_admin and api_user.project.user_id != current_user.id:
             flash('You do not have permission to delete user data', 'error')
             return redirect(url_for('manual_review.api_user_detail', user_id=user_id))
 

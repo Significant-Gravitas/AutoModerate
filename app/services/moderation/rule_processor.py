@@ -1,8 +1,12 @@
-import re
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import regex as regex_safe  # ReDoS-safe engine with timeout= support
 from flask import current_app
+
+# Maximum wall-clock seconds to spend evaluating a single user-supplied regex
+# against a single piece of content. Catastrophic-backtrack patterns like
+# (a+)+$ will otherwise pin a worker thread indefinitely.
+_REGEX_EVAL_TIMEOUT_SECONDS = 1.0
 
 
 class RuleProcessor:
@@ -47,107 +51,77 @@ class RuleProcessor:
             current_app.logger.error(f"Fast rule error {rule.id}: {str(e)}")
             return None
 
-    def process_ai_rules_parallel(self, ai_rules, content):
-        """Process AI rules in true parallel with optimal performance"""
+    def process_ai_rules_batched(self, ai_rules, content):
+        """Evaluate all AI-prompt rules against the content in a SINGLE
+        OpenAI call.
+
+        The old implementation ran one API call per rule in parallel, which
+        made a "Passed all N rules" approval cost N round-trips (~5-10s for
+        5 rules on gpt-5-nano). The batched call asks the model to grade every
+        rule independently in one response, collapsing that to one round-trip.
+
+        Returns ``{rule_id: rule_match_dict}`` for rules where the content
+        VIOLATES the rule — i.e. the rule "matched" and should apply its
+        action. Non-matching rules are omitted so the orchestrator can still
+        iterate by priority and early-exit on the first match.
+        """
         if not ai_rules:
             return {}
 
         results = {}
-        app = current_app._get_current_object()
+        start_time = time.time()
 
-        # Process AI rules in parallel
+        try:
+            by_id = self.openai_service.evaluate_rules_batch(
+                content.content_data, ai_rules)
+        except Exception as e:
+            current_app.logger.error(
+                f"Batched AI rule eval raised: {str(e)}", exc_info=True)
+            return {}
 
-        def process_single_ai_rule(rule):
-            try:
-                with app.app_context():
-                    start_time = time.time()
-                    rule_data = rule.rule_data
+        total_time = time.time() - start_time
 
-                    # Use the provided OpenAI service
-                    ai_result = self.openai_service.moderate_content(
-                        content.content_data,
-                        content.content_type,
-                        rule_data.get('prompt', '')
-                    )
+        for rule in ai_rules:
+            eval_result = by_id.get(rule.id)
+            if not eval_result:
+                continue
 
-                    # Check if rule matched
-                    if 'configuration_error' in ai_result.get('categories', {}):
-                        matched = True
-                        reason = "OpenAI unavailable - applying rule action"
-                        confidence = 0.5
-                    else:
-                        matched = ai_result['decision'] == 'rejected'
-                        reason = ai_result.get('reason', 'AI analysis')
-                        confidence = ai_result.get('confidence', 0.8)
+            # A rejection from evaluate_rules_batch means the content violated
+            # the rule — which in rule-processor terms is a "match" that
+            # should apply the rule's configured action (typically 'reject').
+            if eval_result['decision'] != 'rejected':
+                continue
 
-                    processing_time = time.time() - start_time
+            confidence = eval_result.get('confidence', 0.8)
+            reason = eval_result.get('reason', 'AI analysis')
 
-                    if matched:
-                        return (rule.id, {
-                            'decision': rule.action,
-                            'confidence': confidence,
-                            'reason': f"Rule '{rule.name}': {reason}",
-                            'moderator_type': 'rule',
-                            'rule_id': rule.id,
-                            'rule_name': rule.name,
-                            'rule_type': rule.rule_type,
-                            'processing_time': processing_time,
-                            'categories': {'rule_ai_prompt': True},
-                            'category_scores': {'rule_ai_prompt': confidence}
-                        })
+            results[rule.id] = {
+                'decision': rule.action,
+                'confidence': confidence,
+                'reason': f"Rule '{rule.name}': {reason}",
+                'moderator_type': 'rule',
+                'rule_id': rule.id,
+                'rule_name': rule.name,
+                'rule_type': rule.rule_type,
+                # Every rule in the batch shares the same wall-clock cost
+                # because they came from one API call. Recording total_time
+                # on each keeps the analytics honest.
+                'processing_time': total_time,
+                'categories': {'rule_ai_prompt': True},
+                'category_scores': {'rule_ai_prompt': confidence},
+            }
 
-                    return (rule.id, None)
-
-            except Exception as e:
-                app.logger.error(f"AI rule error {rule.id}: {str(e)}")
-                return (rule.id, None)
-
-        # Execute in parallel
-        with ThreadPoolExecutor(max_workers=min(len(ai_rules), 200)) as executor:
-            futures = {executor.submit(
-                process_single_ai_rule, rule): rule for rule in ai_rules}
-
-            try:
-                for future in as_completed(futures, timeout=60):
-                    try:
-                        rule_id, result = future.result()
-                        if result:
-                            results[rule_id] = result
-
-                            # Cancel remaining futures for early exit
-                            for f in futures:
-                                if f != future and not f.done():
-                                    f.cancel()
-                            break
-                    except Exception as e:
-                        current_app.logger.error(f"AI rule future error: {str(e)}")
-
-            except TimeoutError:
-                # Handle timeout - collect any completed futures
-                unfinished = sum(1 for f in futures if not f.done())
-                completed = len(futures) - unfinished
-                current_app.logger.warning(
-                    f"AI rule timeout: {completed}/{len(ai_rules)} completed, {unfinished} timed out after 60s"
-                )
-
-                # Try to collect results from completed futures
-                for future in futures:
-                    if future.done() and not future.cancelled():
-                        try:
-                            rule_id, result = future.result(timeout=0)
-                            if result:
-                                results[rule_id] = result
-                        except Exception as e:
-                            current_app.logger.error(f"Error collecting completed result: {str(e)}")
-
-                # Cancel unfinished futures
-                for future in futures:
-                    if not future.done():
-                        future.cancel()
-
+        # Only log at INFO when something matched — the orchestrator emits a
+        # final summary line for every moderation anyway, so logging the
+        # zero-match case here is just duplicate noise.
         if results:
             current_app.logger.info(
-                f"AI rules: {len(results)}/{len(ai_rules)} matched")
+                f"AI rules (batched): {len(results)}/{len(ai_rules)} matched in {total_time:.2f}s"
+            )
+        else:
+            current_app.logger.debug(
+                f"AI rules (batched): 0/{len(ai_rules)} matched in {total_time:.2f}s"
+            )
         return results
 
     def _check_keyword_rule(self, content, rule_data):
@@ -172,7 +146,12 @@ class RuleProcessor:
         return False, "No keywords matched"
 
     def _check_regex_rule(self, content, rule_data):
-        """Check regex rule matching"""
+        """Check regex rule matching.
+
+        Uses the third-party ``regex`` library (not stdlib ``re``) so we can
+        enforce a wall-clock timeout. Patterns are user-supplied; without a
+        timeout, a catastrophic-backtrack pattern is a trivial DoS vector.
+        """
         pattern = rule_data.get('pattern', '')
         flags_list = rule_data.get('flags', [])
 
@@ -183,15 +162,20 @@ class RuleProcessor:
         if isinstance(flags_list, list):
             for flag in flags_list:
                 if flag == 'i':
-                    regex_flags |= re.IGNORECASE
+                    regex_flags |= regex_safe.IGNORECASE
                 elif flag == 'm':
-                    regex_flags |= re.MULTILINE
+                    regex_flags |= regex_safe.MULTILINE
                 elif flag == 's':
-                    regex_flags |= re.DOTALL
+                    regex_flags |= regex_safe.DOTALL
 
         try:
-            if re.search(pattern, content, regex_flags):
+            if regex_safe.search(pattern, content, regex_flags, timeout=_REGEX_EVAL_TIMEOUT_SECONDS):
                 return True, f"Matched regex: {pattern}"
             return False, "No regex match"
-        except re.error as e:
+        except TimeoutError:
+            current_app.logger.warning(
+                f"Regex evaluation timed out after {_REGEX_EVAL_TIMEOUT_SECONDS}s (pattern preview: {pattern[:80]!r})"
+            )
+            return False, "Regex evaluation timed out (pattern too complex)"
+        except regex_safe.error as e:
             return False, f"Invalid regex: {str(e)}"

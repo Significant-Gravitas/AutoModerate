@@ -1,5 +1,6 @@
 import logging
 import threading
+from datetime import datetime
 
 from flask import current_app
 
@@ -18,7 +19,10 @@ class WebSocketNotifier:
                 'content_type': content.content_type,
                 'content_data': content.content_data,
                 'meta_data': content.meta_data,
-                'updated_at': content.updated_at.isoformat()
+                # content.updated_at is the pre-update timestamp on the
+                # detached ORM instance; the fresh moderation decision happens
+                # right now, so use a current timestamp for the UI.
+                'updated_at': datetime.utcnow().isoformat(),
             }
 
             app = current_app._get_current_object()
@@ -29,10 +33,11 @@ class WebSocketNotifier:
             ).start()
         except Exception as e:
             current_app.logger.error(
-                f"Failed to start WebSocket thread: {str(e)}")
+                f"[ws] Failed to start WebSocket thread: {str(e)}", exc_info=True)
 
     def _send_websocket_update(self, app, content_data, decision, results, total_time):
         """Send WebSocket update with proper Flask context"""
+        room = f'project_{content_data["project_id"]}'
         try:
             with app.app_context():
                 from app import socketio
@@ -72,22 +77,62 @@ class WebSocketNotifier:
                     'timestamp': content_data['updated_at']
                 }
 
-                socketio.emit('moderation_update', update_data,
-                              room=f'project_{content_data["project_id"]}')
-                # WebSocket update sent
+                socketio.emit('moderation_update', update_data, room=room)
 
         except Exception as e:
             try:
-                app.logger.error(f"WebSocket error: {str(e)}")
+                app.logger.error(
+                    f"[ws] Emit failed for room {room}: {str(e)}", exc_info=True)
             except Exception:
-                logger.error(f"WebSocket error: {str(e)}")
+                logger.error(f"[ws] Emit failed for room {room}: {str(e)}")
+
+    def send_content_created(self, content):
+        """Emit a 'content_received' event so the UI can show the row in a
+        pending state immediately when the API accepts a submission, before
+        the (potentially slow) moderation pass completes.
+        """
+        room = f'project_{content.project_id}'
+        try:
+            content_data = {
+                'content_id': content.id,
+                'project_id': content.project_id,
+                'status': 'pending',
+                'content_type': content.content_type,
+                'content_preview': (content.content_data[:100] + '...')
+                if len(content.content_data) > 100 else content.content_data,
+                'meta_data': content.meta_data,
+                'results_count': 0,
+                'processing_time': 0.0,
+                'moderator_type': 'pending',
+                'moderator_name': 'Processing…',
+                'rule_name': None,
+                'timestamp': datetime.utcnow().isoformat(),
+            }
+            app = current_app._get_current_object()
+
+            def _run():
+                try:
+                    with app.app_context():
+                        from app import socketio
+                        socketio.emit('content_received', content_data, room=room)
+                except Exception as inner:
+                    try:
+                        app.logger.error(
+                            f"[ws] content_received emit failed for room {room}: {str(inner)}", exc_info=True)
+                    except Exception:
+                        logger.error(
+                            f"[ws] content_received emit failed for room {room}: {str(inner)}")
+
+            threading.Thread(target=_run, daemon=True).start()
+        except Exception as e:
+            current_app.logger.error(
+                f"[ws] Failed to schedule content_received emit: {str(e)}", exc_info=True)
 
     def send_stats_update(self, project_id, stats):
         """Send statistics update via WebSocket"""
         try:
             from app import socketio
             socketio.emit('stats_update', stats, room=f'project_{project_id}')
-            # Stats update sent
         except Exception as e:
             current_app.logger.error(f"Stats WebSocket error: {str(e)}")
 
@@ -102,6 +147,5 @@ class WebSocketNotifier:
             }
             socketio.emit('rule_update', update_data,
                           room=f'project_{project_id}')
-            # Rule notification sent
         except Exception as e:
             current_app.logger.error(f"Rule update WebSocket error: {str(e)}")

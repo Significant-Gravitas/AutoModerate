@@ -8,9 +8,12 @@ WTForms==3.2.1
 Werkzeug==3.1.5
 
 # OpenAI integration
-openai>=1.55.3
+# Latest 2.x — reasoning_effort is supported since 1.58, and the only 2.0
+# breaking change was in the Responses API (ResponseFunctionToolCallOutputItem)
+# which we don't use. chat.completions is unchanged.
+openai>=2.32.0,<3.0.0
 tiktoken==0.12.0
-httpx[http2]
+httpx[http2]==0.27.2
 
 # Security and utilities
 bcrypt==5.0.0
@@ -20,9 +23,16 @@ urllib3>=2.6.3  # Security fix for CVE-2024-37891
 pre-commit==4.5.1
 pydantic==2.12.5
 Flask-Talisman==1.1.0
+Flask-Limiter==3.8.0
 Authlib==1.6.8
 psutil==7.2.2
-sentry-sdk[flask]
+sentry-sdk[flask]==2.18.0
+regex==2024.11.6  # ReDoS-safe regex with timeout support
+
+# Production WSGI
+gunicorn==23.0.0
+eventlet==0.38.0
+psycogreen==1.0.2  # Makes psycopg2 cooperate with eventlet's event loop
 
 # Database support
 psycopg2-binary==2.9.11
@@ -31,5 +41,4 @@ psycopg2-binary==2.9.11
 beautifulsoup4==4.14.3
 
 # Async support
-asyncio
 asyncpg==0.31.0
