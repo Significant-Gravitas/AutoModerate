@@ -76,14 +76,28 @@ def create_app(config_name: str = 'default') -> Flask:
 
             return event
 
-        sentry_sdk.init(
+        # Build kwargs defensively — sentry-sdk periodically adds/removes
+        # kwargs across major versions, and a kwarg mismatch here takes the
+        # whole app down at boot. Pin + fall back instead of pretending
+        # otherwise. `enable_logs` requires sentry-sdk>=2.40.
+        sentry_kwargs = dict(
             dsn=app.config['SENTRY_DSN'],
             send_default_pii=True,
-            enable_logs=True,
             traces_sample_rate=1.0,
             environment=app.config.get('FLASK_ENV', 'development'),
             before_send=before_send,
         )
+        try:
+            sentry_sdk.init(enable_logs=True, **sentry_kwargs)
+        except TypeError as e:
+            # Older / stripped sentry-sdk that doesn't know about enable_logs.
+            # Fall back to the core init so error reporting still works.
+            logging.getLogger(__name__).warning(
+                "sentry_sdk.init rejected enable_logs=True (%s); initialising "
+                "without it. Upgrade sentry-sdk to >=2.40 to re-enable logs.",
+                e,
+            )
+            sentry_sdk.init(**sentry_kwargs)
 
     # Handle HTTPS proxy headers (for production behind reverse proxy)
     from werkzeug.middleware.proxy_fix import ProxyFix
