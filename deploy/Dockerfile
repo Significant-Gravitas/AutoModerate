@@ -32,10 +32,14 @@ EXPOSE 6217
 ENV FLASK_CONFIG=production
 ENV PYTHONPATH=/app
 
-# Serve via gunicorn with eventlet for Flask-SocketIO compatibility.
-# A single worker is required because SocketIO clients need to stick to one
-# process; scale horizontally by running multiple instances behind a load
-# balancer with sticky sessions + a shared message queue.
-CMD ["gunicorn", "--worker-class", "eventlet", "--workers", "1", \
-     "--bind", "0.0.0.0:6217", "--timeout", "120", "--access-logfile", "-", \
-     "wsgi:app"]
+# Serve via gunicorn with the gthread worker class. See wsgi.py for the
+# full rationale — short version: eventlet + Flask async routes + standard
+# decorators (Flask-Login, Flask-Limiter) don't compose. gthread avoids the
+# asyncio.run() inside running-loop crash and still supports WebSockets via
+# Flask-SocketIO's threading mode.
+# A single worker is required because Flask-SocketIO clients need to stick
+# to one process; scale horizontally by running multiple instances behind a
+# load balancer with sticky sessions + a shared message queue.
+CMD ["gunicorn", "--worker-class", "gthread", "--workers", "1", \
+     "--threads", "50", "--bind", "0.0.0.0:6217", "--timeout", "120", \
+     "--access-logfile", "-", "wsgi:app"]

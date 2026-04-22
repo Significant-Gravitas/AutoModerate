@@ -31,9 +31,9 @@ sentry-sdk[flask]>=2.40.0,<3.0.0
 regex==2024.11.6  # ReDoS-safe regex with timeout support
 
 # Production WSGI
+# gthread worker — compatible with Flask async routes + asgiref.AsyncToSync.
+# See wsgi.py for the full rationale on why we ditched eventlet here.
 gunicorn==23.0.0
-eventlet==0.38.0
-psycogreen==1.0.2  # Makes psycopg2 cooperate with eventlet's event loop
 
 # Database support
 psycopg2-binary==2.9.11
