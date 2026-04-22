@@ -58,19 +58,36 @@ def create_app(config_name: str = 'default') -> Flask:
     # Initialize Sentry
     if app.config.get('SENTRY_DSN'):
         def before_send(event, hint):
-            """Filter out expected errors before sending to Sentry"""
-            # Filter out Engine.IO "Invalid session" errors - these are expected when
-            # clients lose connection and attempt to use stale session IDs
+            """Drop expected lifecycle exceptions from Engine.IO / Socket.IO.
+
+            Engine.IO uses a couple of raises as in-band signals to the WSGI
+            layer; they aren't real errors but Sentry's WSGI instrumentation
+            picks them up anyway. Filtering them here keeps the noise out of
+            the issues list.
+            """
+            # Request URL context (used by multiple filters below)
+            request_url = (event.get('request') or {}).get('url', '') or ''
+
             if 'exception' in event:
                 for exception in event.get('exception', {}).get('values', []):
-                    exception_value = exception.get('value', '')
-                    if 'Invalid session' in exception_value:
-                        # Don't send to Sentry - this is expected connection lifecycle behavior
+                    exc_type = exception.get('type', '')
+                    exc_value = exception.get('value', '') or ''
+
+                    # (a) Clients reconnecting with stale session ids.
+                    if 'Invalid session' in exc_value:
+                        return None
+
+                    # (b) engineio/async_drivers/_websocket_wsgi.py intentionally
+                    # raises StopIteration on successful WebSocket upgrade so
+                    # gunicorn keeps the connection open. Only drop it on the
+                    # socket.io path so we don't accidentally hide a real
+                    # StopIteration from elsewhere.
+                    if exc_type == 'StopIteration' and '/socket.io/' in request_url:
                         return None
 
             # Filter out log messages about invalid sessions
             if 'logentry' in event:
-                message = event.get('logentry', {}).get('message', '')
+                message = event.get('logentry', {}).get('message', '') or ''
                 if 'Invalid session' in message:
                     return None
 
