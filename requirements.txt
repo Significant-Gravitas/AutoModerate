@@ -24,7 +24,7 @@ pre-commit==4.5.1
 pydantic==2.12.5
 Flask-Talisman==1.1.0
 Flask-Limiter==3.8.0
-Authlib==1.6.8
+Authlib==1.7.0
 psutil==7.2.2
 sentry-sdk[flask]==2.18.0
 regex==2024.11.6  # ReDoS-safe regex with timeout support
