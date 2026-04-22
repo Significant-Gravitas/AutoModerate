@@ -24,12 +24,17 @@ class Config:
     # AI moderator only returns small JSON responses (~100-200 tokens), so 500 is plenty
     OPENAI_MAX_OUTPUT_TOKENS = int(os.environ.get(
         'OPENAI_MAX_OUTPUT_TOKENS', '500'))
-    # Reasoning level for gpt-5 / o-series models. Valid values depend on the
-    # model; gpt-5.4 supports 'none' | 'low' | 'medium' | 'high' | 'xhigh';
-    # older gpt-5 / o-series accept 'minimal' | 'low' | 'medium' | 'high'.
-    # Lower = faster. Set to 'none' for pattern-matching workloads like
-    # content moderation where reasoning doesn't add signal.
-    OPENAI_REASONING_EFFORT = os.environ.get('OPENAI_REASONING_EFFORT', 'minimal')
+    # Reasoning level for gpt-5 / o-series models. Valid values are model-
+    # specific:
+    #   gpt-5 / o-series:   minimal | low | medium | high
+    #   gpt-5.4 (nano etc): none    | low | medium | high | xhigh
+    # 'low' is the only value accepted across every reasoning model in the
+    # supported family, so it's a safe default. Override per-deployment in
+    # .env if you've picked a model and want a different point on the
+    # latency/quality curve. Note that 'none' on gpt-5.4 measurably degrades
+    # moderation accuracy on borderline content (false negatives on scams,
+    # phishing, misinformation) — verified empirically on this codebase.
+    OPENAI_REASONING_EFFORT = os.environ.get('OPENAI_REASONING_EFFORT', 'low')
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
