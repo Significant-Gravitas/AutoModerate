@@ -255,6 +255,11 @@ def create_app(config_name: str = 'default') -> Flask:
         }
     )
 
+    @app.route('/')
+    def index():
+        from flask import redirect, url_for
+        return redirect(url_for('auth.login'))
+
     # Register blueprints
     from app.routes.admin import admin_bp
     from app.routes.api import api_bp

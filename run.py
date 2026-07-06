@@ -8,8 +8,6 @@ quietly serving traffic from an unsafe development server.
 import logging
 import os
 
-from flask import Response, redirect, url_for
-
 from app import create_app, socketio
 
 # Configure logging to reduce noise
@@ -20,11 +18,6 @@ logging.getLogger('engineio').setLevel(logging.WARNING)  # Reduce EngineIO logs
 
 _config_name = os.getenv('FLASK_CONFIG') or 'default'
 app = create_app(_config_name)
-
-
-@app.route('/')
-def home() -> Response:
-    return redirect(url_for('auth.login'))
 
 
 if __name__ == '__main__':
