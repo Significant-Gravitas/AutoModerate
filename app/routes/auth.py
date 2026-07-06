@@ -167,9 +167,11 @@ async def register():
                 flash(error_msg, 'error')
                 return render_template('auth/register.html')
 
-        # Validate password strength
-        if len(password) < 8:
-            error_msg = 'Password must be at least 8 characters long'
+        # Validate password strength. The upper bound matches the login form's
+        # cap (see login()); without it a >200-char password registers fine but
+        # can never be used to log in, permanently locking the account out.
+        if len(password) < 8 or len(password) > 200:
+            error_msg = 'Password must be between 8 and 200 characters long'
             if request.is_json:
                 return jsonify({
                     'success': False,

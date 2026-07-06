@@ -1,3 +1,4 @@
+import hashlib
 import re
 from functools import wraps
 from typing import Callable
@@ -24,13 +25,22 @@ api_bp = Blueprint('api', __name__)
 def _api_rate_limit_key() -> str:
     """Rate-limit key for /api/moderate.
 
-    Prefers the API key id (set by @require_api_key) so a leaked key cannot be
-    replayed at unbounded QPS from many IPs. Falls back to remote address when
-    the key hasn't been resolved yet (malformed/missing key -> 401 path).
+    Buckets on the API key presented in the request (hashed), so a single key
+    cannot be replayed at unbounded QPS by spreading requests across many IPs.
+
+    Flask-Limiter evaluates this at request dispatch — *before* the inner
+    ``require_api_key`` decorator runs — so ``request.api_key`` isn't set yet.
+    We therefore read the key straight from the header/query and hash it for the
+    bucket name (never store the raw key in the limiter backend). Falls back to
+    the remote address for missing/malformed keys so the 401 path is still
+    bounded per source.
     """
-    api_key = getattr(request, 'api_key', None)
-    if api_key is not None:
-        return f"api_key:{api_key.id}"
+    raw_key = request.headers.get('X-API-Key') or request.args.get('api_key')
+    if raw_key:
+        raw_key = raw_key.strip()
+        if _is_valid_api_key_format(raw_key):
+            digest = hashlib.sha256(raw_key.encode('utf-8')).hexdigest()[:32]
+            return f"api_key:{digest}"
     return get_remote_address()
 
 

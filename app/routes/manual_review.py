@@ -122,6 +122,12 @@ async def make_decision(content_id):
         if not current_user.is_admin and not content.project.is_member(current_user.id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
+        # Only content that is actually awaiting manual review may be decided
+        # here. Without this guard a request could overwrite an already
+        # approved/rejected decision. Mirrors the bulk-decision path's filter.
+        if content.status != 'flagged':
+            return jsonify({'success': False, 'error': 'Content is not awaiting manual review'}), 400
+
         data = request.get_json()
         decision = data.get('decision')
         reason = data.get('reason', 'Manual review decision')
@@ -399,8 +405,12 @@ async def api_user_by_external_id(external_user_id):
             if current_user.is_admin:
                 user_projects = Project.query.all()
             else:
+                # current_user.projects is only the *owned* projects; a user
+                # who is a member (but not owner) of a project would otherwise
+                # be excluded here. Filter all projects by membership instead,
+                # matching the api_users route.
                 user_projects = [
-                    project for project in current_user.projects
+                    project for project in Project.query.all()
                     if project.is_member(current_user.id)
                 ]
 

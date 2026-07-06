@@ -220,7 +220,8 @@ async def create_user():
 
     except Exception as e:
         db.session.rollback()
-        flash(f'Error creating user: {str(e)}', 'error')
+        current_app.logger.error(f"Create user error: {str(e)}")
+        flash('Error creating user. Please try again.', 'error')
         return redirect(url_for('admin.users'))
 
 
@@ -254,7 +255,7 @@ async def delete_user(user_id):
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Delete user error: {str(e)}")
-        flash(f'Error deleting user: {str(e)}', 'error')
+        flash('Error deleting user. Please try again.', 'error')
         return redirect(url_for('admin.users'))
 
 
@@ -282,7 +283,7 @@ async def toggle_registration():
 
     except Exception as e:
         current_app.logger.error(f"Toggle registration error: {str(e)}")
-        flash(f'Error toggling registration: {str(e)}', 'error')
+        flash('Error toggling registration. Please try again.', 'error')
         return redirect(url_for('admin.index'))
 
 
@@ -592,7 +593,7 @@ async def search_user_data():
 
     except Exception as e:
         current_app.logger.error(f"Error searching user data: {str(e)}")
-        flash(f'Error searching user data: {str(e)}', 'error')
+        flash('Error searching user data. Please try again.', 'error')
         return redirect(url_for('admin.data_deletion'))
 
 
@@ -635,5 +636,5 @@ async def delete_user_data():
 
     except Exception as e:
         current_app.logger.error(f"Error deleting user data: {str(e)}")
-        flash(f'Error deleting user data: {str(e)}', 'error')
+        flash('Error deleting user data. Please try again.', 'error')
         return redirect(url_for('admin.data_deletion'))
