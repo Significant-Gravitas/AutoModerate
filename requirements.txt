@@ -20,7 +20,7 @@ bcrypt==5.0.0
 python-dotenv==1.2.2
 requests==2.33.1
 urllib3>=2.6.3  # Security fix for CVE-2024-37891
-pre-commit==4.5.1
+pre-commit==4.6.0
 pydantic==2.13.2
 Flask-Talisman==1.1.0
 Flask-Limiter==3.8.0
