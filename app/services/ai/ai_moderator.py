@@ -222,10 +222,16 @@ Does content violate this rule? JSON only:"""
 
         return chunks
 
-    def _combine_chunk_results(self, chunk_results, original_content_length):
+    def _combine_chunk_results(self, chunk_results, original_content_length, truncated=False):
         """
         Combine results from multiple chunks.
         If ANY chunk is rejected, the entire content is rejected.
+
+        ``truncated`` signals that the content exceeded the per-request chunk
+        cap and part of it was never analyzed. In that case we must not return a
+        clean "approved" on the basis of partial coverage — an unmoderated tail
+        could contain a violation — so an otherwise-approved result is downgraded
+        to "flagged" for manual review.
         """
         if not chunk_results:
             return {
@@ -272,10 +278,29 @@ Does content violate this rule? JSON only:"""
                 'original_length': original_content_length
             }
         else:
-            # All chunks approved - approve the entire content
+            # All analyzed chunks approved.
             # Use average confidence
             avg_confidence = sum(r.get('confidence', 0.8)
                                  for r in chunk_results) / len(chunk_results)
+
+            if truncated:
+                # Only part of the content was analyzed — do not approve on
+                # partial coverage. Flag for manual review instead.
+                return {
+                    'decision': 'flagged',
+                    'reason': (f"Content too large to fully analyze: only the first "
+                               f"{len(chunk_results)} chunks were moderated and passed, "
+                               f"but the remainder was not analyzed. Flagged for manual review."),
+                    'confidence': avg_confidence,
+                    'moderator_type': chunk_results[0].get('moderator_type', 'ai'),
+                    'categories': {'partial_analysis': True},
+                    'category_scores': {'partial_analysis': 1.0},
+                    'openai_flagged': False,
+                    'chunk_count': len(chunk_results),
+                    'rejected_chunks': 0,
+                    'truncated': True,
+                    'original_length': original_content_length
+                }
 
             return {
                 'decision': 'approved',
@@ -329,7 +354,8 @@ Does content violate this rule? JSON only:"""
                     # moderations. 40 chunks * 150k chars covers the 5MB API cap.
                     MAX_CHUNKS = 40
                     num_chunks = (content_chars // MAX_CHARS_PER_CHUNK) + 1
-                    if num_chunks > MAX_CHUNKS:
+                    truncated = num_chunks > MAX_CHUNKS
+                    if truncated:
                         current_app.logger.warning(
                             f"Content produced {num_chunks} chunks, truncating to {MAX_CHUNKS}")
                         num_chunks = MAX_CHUNKS
@@ -373,7 +399,7 @@ Does content violate this rule? JSON only:"""
                                 # Return immediately with rejection
                                 return self._combine_chunk_results(chunk_results, len(content))
 
-                    return self._combine_chunk_results(chunk_results, len(content))
+                    return self._combine_chunk_results(chunk_results, len(content), truncated=truncated)
                 else:
                     # Content is small enough, process normally
                     return self._analyze_with_custom_prompt(content, custom_prompt)
@@ -396,7 +422,8 @@ Does content violate this rule? JSON only:"""
 
                 # Hard cap total chunks processed per request (see MAX_CHUNKS note above)
                 MAX_CHUNKS = 40
-                if len(chunks) > MAX_CHUNKS:
+                truncated = len(chunks) > MAX_CHUNKS
+                if truncated:
                     current_app.logger.warning(
                         f"Content produced {len(chunks)} chunks, truncating to {MAX_CHUNKS}")
                     chunks = chunks[:MAX_CHUNKS]
@@ -430,7 +457,7 @@ Does content violate this rule? JSON only:"""
                             # Return immediately with rejection
                             return self._combine_chunk_results(chunk_results, len(content))
 
-                return self._combine_chunk_results(chunk_results, len(content))
+                return self._combine_chunk_results(chunk_results, len(content), truncated=truncated)
 
         except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             current_app.logger.error(f"OpenAI API connection error after retries: {str(e)}")
@@ -524,12 +551,14 @@ Does content violate this rule? JSON only:"""
             return {}
 
         # Cache fingerprint: sort by id so ordering doesn't change the key,
-        # hash prompt so renames/edits invalidate.
+        # hash prompt so renames/edits invalidate. Include rule.action so that
+        # changing a rule's action (e.g. reject -> approve) also invalidates the
+        # cached decision instead of serving the pre-edit action until the TTL.
         fingerprint_parts = []
         for rule, prompt in sorted(prompt_rules, key=lambda rp: rp[0].id):
             prompt_digest = hashlib.md5(
                 prompt.encode('utf-8'), usedforsecurity=False).hexdigest()[:8]
-            fingerprint_parts.append(f"{rule.id}:{prompt_digest}")
+            fingerprint_parts.append(f"{rule.id}:{prompt_digest}:{rule.action}")
         rule_fingerprint = "batch|" + "|".join(fingerprint_parts)
 
         cache_key = self.cache.generate_cache_key(content, rule_fingerprint)

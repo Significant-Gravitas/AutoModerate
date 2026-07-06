@@ -290,30 +290,20 @@ class ModerationOrchestrator:
         return False
 
     async def _save_results(self, content, final_decision, results, total_time):
-        """Save moderation results to database with bulk operations"""
-        # Update content status using database service to ensure persistence
-        await db_service.update_content_status(content.id, status=final_decision)
+        """Persist the moderation outcome as a single atomic unit.
 
-        # Update API user stats atomically. Previously we fetched the row,
-        # mutated the detached ORM instance, and hoped a later commit in a
-        # different thread-pool worker would pick it up — it didn't, so
-        # counters drifted. Now the query + update + commit all run inside
-        # one session.
-        if content.api_user_id:
-            try:
-                await db_service.increment_api_user_stats(content.api_user_id, final_decision)
-            except Exception as e:
-                current_app.logger.error(
-                    f"Error updating API user stats: {str(e)}")
-
-        # Bulk create moderation results
+        Content status, API-user counter increments, and the ModerationResult
+        rows all commit together (or roll back together) via
+        ``save_moderation_outcome`` — no more partial writes leaving a decided
+        status with missing result rows.
+        """
+        moderation_results = []
         if results:
-            moderation_results = []
-            for i, result in enumerate(results):
+            for result in results:
                 # Use the actual rule processing time, not the total request time
                 rule_processing_time = result.get('processing_time', 0.0)
 
-                moderation_result = ModerationResult(
+                moderation_results.append(ModerationResult(
                     content_id=content.id,
                     decision=result['decision'],
                     confidence=result.get('confidence', 0.0),
@@ -330,24 +320,19 @@ class ModerationOrchestrator:
                         'total_request_time': total_time,  # Store total time in details
                         'rule_processing_time': rule_processing_time  # Store both for clarity
                     }
-                )
-                moderation_results.append(moderation_result)
+                ))
 
-            try:
-                await db_service.bulk_save_objects(moderation_results)
-            except Exception as e:
-                current_app.logger.error(
-                    f"Error saving moderation results: {str(e)}")
-                await db_service.rollback_transaction()
-                raise
-
-        try:
-            await db_service.commit_transaction()
-        except Exception as e:
+        saved = await db_service.save_moderation_outcome(
+            content_id=content.id,
+            status=final_decision,
+            api_user_id=content.api_user_id,
+            moderation_results=moderation_results,
+        )
+        if not saved:
             current_app.logger.error(
-                f"Error committing database changes: {str(e)}")
-            await db_service.rollback_transaction()
-            raise
+                f"Failed to persist moderation outcome for content {content.id}")
+            raise SQLAlchemyError(
+                f"save_moderation_outcome returned falsy for content {content.id}")
 
     async def get_project_stats(self, project_id):
         """Get moderation statistics for a project"""

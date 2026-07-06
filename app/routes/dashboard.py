@@ -12,11 +12,26 @@ from app.models.content import Content
 from app.models.moderation_rule import ModerationRule
 from app.models.project import Project, ProjectInvitation, ProjectMember
 from app.models.user import User
+from app.services.ai.result_cache import ResultCache
 from app.services.database_service import db_service
 from app.utils.project_access import require_project_access
 from config.default_rules import create_default_rules
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+
+def _invalidate_ai_cache():
+    """Clear the shared AI result cache after a rule change.
+
+    Cached decisions are keyed on content + rule prompt/action; when a rule is
+    created, edited, toggled, or deleted the cached verdicts can no longer be
+    trusted, so drop them rather than serve a stale decision until the TTL.
+    """
+    try:
+        ResultCache().invalidate_cache()
+    except Exception:
+        # Cache invalidation must never break a rule mutation.
+        pass
 
 
 @dashboard_bp.route('/')
@@ -238,6 +253,7 @@ async def create_rule(project_id):
         )
         db.session.add(rule)
         db.session.commit()
+        _invalidate_ai_cache()
 
         flash('Moderation rule created successfully!', 'success')
         return redirect(url_for('dashboard.project_rules', project_id=project_id))
@@ -287,6 +303,7 @@ async def update_rule(project_id, rule_id):
             }
 
         db.session.commit()
+        _invalidate_ai_cache()
 
         return jsonify({'success': True, 'message': 'Rule updated successfully'})
 
@@ -319,6 +336,7 @@ async def toggle_rule(project_id, rule_id):
             return jsonify({'success': False, 'error': 'Invalid action'}), 400
 
         db.session.commit()
+        _invalidate_ai_cache()
 
         return jsonify({
             'success': True,
@@ -347,6 +365,7 @@ async def delete_rule(project_id, rule_id):
         rule_name = rule.name
         db.session.delete(rule)
         db.session.commit()
+        _invalidate_ai_cache()
 
         return jsonify({
             'success': True,

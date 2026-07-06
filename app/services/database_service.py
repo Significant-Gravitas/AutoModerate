@@ -6,6 +6,7 @@ High-performance async database operations with consistent error handling
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func
@@ -857,26 +858,32 @@ class DatabaseService:
     async def increment_api_user_stats(self, api_user_id: str, status: str) -> bool:
         """Atomically bump an APIUser's request counters for a moderation decision.
 
-        The previous pattern ``api_user = await get_api_user_by_id(); api_user.update_stats(...)``
-        mutated a detached ORM instance outside any session / app_context, so the
-        updates silently never persisted. This keeps the fetch, mutation, and
-        commit inside a single ``_safe_execute`` call so the session that owns
-        the instance is the same session that commits it.
+        Uses a single ``UPDATE ... SET col = col + 1`` statement rather than a
+        read-modify-write on a fetched instance. Two concurrent moderations for
+        the same external user can otherwise both read the same counter value
+        and both write ``value + 1``, silently losing one increment. Pushing the
+        arithmetic into the database makes each increment atomic under the DB's
+        row lock.
 
         Returns True on success, False if the user wasn't found or the update
         failed.
         """
         def _increment():
-            api_user = APIUser.query.get(api_user_id)
-            if api_user is None:
-                return False
-            try:
-                api_user.update_stats(status)
-                db.session.commit()
-                return True
-            except SQLAlchemyError:
-                db.session.rollback()
-                raise
+            values = {
+                APIUser.total_requests: APIUser.total_requests + 1,
+                APIUser.last_seen: datetime.utcnow(),
+            }
+            if status == 'approved':
+                values[APIUser.approved_count] = APIUser.approved_count + 1
+            elif status == 'rejected':
+                values[APIUser.rejected_count] = APIUser.rejected_count + 1
+            elif status == 'flagged':
+                values[APIUser.flagged_count] = APIUser.flagged_count + 1
+
+            updated = db.session.query(APIUser).filter_by(
+                id=api_user_id).update(values, synchronize_session=False)
+            db.session.commit()
+            return updated > 0
 
         result = await self._safe_execute(_increment)
         return bool(result)
@@ -929,20 +936,67 @@ class DatabaseService:
         result = await self._safe_execute(_update_content)
         return result is not None and result is not False
 
+    async def save_moderation_outcome(self, content_id: str, status: str,
+                                      api_user_id: Optional[str],
+                                      moderation_results: List) -> bool:
+        """Persist a complete moderation outcome in a single transaction.
+
+        Sets the content status, increments the API-user counters (atomically),
+        and inserts every ModerationResult row under one commit. Previously these
+        were three independent commits followed by a no-op commit, so a failure
+        partway through could leave content marked approved/rejected with no
+        result rows saved. Doing it as one unit makes the outcome all-or-nothing.
+        """
+        def _save():
+            content = Content.query.get(content_id)
+            if content is None:
+                return False
+
+            content.status = status
+
+            if api_user_id:
+                values = {
+                    APIUser.total_requests: APIUser.total_requests + 1,
+                    APIUser.last_seen: datetime.utcnow(),
+                }
+                if status == 'approved':
+                    values[APIUser.approved_count] = APIUser.approved_count + 1
+                elif status == 'rejected':
+                    values[APIUser.rejected_count] = APIUser.rejected_count + 1
+                elif status == 'flagged':
+                    values[APIUser.flagged_count] = APIUser.flagged_count + 1
+                db.session.query(APIUser).filter_by(
+                    id=api_user_id).update(values, synchronize_session=False)
+
+            for obj in moderation_results:
+                db.session.add(obj)
+
+            db.session.commit()
+            return True
+
+        result = await self._safe_execute(_save)
+        return bool(result)
+
     # API Key Management
     async def update_api_key_usage(self, api_key: APIKey) -> bool:
-        """Update API key usage statistics"""
+        """Update API key usage statistics.
+
+        Single atomic ``UPDATE`` on the counter so concurrent requests using the
+        same key don't lose increments to a read-modify-write race.
+        """
         def _update_usage():
-            # Get fresh instance from database using the key ID
-            fresh_api_key = APIKey.query.filter_by(id=api_key.id).first()
-            if fresh_api_key:
-                fresh_api_key.increment_usage()
-                db.session.commit()
-                return True
-            return False
+            updated = db.session.query(APIKey).filter_by(id=api_key.id).update(
+                {
+                    APIKey.usage_count: APIKey.usage_count + 1,
+                    APIKey.last_used: datetime.utcnow(),
+                },
+                synchronize_session=False,
+            )
+            db.session.commit()
+            return updated > 0
 
         result = await self._safe_execute(_update_usage)
-        return result is not None
+        return bool(result)
 
     # Transaction Management
     async def commit_transaction(self) -> bool:
