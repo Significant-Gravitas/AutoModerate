@@ -1,60 +1,6 @@
 // API Keys Management JavaScript
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle API key display clicks
-    document.querySelectorAll('.api-key-display').forEach(function(element) {
-        element.addEventListener('click', function() {
-            const fullKey = this.getAttribute('data-full-key');
-            document.getElementById('fullApiKey').value = fullKey;
-            document.getElementById('exampleKey').textContent = fullKey;
-
-            const modal = new bootstrap.Modal(document.getElementById('apiKeyModal'));
-            modal.show();
-        });
-    });
-
-    // Handle copy to clipboard
-    document.querySelectorAll('.copy-key-btn').forEach(function(button) {
-        button.addEventListener('click', function() {
-            const key = this.getAttribute('data-key');
-            navigator.clipboard.writeText(key).then(function() {
-                // Show success feedback
-                const icon = button.querySelector('i');
-                const originalClass = icon.className;
-                icon.className = 'fas fa-check';
-                button.classList.add('btn-success');
-                button.classList.remove('btn-outline-primary');
-
-                setTimeout(function() {
-                    icon.className = originalClass;
-                    button.classList.remove('btn-success');
-                    button.classList.add('btn-outline-primary');
-                }, 2000);
-            });
-        });
-    });
-
-    // Handle copy full key in modal
-    document.getElementById('copyFullKeyBtn').addEventListener('click', function() {
-        const keyInput = document.getElementById('fullApiKey');
-        keyInput.select();
-        navigator.clipboard.writeText(keyInput.value).then(function() {
-            const button = document.getElementById('copyFullKeyBtn');
-            const icon = button.querySelector('i');
-            const originalHTML = button.innerHTML;
-
-            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            button.classList.add('btn-success');
-            button.classList.remove('btn-outline-secondary');
-
-            setTimeout(function() {
-                button.innerHTML = originalHTML;
-                button.classList.remove('btn-success');
-                button.classList.add('btn-outline-secondary');
-            }, 2000);
-        });
-    });
-
     // Handle toggle key (activate/deactivate) button clicks
     document.querySelectorAll('.toggle-key-btn').forEach(function(button) {
         button.addEventListener('click', function() {

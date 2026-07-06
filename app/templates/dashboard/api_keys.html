@@ -165,44 +165,6 @@
         </div>
     </div>
 </div>
-
-<!-- API Key Modal -->
-<div class="modal fade" id="apiKeyModal" tabindex="-1" aria-labelledby="apiKeyModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="apiKeyModalLabel">Full API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Keep this key secure!</strong> Don't share it publicly or commit it to version control.
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">API Key:</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="fullApiKey" readonly>
-                        <button class="btn btn-outline-secondary" type="button" id="copyFullKeyBtn">
-                            <i class="fas fa-copy"></i> Copy
-                        </button>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Usage Example:</label>
-                    <pre class="bg-light p-3 rounded"><code>curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: <span id="exampleKey">your-api-key</span>" \
-  -d '{"type": "text", "content": "Content to moderate"}' \
-  {{ request.url_root }}api/moderate</code></pre>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
