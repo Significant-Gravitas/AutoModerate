@@ -21,14 +21,14 @@ python-dotenv==1.2.2
 requests==2.33.1
 urllib3>=2.6.3  # Security fix for CVE-2024-37891
 pre-commit==4.6.0
-pydantic==2.13.2
+pydantic==2.13.4
 Flask-Talisman==1.1.0
 Flask-Limiter==4.1.1
 Authlib==1.7.0
 psutil==7.2.2
 # >=2.40 needed for `enable_logs=True` kwarg on sentry_sdk.init()
 sentry-sdk[flask]>=2.64.0,<3.0.0
-regex==2024.11.6  # ReDoS-safe regex with timeout support
+regex==2026.6.28  # ReDoS-safe regex with timeout support
 
 # Production WSGI
 # gthread worker — compatible with Flask async routes + asgiref.AsyncToSync.
