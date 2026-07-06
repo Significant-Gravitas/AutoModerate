@@ -115,10 +115,18 @@ class ResultCache:
         return removed
 
     def get_request_cache_summary(self):
-        """Get summary of cache operations for current request"""
-        stores = ResultCache._current_request_stores
-        total = len(ResultCache._shared_cache)
-        ResultCache._current_request_stores = 0  # Reset for next request
+        """Get an approximate summary of recent cache stores.
+
+        ``_current_request_stores`` is a process-global counter, so under
+        concurrency this figure is shared across in-flight requests rather than
+        strictly per-request — it drives an informational log line only. Read
+        and reset it under the cache lock so it can't tear against the locked
+        increment in ``cache_result``.
+        """
+        with ResultCache._cache_lock:
+            stores = ResultCache._current_request_stores
+            total = len(ResultCache._shared_cache)
+            ResultCache._current_request_stores = 0  # Reset for next request
         return {'stores': stores, 'total': total}
 
     def invalidate_cache(self, cache_key=None):

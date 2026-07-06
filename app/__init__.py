@@ -139,7 +139,8 @@ def create_app(config_name: str = 'default') -> Flask:
     # Initialize SocketIO with increased timeouts to handle browser tab throttling
     # ping_timeout: Time to wait for client response before considering connection dead
     # ping_interval: Time between server pings to check client connection
-    # async_mode: auto-detected above — 'eventlet' under gunicorn, 'threading' under werkzeug dev
+    # async_mode: 'threading' in both dev and prod (gunicorn gthread worker) —
+    # see the SOCKETIO_ASYNC_MODE note above and wsgi.py for why eventlet was dropped
     app.logger.info(f"Initialising SocketIO with async_mode={_SOCKETIO_ASYNC_MODE}")
     socketio.init_app(
         app,

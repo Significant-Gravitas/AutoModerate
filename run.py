@@ -1,6 +1,6 @@
 """Development entry point.
 
-For production use ``wsgi:app`` behind gunicorn with the eventlet worker class.
+For production use ``wsgi:app`` behind gunicorn with the gthread worker class.
 This module intentionally refuses to start the Werkzeug dev server when
 ``FLASK_CONFIG=production`` so a misconfigured deploy fails loudly instead of
 quietly serving traffic from an unsafe development server.
@@ -32,6 +32,6 @@ if __name__ == '__main__':
         raise RuntimeError(
             "run.py starts the Werkzeug development server which is not safe for "
             "production traffic. Serve via gunicorn instead:\n"
-            "    gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:6217 wsgi:app"
+            "    gunicorn --worker-class gthread --workers 1 --threads 50 --bind 0.0.0.0:6217 wsgi:app"
         )
     socketio.run(app, host='0.0.0.0', port=6217, allow_unsafe_werkzeug=True)

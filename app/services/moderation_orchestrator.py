@@ -38,11 +38,8 @@ class ModerationOrchestrator:
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
             t_after_rules = time.time()
 
-            # Count tokens once and cache for processing decisions
-            content_tokens = self.ai_moderator.count_tokens(
-                content.content_data)
-            # Store token count temporarily for processing optimization
-            content._temp_token_count = content_tokens
+            # (Token counting happens inside the AI paths that actually need it;
+            # counting here as well was dead work — the value was never read.)
             t_after_tokens = time.time()
 
             # Process rules and get final decision. _process_rules wraps the
@@ -277,15 +274,6 @@ class ModerationOrchestrator:
         # Moderate confidence rejection
         if decision == 'rejected' and 0.3 <= confidence <= 0.6:
             return True
-
-        # Multiple AI rules with conflicting decisions
-        if len(ai_rules) > 1:
-            ai_results = [r for r in results if r.get(
-                'rule_type') == 'ai_prompt']
-            if len(ai_results) > 1:
-                decisions = [r.get('decision') for r in ai_results]
-                if len(set(decisions)) > 1:
-                    return True
 
         return False
 
