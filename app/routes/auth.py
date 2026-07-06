@@ -1,5 +1,6 @@
 import re
 
+from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.flask_client import OAuth
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -359,6 +360,17 @@ async def google_callback():
         login_user(fresh_user)
         flash('Account created successfully!', 'success')
         return redirect(url_for('dashboard.index'))
+
+    except OAuthError as e:
+        # Benign callback abuse, not an application error: crawlers and link
+        # prefetchers hit this URL directly with no OAuth session, which makes
+        # Authlib raise mismatching_state ("CSRF Warning! State not equal...").
+        # Log below error level so it stays out of Sentry — a real broken flow
+        # falls through to the generic handler below.
+        current_app.logger.info(
+            f"Google OAuth callback rejected ({e.error}): {e.description}")
+        flash('Your sign-in session expired. Please try again.', 'error')
+        return redirect(url_for('auth.login'))
 
     except Exception as e:
         current_app.logger.error(f"Google OAuth error: {str(e)}")
