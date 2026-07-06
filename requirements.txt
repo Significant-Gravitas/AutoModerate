@@ -33,7 +33,7 @@ regex==2024.11.6  # ReDoS-safe regex with timeout support
 # Production WSGI
 # gthread worker — compatible with Flask async routes + asgiref.AsyncToSync.
 # See wsgi.py for the full rationale on why we ditched eventlet here.
-gunicorn==23.0.0
+gunicorn==26.0.0
 
 # Database support
 psycopg2-binary==2.9.11
