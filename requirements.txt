@@ -11,7 +11,7 @@ Werkzeug==3.1.8
 # Latest 2.x — reasoning_effort is supported since 1.58, and the only 2.0
 # breaking change was in the Responses API (ResponseFunctionToolCallOutputItem)
 # which we don't use. chat.completions is unchanged.
-openai>=2.32.0,<3.0.0
+openai>=2.44.0,<3.0.0
 tiktoken==0.12.0
 httpx[http2]==0.27.2
 
