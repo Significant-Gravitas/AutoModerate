@@ -279,7 +279,7 @@ OPENAI_API_KEY=sk-your-key docker-compose up -d
 ```
 
 **Docker Configuration:**
-- Base Image: `python:3.11-slim`  
+- Base Image: `python:3.12-slim`  
 - Port: `6217`
 - Database: PostgreSQL 15 Alpine
 - Volumes: Persistent data storage
