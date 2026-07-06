@@ -6,6 +6,13 @@ from app import db
 
 class ProjectMember(db.Model):
     __tablename__ = 'project_members'
+    # A user can only hold one membership row per project. Without this
+    # constraint the accept_invitation flow is a TOCTOU race: two concurrent
+    # requests both pass is_member(user_id)=False and both INSERT.
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'user_id',
+                            name='uq_project_members_project_user'),
+    )
 
     id = db.Column(db.String(36), primary_key=True,
                    default=lambda: str(uuid.uuid4()))

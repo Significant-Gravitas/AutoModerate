@@ -8,11 +8,16 @@ from pydantic import BaseModel, Field, validator
 
 
 class ContentType(str, Enum):
-    """Allowed content types for moderation"""
+    """Allowed content types for moderation.
+
+    Must match the whitelist in app/routes/api.py:moderate_content. Previously
+    the enum listed text/image/video/audio while the route only accepted
+    text/markdown/html, so markdown/html submissions hit Pydantic validation
+    and died with a 400 before reaching the route.
+    """
     TEXT = "text"
-    IMAGE = "image"
-    VIDEO = "video"
-    AUDIO = "audio"
+    MARKDOWN = "markdown"
+    HTML = "html"
 
 
 class ModerationStatus(str, Enum):

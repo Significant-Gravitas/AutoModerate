@@ -5,12 +5,12 @@ High-performance async database operations with consistent error handling
 
 import asyncio
 import logging
-import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from app import db
@@ -26,7 +26,16 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseService:
-    """Async centralized database operations with consistent error handling"""
+    """Async centralized database operations with consistent error handling.
+
+    Every call runs inside a thread-pool worker so it doesn't block the event
+    loop. There is intentionally NO global lock around these operations:
+    Flask-SQLAlchemy's ``scoped_session`` hands each thread its own session,
+    and the underlying connection pool is already thread-safe. A previous
+    implementation held a single ``threading.RLock`` across every call, which
+    silently serialised every DB op in the entire process (turning the 8-wide
+    thread pool into a 1-wide one) and defeated the point of the async layer.
+    """
 
     def __init__(self):
         from flask import current_app
@@ -35,78 +44,56 @@ class DatabaseService:
         except RuntimeError:
             # No app context available during initialization
             max_workers = 8
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
-        self._operation_lock = threading.RLock()  # Reentrant lock for thread safety
+        self._executor = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix='db-service')
 
     async def _safe_execute(self, operation_func, *args, **kwargs):
-        """Execute database operation asynchronously in thread pool with proper synchronization"""
+        """Execute a blocking DB operation in the thread pool, preserving
+        Flask's app context and normalising error handling.
+        """
         from flask import current_app, has_app_context
 
         loop = asyncio.get_event_loop()
 
-        # If we have an app context, we need to preserve it for the thread pool
+        def _run_with_rollback(op):
+            try:
+                return op()
+            except SQLAlchemyError as e:
+                logger.error(f"Database error in thread: {str(e)}")
+                try:
+                    db.session.rollback()
+                except SQLAlchemyError as rollback_error:
+                    logger.error(f"Rollback error: {str(rollback_error)}")
+                raise
+            except (ValueError, TypeError, AttributeError) as e:
+                logger.error(f"Data processing error in thread: {str(e)}")
+                try:
+                    db.session.rollback()
+                except SQLAlchemyError as rollback_error:
+                    logger.error(f"Rollback error: {str(rollback_error)}")
+                raise
+
         if has_app_context():
             app = current_app._get_current_object()
 
             def context_operation():
-                # Use thread-safe operation with locking
-                with self._operation_lock:
-                    with app.app_context():
-                        try:
-                            result = operation_func(*args, **kwargs)
-                            # Ensure session is properly handled
-                            if hasattr(db.session, 'commit'):
-                                # Session will be committed by the operation if needed
-                                pass
-                            return result
-                        except SQLAlchemyError as e:
-                            logger.error(f"Database error in thread: {str(e)}")
-                            try:
-                                db.session.rollback()
-                            except SQLAlchemyError as rollback_error:
-                                logger.error(f"Rollback error: {str(rollback_error)}")
-                            raise
-                        except (ValueError, TypeError, AttributeError) as e:
-                            logger.error(f"Data processing error in thread: {str(e)}")
-                            try:
-                                db.session.rollback()
-                            except SQLAlchemyError as rollback_error:
-                                logger.error(f"Rollback error: {str(rollback_error)}")
-                            raise
-
-            try:
-                return await loop.run_in_executor(self._executor, context_operation)
-            except SQLAlchemyError as e:
-                logger.error(f"Database error: {str(e)}")
-                return None
-            except (ValueError, TypeError, RuntimeError) as e:
-                logger.error(f"Runtime error: {str(e)}")
-                return None
+                with app.app_context():
+                    return _run_with_rollback(lambda: operation_func(*args, **kwargs))
+            target = context_operation
         else:
             # No app context, run directly (shouldn't happen in normal operation)
-            def safe_operation():
-                with self._operation_lock:
-                    try:
-                        return operation_func(*args, **kwargs)
-                    except SQLAlchemyError as e:
-                        logger.error(f"Database error (no context): {str(e)}")
-                        try:
-                            db.session.rollback()
-                        except SQLAlchemyError:
-                            pass
-                        raise
-                    except (ValueError, TypeError, AttributeError) as e:
-                        logger.error(f"Data processing error (no context): {str(e)}")
-                        raise
+            def bare_operation():
+                return _run_with_rollback(lambda: operation_func(*args, **kwargs))
+            target = bare_operation
 
-            try:
-                return await loop.run_in_executor(self._executor, safe_operation)
-            except SQLAlchemyError as e:
-                logger.error(f"Database error: {str(e)}")
-                return None
-            except (ValueError, TypeError, RuntimeError) as e:
-                logger.error(f"Runtime error: {str(e)}")
-                return None
+        try:
+            return await loop.run_in_executor(self._executor, target)
+        except SQLAlchemyError as e:
+            logger.error(f"Database error: {str(e)}")
+            return None
+        except (ValueError, TypeError, RuntimeError) as e:
+            logger.error(f"Runtime error: {str(e)}")
+            return None
 
     # User Operations
     async def create_user(self, username: str, email: str, password: str,
@@ -494,17 +481,39 @@ class DatabaseService:
     async def create_api_key(self, project_id: str, name: str, key_value: str) -> Optional[APIKey]:
         """Create new API key"""
         def _create_key():
-            api_key = APIKey(project_id=project_id, name=name, key=key_value)
+            api_key = APIKey(project_id=project_id, name=name,
+                             key=APIKey.hash_key(key_value))
             db.session.add(api_key)
             db.session.commit()
+            api_key.plaintext_key = key_value
             return api_key
 
         return await self._safe_execute(_create_key)
 
     async def get_api_key_by_value(self, key_value: str) -> Optional[APIKey]:
-        """Get API key by value with project relationship loaded"""
+        """Resolve a presented plaintext key to its record via its hash.
+
+        Legacy rows still holding plaintext are matched directly and upgraded
+        to their hash on first use.
+        """
         def _get_key():
-            return APIKey.query.options(joinedload(APIKey.project)).filter_by(key=key_value, is_active=True).first()
+            hashed = APIKey.hash_key(key_value)
+            api_key = APIKey.query.options(joinedload(APIKey.project)).filter_by(
+                key=hashed, is_active=True).first()
+            if api_key is not None:
+                return api_key
+
+            legacy = APIKey.query.filter_by(key=key_value, is_active=True).first()
+            if legacy is None:
+                return None
+            legacy.key = hashed
+            try:
+                db.session.commit()
+            except SQLAlchemyError:
+                db.session.rollback()
+                return None
+            return APIKey.query.options(joinedload(APIKey.project)).filter_by(
+                key=hashed, is_active=True).first()
 
         return await self._safe_execute(_get_key)
 
@@ -827,23 +836,37 @@ class DatabaseService:
 
     # API User Operations
     async def get_or_create_api_user(self, external_user_id: str, project_id: str) -> Optional[str]:
-        """Get existing API user or create new one, returns the user ID"""
+        """Get existing API user or create new one, returns the user ID.
+
+        Races safely against the (project_id, external_user_id) unique
+        constraint: if a concurrent request inserts the same pair first we
+        catch the IntegrityError, roll back, and re-read the row the winner
+        committed.
+        """
         def _get_or_create():
             api_user = APIUser.query.filter_by(
                 external_user_id=external_user_id,
                 project_id=project_id
             ).first()
 
-            if not api_user:
-                api_user = APIUser(
-                    external_user_id=external_user_id,
-                    project_id=project_id
-                )
-                db.session.add(api_user)
-                db.session.commit()
+            if api_user:
+                return api_user.id
 
-            # Return the ID string instead of the object to avoid detached instance issues
-            return api_user.id
+            api_user = APIUser(
+                external_user_id=external_user_id,
+                project_id=project_id,
+            )
+            db.session.add(api_user)
+            try:
+                db.session.commit()
+                return api_user.id
+            except IntegrityError:
+                db.session.rollback()
+                existing = APIUser.query.filter_by(
+                    external_user_id=external_user_id,
+                    project_id=project_id,
+                ).first()
+                return existing.id if existing else None
 
         return await self._safe_execute(_get_or_create)
 
@@ -853,6 +876,39 @@ class DatabaseService:
             return APIUser.query.get(api_user_id)
 
         return await self._safe_execute(_get_user)
+
+    async def increment_api_user_stats(self, api_user_id: str, status: str) -> bool:
+        """Atomically bump an APIUser's request counters for a moderation decision.
+
+        Uses a single ``UPDATE ... SET col = col + 1`` statement rather than a
+        read-modify-write on a fetched instance. Two concurrent moderations for
+        the same external user can otherwise both read the same counter value
+        and both write ``value + 1``, silently losing one increment. Pushing the
+        arithmetic into the database makes each increment atomic under the DB's
+        row lock.
+
+        Returns True on success, False if the user wasn't found or the update
+        failed.
+        """
+        def _increment():
+            values = {
+                APIUser.total_requests: APIUser.total_requests + 1,
+                APIUser.last_seen: datetime.utcnow(),
+            }
+            if status == 'approved':
+                values[APIUser.approved_count] = APIUser.approved_count + 1
+            elif status == 'rejected':
+                values[APIUser.rejected_count] = APIUser.rejected_count + 1
+            elif status == 'flagged':
+                values[APIUser.flagged_count] = APIUser.flagged_count + 1
+
+            updated = db.session.query(APIUser).filter_by(
+                id=api_user_id).update(values, synchronize_session=False)
+            db.session.commit()
+            return updated > 0
+
+        result = await self._safe_execute(_increment)
+        return bool(result)
 
     # Content Query Operations
     async def get_content_counts_by_status(self, project_id: str) -> Dict[str, int]:
@@ -902,20 +958,67 @@ class DatabaseService:
         result = await self._safe_execute(_update_content)
         return result is not None and result is not False
 
+    async def save_moderation_outcome(self, content_id: str, status: str,
+                                      api_user_id: Optional[str],
+                                      moderation_results: List) -> bool:
+        """Persist a complete moderation outcome in a single transaction.
+
+        Sets the content status, increments the API-user counters (atomically),
+        and inserts every ModerationResult row under one commit. Previously these
+        were three independent commits followed by a no-op commit, so a failure
+        partway through could leave content marked approved/rejected with no
+        result rows saved. Doing it as one unit makes the outcome all-or-nothing.
+        """
+        def _save():
+            content = Content.query.get(content_id)
+            if content is None:
+                return False
+
+            content.status = status
+
+            if api_user_id:
+                values = {
+                    APIUser.total_requests: APIUser.total_requests + 1,
+                    APIUser.last_seen: datetime.utcnow(),
+                }
+                if status == 'approved':
+                    values[APIUser.approved_count] = APIUser.approved_count + 1
+                elif status == 'rejected':
+                    values[APIUser.rejected_count] = APIUser.rejected_count + 1
+                elif status == 'flagged':
+                    values[APIUser.flagged_count] = APIUser.flagged_count + 1
+                db.session.query(APIUser).filter_by(
+                    id=api_user_id).update(values, synchronize_session=False)
+
+            for obj in moderation_results:
+                db.session.add(obj)
+
+            db.session.commit()
+            return True
+
+        result = await self._safe_execute(_save)
+        return bool(result)
+
     # API Key Management
     async def update_api_key_usage(self, api_key: APIKey) -> bool:
-        """Update API key usage statistics"""
+        """Update API key usage statistics.
+
+        Single atomic ``UPDATE`` on the counter so concurrent requests using the
+        same key don't lose increments to a read-modify-write race.
+        """
         def _update_usage():
-            # Get fresh instance from database using the key ID
-            fresh_api_key = APIKey.query.filter_by(id=api_key.id).first()
-            if fresh_api_key:
-                fresh_api_key.increment_usage()
-                db.session.commit()
-                return True
-            return False
+            updated = db.session.query(APIKey).filter_by(id=api_key.id).update(
+                {
+                    APIKey.usage_count: APIKey.usage_count + 1,
+                    APIKey.last_used: datetime.utcnow(),
+                },
+                synchronize_session=False,
+            )
+            db.session.commit()
+            return updated > 0
 
         result = await self._safe_execute(_update_usage)
-        return result is not None
+        return bool(result)
 
     # Transaction Management
     async def commit_transaction(self) -> bool:

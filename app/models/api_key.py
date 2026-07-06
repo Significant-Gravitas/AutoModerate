@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 import uuid
 from datetime import datetime
@@ -21,14 +22,22 @@ class APIKey(db.Model):
     updated_at = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    plaintext_key = None
+
     def __init__(self, **kwargs):
         super(APIKey, self).__init__(**kwargs)
         if not self.key:
-            self.key = self.generate_key()
+            raw = self.generate_key()
+            self.plaintext_key = raw
+            self.key = self.hash_key(raw)
 
     @staticmethod
     def generate_key():
         return f"am_{secrets.token_urlsafe(32)}"
+
+    @staticmethod
+    def hash_key(raw_key):
+        return hashlib.sha256(raw_key.strip().encode('utf-8')).hexdigest()
 
     def increment_usage(self):
         self.usage_count += 1
@@ -37,7 +46,6 @@ class APIKey(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'key': self.key,
             'name': self.name,
             'project_id': self.project_id,
             'is_active': self.is_active,

@@ -83,7 +83,13 @@ function initializeWebSocket() {
         console.log('Successfully joined project room:', data.room);
     });
 
+    socket.on('content_received', function(data) {
+        console.log('content_received:', data);
+        handleContentReceived(data);
+    });
+
     socket.on('moderation_update', function(data) {
+        console.log('moderation_update:', data);
         handleModerationUpdate(data);
     });
 
@@ -130,24 +136,102 @@ function joinProjectRoom() {
     }
 }
 
-// Handle real-time moderation updates
+// Handle "content_received" - the row should appear in a pending state
+// immediately when the API accepts a submission, before moderation finishes.
+function handleContentReceived(data) {
+    // Pending rows always get added regardless of the status filter — users
+    // want to see new submissions arrive. The moderation_update event will
+    // either keep the row (if the final status matches the filter) or remove
+    // it (if it doesn't).
+    const existing = document.querySelector(`tr[data-content-id="${data.content_id}"]`);
+    if (existing) return;  // already in the table (e.g. server-rendered), skip
+
+    addContentRow(data);
+    // Don't update statistics here — the moderation_update event will do that
+    // once the final decision lands, otherwise we'd double-count.
+}
+
+// Handle "moderation_update" - either update an existing pending row in
+// place or insert a new one (if content_received was missed).
 function handleModerationUpdate(data) {
-    // Check if we should show this content based on current filters
-    // Only filter if currentStatusFilter is not empty and not "None"
-    if (currentStatusFilter && currentStatusFilter !== 'None' && data.status !== currentStatusFilter) {
-        // Content doesn't match current filter, just update stats
+    const existing = document.querySelector(`tr[data-content-id="${data.content_id}"]`);
+
+    // If the row already exists (from content_received), update it in place.
+    if (existing) {
+        // If the new status doesn't match the current filter, remove the row.
+        if (currentStatusFilter && currentStatusFilter !== 'None' && data.status !== currentStatusFilter) {
+            existing.remove();
+            updateStatistics(data);
+            return;
+        }
+        updateContentRow(existing, data);
         updateStatistics(data);
         return;
     }
 
-    // Add new content row to the table
+    // No existing row — insert fresh. Respect the status filter for new rows.
+    if (currentStatusFilter && currentStatusFilter !== 'None' && data.status !== currentStatusFilter) {
+        updateStatistics(data);
+        return;
+    }
     addContentRow(data);
-
-    // Update statistics
     updateStatistics(data);
+}
 
-    // Show notification
-    // showNotification(`New ${data.content_type} content ${data.status}`, 'info');
+// Swap the status, moderation results, and processing time on an existing row
+// without re-inserting it. Used when a pending row gets its final decision.
+function updateContentRow(row, data) {
+    // Status column (4th)
+    const statusCell = row.children[3];
+    if (statusCell) statusCell.innerHTML = buildStatusBadge(data.status);
+
+    // Moderation results column (5th)
+    const resultsCell = row.children[4];
+    if (resultsCell) resultsCell.innerHTML = buildResultsHtml(data);
+
+    // Processing time column (6th)
+    const timeCell = row.children[5];
+    if (timeCell) timeCell.innerHTML = buildProcessingTimeHtml(data.processing_time);
+
+    // Brief highlight to draw the eye to the update
+    row.classList.add('table-info');
+    setTimeout(() => row.classList.remove('table-info'), 1500);
+}
+
+// Status badge builder — shared by addContentRow and updateContentRow.
+function buildStatusBadge(status) {
+    if (status === 'approved') return '<span class="badge bg-success">Approved</span>';
+    if (status === 'rejected') return '<span class="badge bg-danger">Rejected</span>';
+    if (status === 'flagged') return '<span class="badge bg-warning">Flagged</span>';
+    if (status === 'pending') return '<span class="badge bg-secondary"><i class="fas fa-spinner fa-spin"></i> Processing</span>';
+    return '<span class="badge bg-secondary">Pending</span>';
+}
+
+function buildResultsHtml(data) {
+    if (data.moderator_type === 'pending') {
+        return '<small class="text-muted"><i class="fas fa-spinner fa-spin"></i> Awaiting results</small>';
+    }
+    if (!data.results_count) return '<span class="text-muted">No results</span>';
+
+    let badgeClass = 'bg-secondary';
+    let moderatorText = 'Unknown';
+    if (data.moderator_type === 'rule') { badgeClass = 'bg-info'; moderatorText = 'Rule'; }
+    else if (data.moderator_type === 'rule_system') { badgeClass = 'bg-success'; moderatorText = 'Rule System'; }
+    else if (data.moderator_type === 'ai') { badgeClass = 'bg-primary'; moderatorText = 'AI'; }
+    else if (data.moderator_name) { moderatorText = data.moderator_name; }
+
+    let title = moderatorText;
+    if (data.rule_name) title += `: ${data.rule_name}`;
+
+    let html = `<span class="badge ${badgeClass}" title="${title}">${moderatorText}</span>`;
+    if (data.results_count > 1) html += `<span class="badge bg-light text-dark">+${data.results_count - 1}</span>`;
+    return html;
+}
+
+function buildProcessingTimeHtml(processingTime) {
+    if (processingTime == null) return '<small class="text-muted">N/A</small>';
+    if (processingTime < 1) return `<small class="text-success">${(processingTime * 1000).toFixed(0)}ms</small>`;
+    return `<small class="text-primary">${processingTime.toFixed(2)}s</small>`;
 }
 
 // Add new content row to the table
@@ -167,53 +251,10 @@ function addContentRow(data) {
         newRow.classList.remove('table-info');
     }, 5000);
 
-    // Create status badge
-    let statusBadge = '';
-    if (data.status === 'approved') {
-        statusBadge = '<span class="badge bg-success">Approved</span>';
-    } else if (data.status === 'rejected') {
-        statusBadge = '<span class="badge bg-danger">Rejected</span>';
-    } else if (data.status === 'flagged') {
-        statusBadge = '<span class="badge bg-warning">Flagged</span>';
-    } else {
-        statusBadge = '<span class="badge bg-secondary">Pending</span>';
-    }
-
-    // Create content type badge
+    const statusBadge = buildStatusBadge(data.status);
     const contentTypeBadge = `<span class="badge bg-info">${data.content_type.charAt(0).toUpperCase() + data.content_type.slice(1)}</span>`;
-
-    // Create moderation results badges
-    let resultsHtml = '';
-    if (data.results_count > 0) {
-        // Use the moderator information from the WebSocket update
-        let badgeClass = 'bg-secondary';
-        let moderatorText = 'Unknown';
-
-        if (data.moderator_type === 'rule') {
-            badgeClass = 'bg-info';
-            moderatorText = 'Rule';
-        } else if (data.moderator_type === 'rule_system') {
-            badgeClass = 'bg-success';
-            moderatorText = 'Rule System';
-        } else if (data.moderator_type === 'ai') {
-            badgeClass = 'bg-primary';
-            moderatorText = 'AI';
-        } else if (data.moderator_name) {
-            moderatorText = data.moderator_name;
-        }
-
-        let title = moderatorText;
-        if (data.rule_name) {
-            title += `: ${data.rule_name}`;
-        }
-
-        resultsHtml = `<span class="badge ${badgeClass}" title="${title}">${moderatorText}</span>`;
-        if (data.results_count > 1) {
-            resultsHtml += `<span class="badge bg-light text-dark">+${data.results_count - 1}</span>`;
-        }
-    } else {
-        resultsHtml = '<span class="text-muted">No results</span>';
-    }
+    const resultsHtml = buildResultsHtml(data);
+    const processingTimeHtml = buildProcessingTimeHtml(data.processing_time);
 
     // Format timestamp to match server format (YYYY-MM-DD HH:MM)
     const date = new Date(data.timestamp);
@@ -223,7 +264,7 @@ function addContentRow(data) {
                      String(date.getHours()).padStart(2, '0') + ':' +
                      String(date.getMinutes()).padStart(2, '0');
 
-    // Check if content has metadata (we'll need to fetch this)
+    // Check if content has metadata
     let metadataHtml = '';
     if (data.meta_data && Object.keys(data.meta_data).length > 0) {
         metadataHtml = `
@@ -231,16 +272,6 @@ function addContentRow(data) {
                 <i class="fas fa-info-circle"></i> Has metadata
             </small>
         `;
-    }
-
-    // Format processing time
-    let processingTimeHtml = '<small class="text-muted">N/A</small>';
-    if (data.processing_time !== null && data.processing_time !== undefined) {
-        if (data.processing_time < 1) {
-            processingTimeHtml = `<small class="text-success">${(data.processing_time * 1000).toFixed(0)}ms</small>`;
-        } else {
-            processingTimeHtml = `<small class="text-primary">${data.processing_time.toFixed(2)}s</small>`;
-        }
     }
 
     newRow.innerHTML = `

@@ -1,9 +1,12 @@
+import hashlib
 import re
 from functools import wraps
 from typing import Callable
 
 from flask import Blueprint, current_app, jsonify, render_template, request
+from flask_limiter.util import get_remote_address
 
+from app import limiter
 from app.schemas import ContentListRequest, ModerateContentRequest
 from app.services.database_service import db_service
 from app.services.error_tracker import error_tracker
@@ -17,6 +20,28 @@ from app.utils.error_handlers import (
 )
 
 api_bp = Blueprint('api', __name__)
+
+
+def _api_rate_limit_key() -> str:
+    """Rate-limit key for /api/moderate.
+
+    Buckets on the API key presented in the request (hashed), so a single key
+    cannot be replayed at unbounded QPS by spreading requests across many IPs.
+
+    Flask-Limiter evaluates this at request dispatch — *before* the inner
+    ``require_api_key`` decorator runs — so ``request.api_key`` isn't set yet.
+    We therefore read the key straight from the header/query and hash it for the
+    bucket name (never store the raw key in the limiter backend). Falls back to
+    the remote address for missing/malformed keys so the 401 path is still
+    bounded per source.
+    """
+    raw_key = request.headers.get('X-API-Key') or request.args.get('api_key')
+    if raw_key:
+        raw_key = raw_key.strip()
+        if _is_valid_api_key_format(raw_key):
+            digest = hashlib.sha256(raw_key.encode('utf-8')).hexdigest()[:32]
+            return f"api_key:{digest}"
+    return get_remote_address()
 
 
 def require_api_key(f: Callable) -> Callable:
@@ -52,6 +77,7 @@ def require_api_key(f: Callable) -> Callable:
 
 
 @api_bp.route('/moderate', methods=['POST'])
+@limiter.limit("120 per minute; 5000 per hour", key_func=_api_rate_limit_key)
 @require_api_key
 @validate_json_request(ModerateContentRequest)
 @handle_api_error
@@ -75,7 +101,7 @@ async def moderate_content(validated_data=None):
 
     max_content_size = 5000000  # 5MB limit (increased from 1MB)
     content_size_kb = len(content_data) // 1000
-    current_app.logger.info(f'Content moderation request: {content_size_kb}KB')
+    current_app.logger.debug(f'Content moderation request: {content_size_kb}KB')
 
     if len(content_data) > max_content_size:
         current_app.logger.warning(f'Content too large: {content_size_kb}KB > {max_content_size // 1000}KB')
@@ -141,6 +167,14 @@ async def moderate_content(validated_data=None):
 
     # Start moderation process
     moderation_orchestrator = ModerationOrchestrator()
+
+    # Emit "content_received" before the (potentially slow) moderation pass
+    # so the dashboard can render a pending row immediately. Fetch the fresh
+    # record so the notifier has real timestamps.
+    created_content = await db_service.get_content_by_id(content_id)
+    if created_content is not None:
+        moderation_orchestrator.websocket_notifier.send_content_created(created_content)
+
     result = await moderation_orchestrator.moderate_content(
         content_id, request_start_time)
 

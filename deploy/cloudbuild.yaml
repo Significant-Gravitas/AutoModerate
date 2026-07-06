@@ -12,7 +12,21 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/automoderate:$BRANCH_NAME-$SHORT_SHA']
 
-  # Deploy container image to Cloud Run
+  # Deploy container image to Cloud Run.
+  #
+  # This step intentionally does NOT manage environment variables or secrets.
+  # Runtime config is owned by the Cloud Run service itself (console or
+  # `gcloud run services update`) so that:
+  #   1. Secret-backed env vars (SECRET_KEY, DATABASE_URL, OPENAI_API_KEY,
+  #      ADMIN_PASSWORD, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) set via
+  #      `--set-secrets` survive every deploy. `--set-env-vars` here would
+  #      convert them into plain env vars and lose the secret binding.
+  #   2. Per-environment values (FLASK_CONFIG=development for the dev service,
+  #      FLASK_CONFIG=production for the prod service) are configured once on
+  #      the service and persist across image-only deploys.
+  # If a brand-new service is being stood up, configure its env vars and
+  # secrets manually via the console before the first cloudbuild run, or
+  # extend this step with `--update-env-vars` / `--set-secrets`.
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
     - 'run'
@@ -35,24 +49,15 @@ steps:
     - '${_MAX_INSTANCES}'
     - '--add-cloudsql-instances'
     - '${_CLOUD_SQL_INSTANCE}'
-    - '--set-env-vars'
-    - 'FLASK_CONFIG=${_FLASK_CONFIG},DATABASE_URL=${_DATABASE_URL},OPENAI_API_KEY=${_OPENAI_API_KEY},SECRET_KEY=${_SECRET_KEY},ADMIN_EMAIL=${_ADMIN_EMAIL},ADMIN_PASSWORD=${_ADMIN_PASSWORD}'
 
-# Default substitutions (MUST be overridden in triggers for security)
 substitutions:
   _ENV: 'dev'
   _REGION: 'us-central1'
-  _FLASK_CONFIG: 'development'
   _MEMORY: '1Gi'
   _CPU: '1'
   _MAX_INSTANCES: '10'
-  # Sensitive variables MUST be set in trigger configuration:
-  # _CLOUD_SQL_INSTANCE: project:region:instance-name
-  # _DATABASE_URL: Cloud SQL connection string
-  # _OPENAI_API_KEY: OpenAI API key
-  # _SECRET_KEY: Flask session secret
-  # _ADMIN_EMAIL: Admin email
-  # _ADMIN_PASSWORD: Admin password
+  # _CLOUD_SQL_INSTANCE must be set in the trigger configuration
+  # (format: project:region:instance-name).
 
 options:
   logging: CLOUD_LOGGING_ONLY

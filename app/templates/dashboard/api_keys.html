@@ -32,6 +32,23 @@
                 <h5 class="card-title mb-0">Existing API Keys</h5>
             </div>
             <div class="card-body">
+                {% if new_plaintext_key %}
+                <div class="alert alert-success d-flex flex-column" role="alert">
+                    <div class="mb-2">
+                        <i class="fas fa-key me-1"></i>
+                        <strong>Copy your new API key now.</strong>
+                        For security it is stored hashed and will not be shown again.
+                    </div>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="newApiKeyValue"
+                               value="{{ new_plaintext_key }}" readonly onclick="this.select();">
+                        <button class="btn btn-outline-secondary" type="button"
+                                onclick="const i=document.getElementById('newApiKeyValue'); i.select(); navigator.clipboard.writeText(i.value);">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
                 {% if api_keys %}
                 <div class="table-responsive">
                     <table class="table table-hover">
@@ -53,13 +70,12 @@
                                     <strong>{{ key.name }}</strong>
                                 </td>
                                 <td>
-                                    <code class="api-key-display"
-                                          data-full-key="{{ key.key }}"
-                                          style="cursor: pointer;"
-                                          title="Click to view full key">
-                                        {{ key.key[:20] }}...
+                                    <code class="text-muted"
+                                          title="Keys are stored hashed and shown only once, at creation">
+                                        am_&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;
                                     </code>
-                                    <i class="fas fa-eye text-muted ms-1" style="font-size: 0.8em;"></i>
+                                    <i class="fas fa-lock text-muted ms-1" style="font-size: 0.8em;"
+                                       title="Hidden for security"></i>
                                 </td>
                                 <td>
                                     <span class="badge bg-info">{{ key.usage_count|format_number }}</span>
@@ -81,11 +97,6 @@
                                 <td>{{ key.created_at.strftime('%Y-%m-%d') }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-primary btn-sm copy-key-btn"
-                                                data-key="{{ key.key }}"
-                                                title="Copy to clipboard">
-                                            <i class="fas fa-copy"></i>
-                                        </button>
                                         {% if key.is_active %}
                                         <button class="btn btn-outline-warning btn-sm toggle-key-btn"
                                                 data-key-id="{{ key.id }}"
@@ -150,44 +161,6 @@
                 <button type="submit" form="createApiKeyForm" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Create API Key
                 </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- API Key Modal -->
-<div class="modal fade" id="apiKeyModal" tabindex="-1" aria-labelledby="apiKeyModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="apiKeyModalLabel">Full API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Keep this key secure!</strong> Don't share it publicly or commit it to version control.
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">API Key:</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="fullApiKey" readonly>
-                        <button class="btn btn-outline-secondary" type="button" id="copyFullKeyBtn">
-                            <i class="fas fa-copy"></i> Copy
-                        </button>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Usage Example:</label>
-                    <pre class="bg-light p-3 rounded"><code>curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: <span id="exampleKey">your-api-key</span>" \
-  -d '{"type": "text", "content": "Content to moderate"}' \
-  {{ request.url_root }}api/moderate</code></pre>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

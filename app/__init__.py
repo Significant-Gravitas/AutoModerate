@@ -5,13 +5,30 @@ from typing import Any, List, Union
 
 import sentry_sdk
 from flask import Flask
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
 from flask_talisman import Talisman
 from flask_wtf.csrf import CSRFProtect
 
-from config.config import config
+from config.config import config, validate_production_config
+
+# SocketIO async mode selection.
+#
+# Default is 'threading' so the Werkzeug dev server (run.py) and any plain
+# WSGI host work correctly. Production uses eventlet — but ONLY when wsgi.py
+# has run first and called eventlet.monkey_patch() + psycogreen.patch_psycopg().
+# wsgi.py signals that by setting SOCKETIO_ASYNC_MODE=eventlet in the
+# environment before importing this module.
+#
+# DO NOT auto-detect from sys.modules. flask_socketio / python-engineio
+# import eventlet at load time whenever it's installed, which would false-
+# positive the detection and put a non-monkey-patched eventlet server in
+# front of blocking stdlib I/O (that was the "site locks up during API
+# requests" bug).
+_SOCKETIO_ASYNC_MODE = os.environ.get('SOCKETIO_ASYNC_MODE', 'threading')
 
 # SQLAlchemy - database interface
 db = SQLAlchemy()
@@ -19,40 +36,85 @@ login_manager = LoginManager()
 socketio = SocketIO(cors_allowed_origins="*")
 csrf = CSRFProtect()
 
+# Rate limiter. Uses in-memory storage; when scaling to multiple workers or
+# processes, set storage_uri to a Redis URL so limits are shared. Per-route
+# limits are declared in the route files with @limiter.limit(...).
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
+
 
 def create_app(config_name: str = 'default') -> Flask:
+    # Fail fast in production if required secrets are missing
+    if config_name == 'production':
+        validate_production_config()
+
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
     # Initialize Sentry
     if app.config.get('SENTRY_DSN'):
         def before_send(event, hint):
-            """Filter out expected errors before sending to Sentry"""
-            # Filter out Engine.IO "Invalid session" errors - these are expected when
-            # clients lose connection and attempt to use stale session IDs
+            """Drop expected lifecycle exceptions from Engine.IO / Socket.IO.
+
+            Engine.IO uses a couple of raises as in-band signals to the WSGI
+            layer; they aren't real errors but Sentry's WSGI instrumentation
+            picks them up anyway. Filtering them here keeps the noise out of
+            the issues list.
+            """
+            # Request URL context (used by multiple filters below)
+            request_url = (event.get('request') or {}).get('url', '') or ''
+
             if 'exception' in event:
                 for exception in event.get('exception', {}).get('values', []):
-                    exception_value = exception.get('value', '')
-                    if 'Invalid session' in exception_value:
-                        # Don't send to Sentry - this is expected connection lifecycle behavior
+                    exc_type = exception.get('type', '')
+                    exc_value = exception.get('value', '') or ''
+
+                    # (a) Clients reconnecting with stale session ids.
+                    if 'Invalid session' in exc_value:
+                        return None
+
+                    # (b) engineio/async_drivers/_websocket_wsgi.py intentionally
+                    # raises StopIteration on successful WebSocket upgrade so
+                    # gunicorn keeps the connection open. Only drop it on the
+                    # socket.io path so we don't accidentally hide a real
+                    # StopIteration from elsewhere.
+                    if exc_type == 'StopIteration' and '/socket.io/' in request_url:
                         return None
 
             # Filter out log messages about invalid sessions
             if 'logentry' in event:
-                message = event.get('logentry', {}).get('message', '')
+                message = event.get('logentry', {}).get('message', '') or ''
                 if 'Invalid session' in message:
                     return None
 
             return event
 
-        sentry_sdk.init(
+        # Build kwargs defensively — sentry-sdk periodically adds/removes
+        # kwargs across major versions, and a kwarg mismatch here takes the
+        # whole app down at boot. Pin + fall back instead of pretending
+        # otherwise. `enable_logs` requires sentry-sdk>=2.40.
+        sentry_kwargs = dict(
             dsn=app.config['SENTRY_DSN'],
             send_default_pii=True,
-            enable_logs=True,
             traces_sample_rate=1.0,
             environment=app.config.get('FLASK_ENV', 'development'),
             before_send=before_send,
         )
+        try:
+            sentry_sdk.init(enable_logs=True, **sentry_kwargs)
+        except TypeError as e:
+            # Older / stripped sentry-sdk that doesn't know about enable_logs.
+            # Fall back to the core init so error reporting still works.
+            logging.getLogger(__name__).warning(
+                "sentry_sdk.init rejected enable_logs=True (%s); initialising "
+                "without it. Upgrade sentry-sdk to >=2.40 to re-enable logs.",
+                e,
+            )
+            sentry_sdk.init(**sentry_kwargs)
 
     # Handle HTTPS proxy headers (for production behind reverse proxy)
     from werkzeug.middleware.proxy_fix import ProxyFix
@@ -77,9 +139,12 @@ def create_app(config_name: str = 'default') -> Flask:
     # Initialize SocketIO with increased timeouts to handle browser tab throttling
     # ping_timeout: Time to wait for client response before considering connection dead
     # ping_interval: Time between server pings to check client connection
+    # async_mode: 'threading' in both dev and prod (gunicorn gthread worker) —
+    # see the SOCKETIO_ASYNC_MODE note above and wsgi.py for why eventlet was dropped
+    app.logger.info(f"Initialising SocketIO with async_mode={_SOCKETIO_ASYNC_MODE}")
     socketio.init_app(
         app,
-        async_mode='threading',
+        async_mode=_SOCKETIO_ASYNC_MODE,
         ping_timeout=120,  # Increased from default 60s to 2 minutes
         ping_interval=25,  # Keep default 25s interval
         logger=False,      # Disable SocketIO logger to reduce noise
@@ -105,6 +170,9 @@ def create_app(config_name: str = 'default') -> Flask:
 
     # Initialize CSRF protection
     csrf.init_app(app)
+
+    # Initialize rate limiter (limits declared on individual routes)
+    limiter.init_app(app)
 
     # Configure CSRF header names for AJAX requests
     app.config['WTF_CSRF_HEADERS'] = ['X-CSRFToken', 'X-CSRF-Token']
@@ -164,34 +232,15 @@ def create_app(config_name: str = 'default') -> Flask:
         }
     )
 
-    # User loader for Flask-Login
+    # User loader for Flask-Login. Called on every authenticated request, so
+    # keep it cheap: a simple synchronous primary-key lookup inside the
+    # existing app context. The previous implementation spun up a fresh
+    # ThreadPoolExecutor AND a fresh asyncio event loop per call just to
+    # await an async method that ultimately wraps ``User.query.get(user_id)``.
     @login_manager.user_loader
     def load_user(user_id):
-        import asyncio
-        import concurrent.futures
-
-        from flask import current_app, has_app_context
-
-        from app.services.database_service import db_service
-
-        # Get the current app reference before creating the thread
-        if has_app_context():
-            app = current_app._get_current_object()
-        else:
-            # If no app context, return None (user not authenticated)
-            return None
-
-        def run_async_with_context():
-            def async_operation():
-                with app.app_context():
-                    return asyncio.run(db_service.get_user_by_id(user_id))
-
-            return async_operation()
-
-        # Run in a separate thread with proper app context
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async_with_context)
-            return future.result()
+        from app.models.user import User
+        return User.query.get(user_id)
 
     # Initialize OAuth
     from app.routes.auth import oauth

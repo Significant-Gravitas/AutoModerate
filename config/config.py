@@ -24,6 +24,17 @@ class Config:
     # AI moderator only returns small JSON responses (~100-200 tokens), so 500 is plenty
     OPENAI_MAX_OUTPUT_TOKENS = int(os.environ.get(
         'OPENAI_MAX_OUTPUT_TOKENS', '500'))
+    # Reasoning level for gpt-5 / o-series models. Valid values are model-
+    # specific:
+    #   gpt-5 / o-series:   minimal | low | medium | high
+    #   gpt-5.4 (nano etc): none    | low | medium | high | xhigh
+    # 'low' is the only value accepted across every reasoning model in the
+    # supported family, so it's a safe default. Override per-deployment in
+    # .env if you've picked a model and want a different point on the
+    # latency/quality curve. Note that 'none' on gpt-5.4 measurably degrades
+    # moderation accuracy on borderline content (false negatives on scams,
+    # phishing, misinformation) — verified empirically on this codebase.
+    OPENAI_REASONING_EFFORT = os.environ.get('OPENAI_REASONING_EFFORT', 'low')
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
@@ -59,6 +70,24 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+
+
+def validate_production_config():
+    """Fail fast if required secrets are missing in production.
+
+    A silent fallback to the dev default SECRET_KEY would make session cookies
+    forgeable using a publicly-known key. Better to refuse to boot.
+    """
+    missing = []
+    if not os.environ.get('SECRET_KEY'):
+        missing.append('SECRET_KEY')
+    if not os.environ.get('OPENAI_API_KEY'):
+        missing.append('OPENAI_API_KEY')
+    if missing:
+        raise RuntimeError(
+            f"Missing required environment variables in production: {', '.join(missing)}. "
+            "Generate a SECRET_KEY with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+        )
 
 
 config = {

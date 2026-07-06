@@ -8,6 +8,14 @@ from app import db
 
 class APIUser(db.Model):
     __tablename__ = 'api_users'
+    # An external user is uniquely identified by (project_id, external_user_id).
+    # Without this constraint two concurrent /api/moderate requests for the
+    # same external user could both miss the SELECT and both INSERT, producing
+    # duplicate rows that split stats across them.
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'external_user_id',
+                            name='uq_api_users_project_external'),
+    )
 
     id = db.Column(db.String(36), primary_key=True,
                    default=lambda: str(uuid.uuid4()))

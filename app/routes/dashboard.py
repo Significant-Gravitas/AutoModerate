@@ -12,11 +12,26 @@ from app.models.content import Content
 from app.models.moderation_rule import ModerationRule
 from app.models.project import Project, ProjectInvitation, ProjectMember
 from app.models.user import User
+from app.services.ai.result_cache import ResultCache
 from app.services.database_service import db_service
 from app.utils.project_access import require_project_access
 from config.default_rules import create_default_rules
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+
+def _invalidate_ai_cache():
+    """Clear the shared AI result cache after a rule change.
+
+    Cached decisions are keyed on content + rule prompt/action; when a rule is
+    created, edited, toggled, or deleted the cached verdicts can no longer be
+    trusted, so drop them rather than serve a stale decision until the TTL.
+    """
+    try:
+        ResultCache().invalidate_cache()
+    except Exception:
+        # Cache invalidation must never break a rule mutation.
+        pass
 
 
 @dashboard_bp.route('/')
@@ -177,8 +192,10 @@ async def create_api_key(project_id, project=None):
         flash('Failed to create API key.', 'error')
         return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
 
+    api_keys = await db_service.get_project_api_keys(project.id)
     flash('API key created successfully!', 'success')
-    return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
+    return render_template('dashboard/api_keys.html', project=project,
+                           api_keys=api_keys, new_plaintext_key=key_value)
 
 
 @dashboard_bp.route('/projects/<project_id>/rules')
@@ -196,10 +213,10 @@ async def create_rule(project_id):
     """Create new moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
+    # Mutating rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
+        flash('You do not have permission to create rules for this project', 'error')
+        return redirect(url_for('dashboard.project_rules', project_id=project_id))
 
     if request.method == 'POST':
         name = request.form.get('name')
@@ -238,6 +255,7 @@ async def create_rule(project_id):
         )
         db.session.add(rule)
         db.session.commit()
+        _invalidate_ai_cache()
 
         flash('Moderation rule created successfully!', 'success')
         return redirect(url_for('dashboard.project_rules', project_id=project_id))
@@ -251,8 +269,8 @@ async def update_rule(project_id, rule_id):
     """Update existing moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Mutating rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     rule = ModerationRule.query.filter_by(
         id=rule_id, project_id=project.id).first_or_404()
@@ -287,6 +305,7 @@ async def update_rule(project_id, rule_id):
             }
 
         db.session.commit()
+        _invalidate_ai_cache()
 
         return jsonify({'success': True, 'message': 'Rule updated successfully'})
 
@@ -301,8 +320,8 @@ async def toggle_rule(project_id, rule_id):
     """Toggle rule active/inactive status"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Mutating rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     rule = ModerationRule.query.filter_by(
         id=rule_id, project_id=project.id).first_or_404()
@@ -319,6 +338,7 @@ async def toggle_rule(project_id, rule_id):
             return jsonify({'success': False, 'error': 'Invalid action'}), 400
 
         db.session.commit()
+        _invalidate_ai_cache()
 
         return jsonify({
             'success': True,
@@ -337,8 +357,8 @@ async def delete_rule(project_id, rule_id):
     """Delete moderation rule"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Deleting rules requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     rule = ModerationRule.query.filter_by(
         id=rule_id, project_id=project.id).first_or_404()
@@ -347,6 +367,7 @@ async def delete_rule(project_id, rule_id):
         rule_name = rule.name
         db.session.delete(rule)
         db.session.commit()
+        _invalidate_ai_cache()
 
         return jsonify({
             'success': True,
@@ -464,8 +485,8 @@ async def toggle_api_key(project_id, key_id):
     """Toggle API key active/inactive status"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Mutating API keys requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     api_key = APIKey.query.filter_by(
         id=key_id, project_id=project.id).first_or_404()
@@ -500,8 +521,8 @@ async def delete_api_key(project_id, key_id):
     """Delete API key"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
+    # Deleting API keys requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     api_key = APIKey.query.filter_by(
         id=key_id, project_id=project.id).first_or_404()
@@ -573,10 +594,10 @@ async def update_project(project_id):
     """Update project information"""
     project = Project.query.filter_by(id=project_id).first_or_404()
 
-    # Check if user has access to this project
-    if not project.is_member(current_user.id):
-        flash('You do not have access to this project', 'error')
-        return redirect(url_for('dashboard.projects'))
+    # Updating project identity requires owner/admin role; plain members are read-only
+    if not project.can_manage_members(current_user.id):
+        flash('You do not have permission to modify project settings', 'error')
+        return redirect(url_for('dashboard.project_settings', project_id=project_id))
 
     name = request.form.get('name')
     description = request.form.get('description', '')
@@ -768,7 +789,10 @@ async def invite_member(project_id):
         flash('You do not have permission to invite members', 'error')
         return redirect(url_for('dashboard.project_members', project_id=project_id))
 
-    email = request.form.get('email')
+    # Normalise to lowercase so invitations match regardless of how the
+    # invitee typed their email at signup. Mixed-case stored invitations
+    # would silently lock the recipient out of accepting their own invite.
+    email = (request.form.get('email') or '').strip().lower()
     role = request.form.get('role', 'member')
 
     if not email:
@@ -916,8 +940,9 @@ async def accept_invitation(token):
         flash('Please log in to accept the invitation', 'info')
         return redirect(url_for('auth.login'))
 
-    # Check if user email matches invitation
-    if current_user.email != invitation.email:
+    # Case-insensitive comparison: invitations stored lowercase by invite_member,
+    # but defend against legacy mixed-case data on either side.
+    if (current_user.email or '').lower() != (invitation.email or '').lower():
         flash('This invitation was sent to a different email address', 'error')
         return redirect(url_for('dashboard.index'))
 
@@ -929,7 +954,10 @@ async def accept_invitation(token):
         flash('You are already a member of this project', 'info')
         return redirect(url_for('dashboard.project_detail', project_id=project.id))
 
-    # Add user as member
+    # Add user as member. The (project_id, user_id) unique constraint on
+    # ProjectMember races-safes this: if two accept clicks arrive at once and
+    # both passed the is_member() check above, only one INSERT commits; the
+    # other rolls back and we treat it as a benign duplicate.
     membership = ProjectMember(
         project_id=project.id,
         user_id=current_user.id,
@@ -938,7 +966,12 @@ async def accept_invitation(token):
 
     invitation.status = 'accepted'
     db.session.add(membership)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash('You are already a member of this project', 'info')
+        return redirect(url_for('dashboard.project_detail', project_id=project.id))
 
     flash(
         f'You have successfully joined the project "{project.name}"', 'success')
@@ -955,7 +988,7 @@ async def decline_invitation(token):
         flash('This invitation is no longer valid', 'error')
         return redirect(url_for('dashboard.index'))
 
-    if current_user.email != invitation.email:
+    if (current_user.email or '').lower() != (invitation.email or '').lower():
         flash('This invitation was sent to a different email address', 'error')
         return redirect(url_for('dashboard.index'))
 

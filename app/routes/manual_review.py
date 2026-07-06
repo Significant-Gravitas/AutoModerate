@@ -122,6 +122,12 @@ async def make_decision(content_id):
         if not current_user.is_admin and not content.project.is_member(current_user.id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
+        # Only content that is actually awaiting manual review may be decided
+        # here. Without this guard a request could overwrite an already
+        # approved/rejected decision. Mirrors the bulk-decision path's filter.
+        if content.status != 'flagged':
+            return jsonify({'success': False, 'error': 'Content is not awaiting manual review'}), 400
+
         data = request.get_json()
         decision = data.get('decision')
         reason = data.get('reason', 'Manual review decision')
@@ -149,13 +155,16 @@ async def make_decision(content_id):
         )
         db.session.add(manual_result)
 
-        # Update API user stats if available
+        # Commit the content + moderation result first, then atomically bump
+        # API user stats in a separate transaction. Both happen in the same
+        # request context so we do them synchronously here.
+        db.session.commit()
+
         if content.api_user_id:
             api_user = APIUser.query.get(content.api_user_id)
             if api_user:
                 api_user.update_stats(decision)
-
-        db.session.commit()
+                db.session.commit()
 
         current_app.logger.info(
             f"Manual decision made on content {content_id}: {decision} by {current_user.username}")
@@ -238,7 +247,9 @@ async def bulk_decision():
                 )
                 db.session.add(manual_result)
 
-                # Update API user stats if available
+                # Update API user stats — mutates the attached instance
+                # inside this request's session; flushed by the single
+                # db.session.commit() below.
                 if content.api_user_id:
                     api_user = APIUser.query.get(content.api_user_id)
                     if api_user:
@@ -394,8 +405,12 @@ async def api_user_by_external_id(external_user_id):
             if current_user.is_admin:
                 user_projects = Project.query.all()
             else:
+                # current_user.projects is only the *owned* projects; a user
+                # who is a member (but not owner) of a project would otherwise
+                # be excluded here. Filter all projects by membership instead,
+                # matching the api_users route.
                 user_projects = [
-                    project for project in current_user.projects
+                    project for project in Project.query.all()
                     if project.is_member(current_user.id)
                 ]
 
@@ -500,7 +515,7 @@ async def delete_user_data(user_id):
         api_user = APIUser.query.get_or_404(user_id)
 
         # Check if user has permission (admin or project owner)
-        if not current_user.is_admin and not api_user.project.is_owner(current_user.id):
+        if not current_user.is_admin and api_user.project.user_id != current_user.id:
             flash('You do not have permission to delete user data', 'error')
             return redirect(url_for('manual_review.api_user_detail', user_id=user_id))
 

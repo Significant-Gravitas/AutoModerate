@@ -1,3 +1,4 @@
+import hashlib
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -8,6 +9,11 @@ from flask import current_app
 
 from .openai_client import OpenAIClient
 from .result_cache import ResultCache
+
+# Confidence below this threshold turns a "rejected" AI decision back into
+# "approved" — too uncertain to block content on. Applied both in the
+# per-rule path and the batched-rule path.
+_MIN_CONFIDENCE_FOR_REJECTION = 0.55
 
 
 class AIModerator:
@@ -25,6 +31,9 @@ class AIModerator:
             cfg.get('OPENAI_CONTEXT_WINDOW', 272000))
         self.max_output_tokens = int(
             cfg.get('OPENAI_MAX_OUTPUT_TOKENS', 500))
+        # Reasoning level for gpt-5 / o-series models. Env-configurable so
+        # you can trade latency vs. depth without a code change.
+        self.reasoning_effort = cfg.get('OPENAI_REASONING_EFFORT', 'minimal')
 
         # Initialize tokenizer; prefer model-specific, fallback to cl100k_base
         try:
@@ -213,10 +222,16 @@ Does content violate this rule? JSON only:"""
 
         return chunks
 
-    def _combine_chunk_results(self, chunk_results, original_content_length):
+    def _combine_chunk_results(self, chunk_results, original_content_length, truncated=False):
         """
         Combine results from multiple chunks.
         If ANY chunk is rejected, the entire content is rejected.
+
+        ``truncated`` signals that the content exceeded the per-request chunk
+        cap and part of it was never analyzed. In that case we must not return a
+        clean "approved" on the basis of partial coverage — an unmoderated tail
+        could contain a violation — so an otherwise-approved result is downgraded
+        to "flagged" for manual review.
         """
         if not chunk_results:
             return {
@@ -263,10 +278,29 @@ Does content violate this rule? JSON only:"""
                 'original_length': original_content_length
             }
         else:
-            # All chunks approved - approve the entire content
+            # All analyzed chunks approved.
             # Use average confidence
             avg_confidence = sum(r.get('confidence', 0.8)
                                  for r in chunk_results) / len(chunk_results)
+
+            if truncated:
+                # Only part of the content was analyzed — do not approve on
+                # partial coverage. Flag for manual review instead.
+                return {
+                    'decision': 'flagged',
+                    'reason': (f"Content too large to fully analyze: only the first "
+                               f"{len(chunk_results)} chunks were moderated and passed, "
+                               f"but the remainder was not analyzed. Flagged for manual review."),
+                    'confidence': avg_confidence,
+                    'moderator_type': chunk_results[0].get('moderator_type', 'ai'),
+                    'categories': {'partial_analysis': True},
+                    'category_scores': {'partial_analysis': 1.0},
+                    'openai_flagged': False,
+                    'chunk_count': len(chunk_results),
+                    'rejected_chunks': 0,
+                    'truncated': True,
+                    'original_length': original_content_length
+                }
 
             return {
                 'decision': 'approved',
@@ -315,18 +349,31 @@ Does content violate this rule? JSON only:"""
 
                 # Force chunking if content is too large BY CHARACTER COUNT
                 if content_chars > MAX_CHARS_PER_CHUNK:
+                    # Hard cap on chunks per request to bound OpenAI fan-out and
+                    # prevent a single large submission from starving concurrent
+                    # moderations. 40 chunks * 150k chars covers the 5MB API cap.
+                    MAX_CHUNKS = 40
                     num_chunks = (content_chars // MAX_CHARS_PER_CHUNK) + 1
+                    truncated = num_chunks > MAX_CHUNKS
+                    if truncated:
+                        current_app.logger.warning(
+                            f"Content produced {num_chunks} chunks, truncating to {MAX_CHUNKS}")
+                        num_chunks = MAX_CHUNKS
                     current_app.logger.debug(
                         f"Chunking content: {content_chars} chars split into {num_chunks} chunks")
 
                     # Split by character count, not tokens
                     chunks = []
                     for i in range(0, content_chars, MAX_CHARS_PER_CHUNK):
+                        if len(chunks) >= MAX_CHUNKS:
+                            break
                         chunks.append(content[i:i + MAX_CHARS_PER_CHUNK])
 
-                    # Process all chunks IN PARALLEL for maximum speed
+                    # Process all chunks IN PARALLEL for maximum speed.
+                    # Cap worker count to keep a single request from spawning
+                    # hundreds of concurrent OpenAI calls and thread objects.
                     chunk_results = []
-                    with ThreadPoolExecutor(max_workers=min(len(chunks), 200)) as executor:
+                    with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
                         # Submit all chunks at once with context wrapper
                         future_to_chunk = {
                             executor.submit(self._context_wrapper, self._analyze_with_custom_prompt, chunk, custom_prompt): i
@@ -352,7 +399,7 @@ Does content violate this rule? JSON only:"""
                                 # Return immediately with rejection
                                 return self._combine_chunk_results(chunk_results, len(content))
 
-                    return self._combine_chunk_results(chunk_results, len(content))
+                    return self._combine_chunk_results(chunk_results, len(content), truncated=truncated)
                 else:
                     # Content is small enough, process normally
                     return self._analyze_with_custom_prompt(content, custom_prompt)
@@ -373,9 +420,18 @@ Does content violate this rule? JSON only:"""
                 # Split content and analyze each chunk
                 chunks = self.split_text_into_chunks(content, max_content_tokens)
 
-                # Process all chunks IN PARALLEL for maximum speed
+                # Hard cap total chunks processed per request (see MAX_CHUNKS note above)
+                MAX_CHUNKS = 40
+                truncated = len(chunks) > MAX_CHUNKS
+                if truncated:
+                    current_app.logger.warning(
+                        f"Content produced {len(chunks)} chunks, truncating to {MAX_CHUNKS}")
+                    chunks = chunks[:MAX_CHUNKS]
+
+                # Process all chunks IN PARALLEL for maximum speed.
+                # Worker cap keeps concurrent OpenAI calls bounded per request.
                 chunk_results = []
-                with ThreadPoolExecutor(max_workers=min(len(chunks), 200)) as executor:
+                with ThreadPoolExecutor(max_workers=min(len(chunks), 10)) as executor:
                     # Submit all chunks at once with context wrapper
                     future_to_chunk = {
                         executor.submit(self._context_wrapper, self._run_enhanced_default_moderation, chunk): i
@@ -401,7 +457,7 @@ Does content violate this rule? JSON only:"""
                             # Return immediately with rejection
                             return self._combine_chunk_results(chunk_results, len(content))
 
-                return self._combine_chunk_results(chunk_results, len(content))
+                return self._combine_chunk_results(chunk_results, len(content), truncated=truncated)
 
         except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             current_app.logger.error(f"OpenAI API connection error after retries: {str(e)}")
@@ -465,6 +521,234 @@ Does content violate this rule? JSON only:"""
         # If we exhausted all retries, raise the last exception
         raise last_exception
 
+    def evaluate_rules_batch(self, content, rules):
+        """Evaluate ``content`` against every rule in ``rules`` in a SINGLE
+        OpenAI call, rather than N parallel calls.
+
+        Returns a ``{rule_id: result_dict}`` mapping where each ``result_dict``
+        has the same shape as ``_analyze_with_custom_prompt`` output (decision,
+        confidence, reason, moderator_type, categories, category_scores,
+        openai_flagged). Rules without a prompt are skipped; rules missing
+        from the model response default to ``approved`` at low confidence so
+        downstream logic has something to key on.
+
+        The batch is cached as a whole: cache key = ``content`` fingerprint +
+        the set of (rule_id, prompt) pairs. Changing any rule invalidates the
+        cache for that rule set.
+        """
+        if not rules:
+            return {}
+
+        # Filter to rules that actually have a prompt — no point asking the
+        # model to evaluate an empty rule.
+        prompt_rules = []
+        for rule in rules:
+            prompt = (rule.rule_data or {}).get('prompt', '') if rule.rule_data else ''
+            if prompt and prompt.strip():
+                prompt_rules.append((rule, prompt.strip()))
+
+        if not prompt_rules:
+            return {}
+
+        # Cache fingerprint: sort by id so ordering doesn't change the key,
+        # hash prompt so renames/edits invalidate. Include rule.action so that
+        # changing a rule's action (e.g. reject -> approve) also invalidates the
+        # cached decision instead of serving the pre-edit action until the TTL.
+        fingerprint_parts = []
+        for rule, prompt in sorted(prompt_rules, key=lambda rp: rp[0].id):
+            prompt_digest = hashlib.md5(
+                prompt.encode('utf-8'), usedforsecurity=False).hexdigest()[:8]
+            fingerprint_parts.append(f"{rule.id}:{prompt_digest}:{rule.action}")
+        rule_fingerprint = "batch|" + "|".join(fingerprint_parts)
+
+        cache_key = self.cache.generate_cache_key(content, rule_fingerprint)
+        cached = self.cache.get_cached_result(cache_key)
+        if cached:
+            return cached
+
+        if not self.client_manager.is_configured():
+            # OpenAI not configured — fail-safe: every rule approves so the
+            # caller falls through to its default handling. Same behaviour as
+            # the single-rule path at line ~292.
+            current_app.logger.warning(
+                "Batched AI rule eval requested but OpenAI is not configured")
+            return {
+                rule.id: self._batch_fallback_result(
+                    'configuration_error', 'OpenAI API key not configured')
+                for rule, _ in prompt_rules
+            }
+
+        # Build the user prompt. Rule ids are included explicitly so the model
+        # can echo them back — much more reliable than relying on list order.
+        rule_lines = []
+        for rule, prompt in prompt_rules:
+            rule_lines.append(f"[rule_id={rule.id}] {rule.name}: {prompt}")
+
+        system_message = (
+            "You are a content moderator. Given the CONTENT below, evaluate it "
+            "INDEPENDENTLY against EACH rule in the list. Be conservative — "
+            "when in doubt, do NOT mark a rule as violated.\n\n"
+            "Respond with JSON only in this exact shape:\n"
+            '{"results": [{"rule_id": "<id from rule list>", '
+            '"violated": true|false, "confidence": 0.0-1.0, '
+            '"reason": "brief explanation"}, ...]}\n'
+            "Return exactly one entry per rule. Use the rule_id verbatim."
+        )
+
+        user_message = (
+            f"CONTENT:\n---\n{content}\n---\n\n"
+            "RULES TO CHECK:\n" + "\n".join(rule_lines) +
+            "\n\nReturn JSON only:"
+        )
+
+        # Token budget. On gpt-5 / o-series (reasoning models) this covers
+        # BOTH reasoning tokens AND output tokens, so we need headroom well
+        # above the bare JSON size or the model burns it all thinking and
+        # returns an empty string. 4000 leaves plenty of slack.
+        max_output = 4000
+
+        # gpt-5 / o-series models accept a reasoning_effort parameter that
+        # trades off latency against depth of chain-of-thought. "minimal"
+        # turns reasoning effectively off — we're doing pattern matching
+        # against prompts, not math proofs.
+        model_lower = self.model_name.lower()
+        is_reasoning_model = (
+            model_lower.startswith('gpt-5')
+            or model_lower.startswith('o1')
+            or model_lower.startswith('o3')
+            or model_lower.startswith('o4')
+        )
+
+        def make_api_call():
+            client = self.client_manager.get_client()
+            kwargs = {
+                "model": self.model_name,
+                "messages": [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message},
+                ],
+                # response_format guarantees the model emits valid JSON and
+                # stops at the close-brace — avoids padding/trailing tokens.
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": max_output,
+                "top_p": 1.0,
+                "frequency_penalty": 0,
+                "presence_penalty": 0,
+            }
+            if is_reasoning_model:
+                kwargs["reasoning_effort"] = self.reasoning_effort
+            return client.chat.completions.create(**kwargs)
+
+        api_start = time.time()
+        try:
+            response = self._retry_api_call(make_api_call)
+            result_text = (response.choices[0].message.content or "").strip()
+        except (openai.APIConnectionError, openai.APITimeoutError,
+                openai.InternalServerError) as e:
+            current_app.logger.error(
+                f"Batched rule eval connection error after "
+                f"{time.time() - api_start:.2f}s: {str(e)}")
+            return {
+                rule.id: self._batch_fallback_result('connection_error', str(e))
+                for rule, _ in prompt_rules
+            }
+        except (openai.OpenAIError, openai.APIError, openai.RateLimitError) as e:
+            current_app.logger.error(
+                f"Batched rule eval API error after "
+                f"{time.time() - api_start:.2f}s: {str(e)}")
+            return {
+                rule.id: self._batch_fallback_result('api_error', str(e))
+                for rule, _ in prompt_rules
+            }
+        api_elapsed = time.time() - api_start
+        current_app.logger.debug(
+            f"[batch-ai] OpenAI call for {len(prompt_rules)} rules took {api_elapsed:.3f}s, "
+            f"response length={len(result_text)} chars"
+        )
+
+        # Parse the model's JSON response.
+        try:
+            parsed = json.loads(result_text)
+            entries = parsed.get('results', [])
+            if not isinstance(entries, list):
+                raise ValueError("'results' is not a list")
+        except (json.JSONDecodeError, ValueError) as e:
+            current_app.logger.warning(
+                f"Batched rule eval returned malformed JSON: {str(e)}; "
+                f"raw (first 300 chars): {result_text[:300]}"
+            )
+            return {
+                rule.id: self._batch_fallback_result(
+                    'parse_error', 'Could not parse AI response')
+                for rule, _ in prompt_rules
+            }
+
+        by_id = {}
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            rid = entry.get('rule_id')
+            if not rid:
+                continue
+
+            violated = bool(entry.get('violated', False))
+            raw_confidence = entry.get('confidence', 0.0)
+            if not isinstance(raw_confidence, (int, float)):
+                raw_confidence = 0.0
+            confidence = max(0.0, min(1.0, float(raw_confidence)))
+            reason = str(entry.get('reason', '')).strip() or 'No reason provided'
+
+            decision = 'rejected' if violated else 'approved'
+            if decision == 'rejected' and confidence < _MIN_CONFIDENCE_FOR_REJECTION:
+                decision = 'approved'
+                reason = (
+                    f"Low-confidence rejection ({confidence:.2f} < "
+                    f"{_MIN_CONFIDENCE_FOR_REJECTION}) - approved instead. "
+                    f"Original reason: {reason}"
+                )
+
+            by_id[rid] = {
+                'decision': decision,
+                'reason': reason,
+                'confidence': confidence,
+                'moderator_type': 'ai',
+                'categories': {'custom_rule': decision != 'approved'},
+                'category_scores': {'custom_rule': confidence},
+                'openai_flagged': False,
+            }
+
+        # Backfill any rules the model skipped — fail-safe to approved.
+        for rule, _ in prompt_rules:
+            if rule.id not in by_id:
+                by_id[rule.id] = {
+                    'decision': 'approved',
+                    'reason': 'AI response omitted this rule; defaulting to approved',
+                    'confidence': 0.3,
+                    'moderator_type': 'ai',
+                    'categories': {'custom_rule': False},
+                    'category_scores': {'custom_rule': 0.3},
+                    'openai_flagged': False,
+                }
+
+        self.cache.cache_result(cache_key, by_id)
+        return by_id
+
+    def _batch_fallback_result(self, error_type, message):
+        """Build a uniform fail-safe result used when batched rule evaluation
+        can't run (OpenAI down, parse failed, not configured). Approves rather
+        than rejects so content isn't blocked by infra outages — matches the
+        existing per-rule behaviour.
+        """
+        return {
+            'decision': 'approved',
+            'reason': f'Batched rule evaluation failed ({error_type}): {str(message)[:100]}',
+            'confidence': 0.0,
+            'moderator_type': 'ai',
+            'categories': {error_type: True},
+            'category_scores': {error_type: 1.0},
+            'openai_flagged': False,
+        }
+
     def _analyze_with_custom_prompt(self, content, custom_prompt):
         """Use GPT with custom prompts for specialized moderation rules"""
         try:
@@ -503,7 +787,12 @@ Does content violate this rule? JSON only:"""
 
             response = self._retry_api_call(make_api_call)
 
-            result_text = response.choices[0].message.content.strip()
+            # OpenAI returns content=None when the model refuses to generate
+            # (safety filter, function-call response, etc). `.strip()` on None
+            # raises AttributeError which the surrounding except clauses do
+            # not catch — guard with `or ""` so the empty-string path is
+            # handled by the JSON parser fallback.
+            result_text = (response.choices[0].message.content or "").strip()
 
             # Parse JSON response
             try:
@@ -744,7 +1033,12 @@ Is this harmful? JSON only:"""
 
             response = self._retry_api_call(make_api_call)
 
-            result_text = response.choices[0].message.content.strip()
+            # OpenAI returns content=None when the model refuses to generate
+            # (safety filter, function-call response, etc). `.strip()` on None
+            # raises AttributeError which the surrounding except clauses do
+            # not catch — guard with `or ""` so the empty-string path is
+            # handled by the JSON parser fallback.
+            result_text = (response.choices[0].message.content or "").strip()
 
             # Parse JSON response
             try:

@@ -73,28 +73,60 @@ class ResultCache:
             if len(ResultCache._shared_cache) >= ResultCache._max_cache_size:
                 self._aggressive_cleanup()
 
-            # Only cache if we have space or successfully cleaned up
-            if len(ResultCache._shared_cache) < ResultCache._max_cache_size:
-                ResultCache._shared_cache[cache_key] = {
-                    'result': result,
-                    'timestamp': time.time()
-                }
+            # If aggressive_cleanup couldn't free space (no expired entries),
+            # fall back to evicting the oldest entries by timestamp. The
+            # previous behaviour silently dropped new writes once the cache
+            # filled, which broke caching entirely under sustained load.
+            if len(ResultCache._shared_cache) >= ResultCache._max_cache_size:
+                self._evict_oldest(target_count=max(1, ResultCache._max_cache_size // 100))
 
-                # Track stores for this request
-                ResultCache._current_request_stores += 1
-            else:
-                # Cache is full, log warning
-                current_app.logger.warning("Cache full, dropping new entry to prevent memory leak")
+            ResultCache._shared_cache[cache_key] = {
+                'result': result,
+                'timestamp': time.time()
+            }
+
+            # Track stores for this request
+            ResultCache._current_request_stores += 1
 
             # Perform cleanup if we've reached the threshold
             if len(ResultCache._shared_cache) >= ResultCache._cleanup_threshold:
                 self._cleanup_expired_entries()
 
+    def _evict_oldest(self, target_count: int) -> int:
+        """Evict the ``target_count`` oldest entries by timestamp.
+
+        Used as a last-resort eviction when the cache is at capacity but no
+        entries have actually expired yet. Keeps the most recently cached
+        results (typically the most useful) and discards stale ones.
+        """
+        if not ResultCache._shared_cache:
+            return 0
+        sorted_keys = sorted(
+            ResultCache._shared_cache.items(),
+            key=lambda item: item[1]['timestamp'],
+        )
+        removed = 0
+        for key, _ in sorted_keys[:target_count]:
+            if ResultCache._shared_cache.pop(key, None) is not None:
+                removed += 1
+        if removed:
+            current_app.logger.info(
+                f"Cache LRU eviction: removed {removed} oldest entries to make room")
+        return removed
+
     def get_request_cache_summary(self):
-        """Get summary of cache operations for current request"""
-        stores = ResultCache._current_request_stores
-        total = len(ResultCache._shared_cache)
-        ResultCache._current_request_stores = 0  # Reset for next request
+        """Get an approximate summary of recent cache stores.
+
+        ``_current_request_stores`` is a process-global counter, so under
+        concurrency this figure is shared across in-flight requests rather than
+        strictly per-request — it drives an informational log line only. Read
+        and reset it under the cache lock so it can't tear against the locked
+        increment in ``cache_result``.
+        """
+        with ResultCache._cache_lock:
+            stores = ResultCache._current_request_stores
+            total = len(ResultCache._shared_cache)
+            ResultCache._current_request_stores = 0  # Reset for next request
         return {'stores': stores, 'total': total}
 
     def invalidate_cache(self, cache_key=None):
@@ -139,6 +171,12 @@ class ResultCache:
         # Remove expired entries
         for key in expired_keys:
             ResultCache._shared_cache.pop(key, None)
+
+        # Always update _last_cleanup_time so the periodic-cleanup throttle
+        # applies whether we were called from the periodic check or from the
+        # hot-path cache_result fallback. Without this, hot-path writes after
+        # the threshold trigger an O(n) scan on every single insert.
+        ResultCache._last_cleanup_time = current_time
 
         if expired_keys:
             current_app.logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")

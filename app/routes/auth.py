@@ -1,9 +1,11 @@
 import re
 
+from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.flask_client import OAuth
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
+from app import limiter
 from app.models.system_settings import SystemSettings
 from app.services.database_service import db_service
 
@@ -12,6 +14,7 @@ oauth = OAuth()
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute; 50 per hour", methods=["POST"])
 async def login():
     # Redirect to dashboard if already logged in
     if current_user.is_authenticated:
@@ -100,6 +103,7 @@ async def login():
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
+@limiter.limit("5 per hour; 20 per day", methods=["POST"])
 async def register():
     # Redirect to dashboard if already logged in
     if current_user.is_authenticated:
@@ -163,9 +167,11 @@ async def register():
                 flash(error_msg, 'error')
                 return render_template('auth/register.html')
 
-        # Validate password strength
-        if len(password) < 8:
-            error_msg = 'Password must be at least 8 characters long'
+        # Validate password strength. The upper bound matches the login form's
+        # cap (see login()); without it a >200-char password registers fine but
+        # can never be used to log in, permanently locking the account out.
+        if len(password) < 8 or len(password) > 200:
+            error_msg = 'Password must be between 8 and 200 characters long'
             if request.is_json:
                 return jsonify({
                     'success': False,
@@ -294,6 +300,7 @@ async def google_callback():
 
         google_id = user_info.get('sub')
         email = user_info.get('email')
+        email_verified = user_info.get('email_verified') is True
 
         if not google_id or not email:
             flash('Invalid user information from Google', 'error')
@@ -308,11 +315,18 @@ async def google_callback():
             flash('Login successful!', 'success')
             return redirect(url_for('dashboard.index'))
 
+        # Reject unverified emails before any account-linking or account-creation branch.
+        # An attacker who controls a Google workspace can register arbitrary unverified
+        # addresses and would otherwise hijack a matching local account here.
+        if not email_verified:
+            flash('Your Google account email must be verified before you can sign in here.', 'error')
+            return redirect(url_for('auth.login'))
+
         # Check if user exists with this email
         user = await db_service.get_user_by_email(email.lower())
 
         if user:
-            # Link Google account to existing user
+            # Link Google account to existing user (email is verified per check above)
             await db_service.link_google_account(user.id, google_id)
             login_user(user)
             flash('Google account linked successfully!', 'success')
@@ -349,6 +363,17 @@ async def google_callback():
         flash('Account created successfully!', 'success')
         return redirect(url_for('dashboard.index'))
 
+    except OAuthError as e:
+        # Benign callback abuse, not an application error: crawlers and link
+        # prefetchers hit this URL directly with no OAuth session, which makes
+        # Authlib raise mismatching_state ("CSRF Warning! State not equal...").
+        # Log below error level so it stays out of Sentry — a real broken flow
+        # falls through to the generic handler below.
+        current_app.logger.info(
+            f"Google OAuth callback rejected ({e.error}): {e.description}")
+        flash('Your sign-in session expired. Please try again.', 'error')
+        return redirect(url_for('auth.login'))
+
     except Exception as e:
         current_app.logger.error(f"Google OAuth error: {str(e)}")
         flash('Authentication failed. Please try again.', 'error')
@@ -357,6 +382,7 @@ async def google_callback():
 
 @auth_bp.route('/change-password', methods=['POST'])
 @login_required
+@limiter.limit("10 per hour")
 async def change_password():
     # Check if this is an AJAX request by looking for specific headers or content type
     # is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \

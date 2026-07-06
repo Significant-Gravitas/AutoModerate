@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from flask import current_app, request
@@ -24,31 +25,36 @@ class ModerationOrchestrator:
     async def moderate_content(self, content_id, request_start_time=None):
         """Main moderation function with optimized parallel processing"""
         try:
+            t_start = time.time()
             content = await db_service.get_content_by_id(content_id)
             if not content:
                 return {'error': 'Content not found'}
+            t_after_get_content = time.time()
 
             # Get rules directly from database and separate by type
             all_rules = await db_service.get_all_rules_for_project(content.project_id, include_inactive=False)
             fast_rules = [
                 r for r in all_rules if r.rule_type in ['keyword', 'regex']]
             ai_rules = [r for r in all_rules if r.rule_type == 'ai_prompt']
+            t_after_rules = time.time()
 
-            # Count tokens once and cache for processing decisions
-            content_tokens = self.ai_moderator.count_tokens(
-                content.content_data)
+            # (Token counting happens inside the AI paths that actually need it;
+            # counting here as well was dead work — the value was never read.)
+            t_after_tokens = time.time()
 
-            # Store token count temporarily for processing optimization
-            content._temp_token_count = content_tokens
-
-            # Process rules and get final decision
-            final_decision, results = self._process_rules(
+            # Process rules and get final decision. _process_rules wraps the
+            # blocking OpenAI call in asyncio.to_thread so it doesn't stall
+            # the event loop — under eventlet/threading this is what keeps
+            # concurrent requests actually concurrent.
+            final_decision, results = await self._process_rules(
                 content, fast_rules, ai_rules)
+            t_after_rule_eval = time.time()
 
             # Handle edge cases
             if not results:
-                final_decision, results = self._handle_no_matches(
+                final_decision, results = await self._handle_no_matches(
                     all_rules, content)
+            t_after_handle_no_matches = time.time()
 
             # Check for manual review flagging
             if self._should_flag_for_manual_review(results, ai_rules):
@@ -65,8 +71,22 @@ class ModerationOrchestrator:
 
             # Save to database and send updates
             await self._save_results(content, final_decision, results, total_time)
+            t_after_save = time.time()
             self.websocket_notifier.send_update_async(
                 content, final_decision, results, total_time)
+
+            # Per-stage timing breakdown is only useful while debugging latency;
+            # leave it at DEBUG so INFO-level logs stay uncluttered.
+            current_app.logger.debug(
+                f"[perf] content={content_id} "
+                f"get_content={t_after_get_content - t_start:.3f}s "
+                f"rules_fetch={t_after_rules - t_after_get_content:.3f}s "
+                f"tokens={t_after_tokens - t_after_rules:.3f}s "
+                f"rule_eval={t_after_rule_eval - t_after_tokens:.3f}s "
+                f"no_match={t_after_handle_no_matches - t_after_rule_eval:.3f}s "
+                f"save={t_after_save - t_after_handle_no_matches:.3f}s "
+                f"total={t_after_save - t_start:.3f}s"
+            )
 
             # Send Discord notification if content is flagged or rejected
             if final_decision in ['flagged', 'rejected']:
@@ -163,8 +183,14 @@ class ModerationOrchestrator:
                 'content_id': content_id
             }
 
-    def _process_rules(self, content, fast_rules, ai_rules):
-        """Process both fast and AI rules, returning first match"""
+    async def _process_rules(self, content, fast_rules, ai_rules):
+        """Process both fast and AI rules, returning first match.
+
+        Fast rules (keyword / regex) are pure in-memory checks against
+        ``content.content_data`` and run inline. AI rules involve a network
+        round-trip to OpenAI, so we hand them to ``asyncio.to_thread`` to
+        keep the event loop responsive while waiting.
+        """
         results = []
 
         # Process fast rules first - batch processing for better performance
@@ -174,10 +200,12 @@ class ModerationOrchestrator:
                 results.append(result)
                 return result['decision'], results
 
-        # Process AI rules in parallel if no fast rule matched
+        # Evaluate all AI rules in a single batched OpenAI call when no fast
+        # rule matched. Returns only rules where the content violated them,
+        # so the priority-order walk still early-exits on the first match.
         if ai_rules:
-            ai_results = self.rule_processor.process_ai_rules_parallel(
-                ai_rules, content)
+            ai_results = await asyncio.to_thread(
+                self.rule_processor.process_ai_rules_batched, ai_rules, content)
             for rule in ai_rules:  # Maintain priority order
                 if rule.id in ai_results:
                     result = ai_results[rule.id]
@@ -186,13 +214,14 @@ class ModerationOrchestrator:
 
         return None, results
 
-    def _handle_no_matches(self, all_rules, content):
+    async def _handle_no_matches(self, all_rules, content):
         """Handle case when no rules matched"""
         if not all_rules:
-            # No rules defined - use default AI moderation
+            # No rules defined - use default AI moderation. The OpenAI call
+            # is blocking, so push it to a worker thread to keep the loop free.
             current_app.logger.info(
                 "No rules defined, using default AI moderation")
-            result = self._apply_default_ai_moderation(content)
+            result = await asyncio.to_thread(self._apply_default_ai_moderation, content)
             return result['decision'], [result]
         else:
             # Rules exist but none matched - approve by default
@@ -246,40 +275,23 @@ class ModerationOrchestrator:
         if decision == 'rejected' and 0.3 <= confidence <= 0.6:
             return True
 
-        # Multiple AI rules with conflicting decisions
-        if len(ai_rules) > 1:
-            ai_results = [r for r in results if r.get(
-                'rule_type') == 'ai_prompt']
-            if len(ai_results) > 1:
-                decisions = [r.get('decision') for r in ai_results]
-                if len(set(decisions)) > 1:
-                    return True
-
         return False
 
     async def _save_results(self, content, final_decision, results, total_time):
-        """Save moderation results to database with bulk operations"""
-        # Update content status using database service to ensure persistence
-        await db_service.update_content_status(content.id, status=final_decision)
+        """Persist the moderation outcome as a single atomic unit.
 
-        # Update API user stats efficiently
-        if content.api_user_id:
-            try:
-                api_user = await db_service.get_api_user_by_id(content.api_user_id)
-                if api_user:
-                    api_user.update_stats(final_decision)
-            except Exception as e:
-                current_app.logger.error(
-                    f"Error updating API user stats: {str(e)}")
-
-        # Bulk create moderation results
+        Content status, API-user counter increments, and the ModerationResult
+        rows all commit together (or roll back together) via
+        ``save_moderation_outcome`` — no more partial writes leaving a decided
+        status with missing result rows.
+        """
+        moderation_results = []
         if results:
-            moderation_results = []
-            for i, result in enumerate(results):
+            for result in results:
                 # Use the actual rule processing time, not the total request time
                 rule_processing_time = result.get('processing_time', 0.0)
 
-                moderation_result = ModerationResult(
+                moderation_results.append(ModerationResult(
                     content_id=content.id,
                     decision=result['decision'],
                     confidence=result.get('confidence', 0.0),
@@ -296,24 +308,19 @@ class ModerationOrchestrator:
                         'total_request_time': total_time,  # Store total time in details
                         'rule_processing_time': rule_processing_time  # Store both for clarity
                     }
-                )
-                moderation_results.append(moderation_result)
+                ))
 
-            try:
-                await db_service.bulk_save_objects(moderation_results)
-            except Exception as e:
-                current_app.logger.error(
-                    f"Error saving moderation results: {str(e)}")
-                await db_service.rollback_transaction()
-                raise
-
-        try:
-            await db_service.commit_transaction()
-        except Exception as e:
+        saved = await db_service.save_moderation_outcome(
+            content_id=content.id,
+            status=final_decision,
+            api_user_id=content.api_user_id,
+            moderation_results=moderation_results,
+        )
+        if not saved:
             current_app.logger.error(
-                f"Error committing database changes: {str(e)}")
-            await db_service.rollback_transaction()
-            raise
+                f"Failed to persist moderation outcome for content {content.id}")
+            raise SQLAlchemyError(
+                f"save_moderation_outcome returned falsy for content {content.id}")
 
     async def get_project_stats(self, project_id):
         """Get moderation statistics for a project"""
@@ -413,8 +420,9 @@ class ModerationOrchestrator:
             # Construct base URL from request context
             base_url = request.url_root.rstrip('/') if request else 'http://localhost:6217'
 
-            # Send notification
-            notifier.send_flagged_content_notification(
+            # Async-wrapped POST so we don't pin the moderation request on
+            # Discord latency or any 429 retry backoff.
+            await notifier.send_flagged_content_notification_async(
                 content_id=content.id,
                 project_id=content.project_id,
                 project_name=project.name,
@@ -423,7 +431,7 @@ class ModerationOrchestrator:
                 reason=reason,
                 moderator_type=moderator_type,
                 metadata=metadata,
-                base_url=base_url
+                base_url=base_url,
             )
 
             current_app.logger.info(

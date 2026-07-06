@@ -62,7 +62,7 @@ python run.py
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **Backend** | Flask 2.3.3 + Flask-SocketIO | Web framework with real-time capabilities |
+| **Backend** | Flask 3.1.3 + Flask-SocketIO | Web framework with real-time capabilities |
 | **Database** | SQLAlchemy (SQLite dev, PostgreSQL prod) | ORM with connection pooling |
 | **AI Integration** | OpenAI API (GPT models) | Content analysis and moderation |
 | **Authentication** | Flask-Login + API Keys | Session-based web auth + API authentication |
@@ -521,7 +521,7 @@ OPENAI_API_KEY=sk-your-key docker-compose up -d
 ```
 
 **Docker Configuration:**
-- Base Image: python:3.11-slim
+- Base Image: python:3.12-slim
 - Port: 6217
 - Database: PostgreSQL 15 Alpine
 - Volumes: Persistent data storage
