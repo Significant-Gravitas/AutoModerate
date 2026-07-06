@@ -108,13 +108,12 @@
                             <tr>
                                 <td>{{ key.name }}</td>
                                 <td>
-                                    <code class="api-key-display"
-                                          data-full-key="{{ key.key }}"
-                                          style="cursor: pointer;"
-                                          title="Click to view full key">
-                                        {{ key.key[:20] }}...
+                                    <code class="text-muted"
+                                          title="Keys are stored hashed and shown only once, at creation">
+                                        am_&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;
                                     </code>
-                                    <i class="fas fa-eye text-muted ms-1" style="font-size: 0.8em;"></i>
+                                    <i class="fas fa-lock text-muted ms-1" style="font-size: 0.8em;"
+                                       title="Hidden for security"></i>
                                 </td>
                                 <td>{{ key.usage_count }}</td>
                                 <td>

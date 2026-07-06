@@ -192,8 +192,10 @@ async def create_api_key(project_id, project=None):
         flash('Failed to create API key.', 'error')
         return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
 
+    api_keys = await db_service.get_project_api_keys(project.id)
     flash('API key created successfully!', 'success')
-    return redirect(url_for('dashboard.project_api_keys', project_id=project_id))
+    return render_template('dashboard/api_keys.html', project=project,
+                           api_keys=api_keys, new_plaintext_key=key_value)
 
 
 @dashboard_bp.route('/projects/<project_id>/rules')

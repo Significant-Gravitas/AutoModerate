@@ -481,17 +481,39 @@ class DatabaseService:
     async def create_api_key(self, project_id: str, name: str, key_value: str) -> Optional[APIKey]:
         """Create new API key"""
         def _create_key():
-            api_key = APIKey(project_id=project_id, name=name, key=key_value)
+            api_key = APIKey(project_id=project_id, name=name,
+                             key=APIKey.hash_key(key_value))
             db.session.add(api_key)
             db.session.commit()
+            api_key.plaintext_key = key_value
             return api_key
 
         return await self._safe_execute(_create_key)
 
     async def get_api_key_by_value(self, key_value: str) -> Optional[APIKey]:
-        """Get API key by value with project relationship loaded"""
+        """Resolve a presented plaintext key to its record via its hash.
+
+        Legacy rows still holding plaintext are matched directly and upgraded
+        to their hash on first use.
+        """
         def _get_key():
-            return APIKey.query.options(joinedload(APIKey.project)).filter_by(key=key_value, is_active=True).first()
+            hashed = APIKey.hash_key(key_value)
+            api_key = APIKey.query.options(joinedload(APIKey.project)).filter_by(
+                key=hashed, is_active=True).first()
+            if api_key is not None:
+                return api_key
+
+            legacy = APIKey.query.filter_by(key=key_value, is_active=True).first()
+            if legacy is None:
+                return None
+            legacy.key = hashed
+            try:
+                db.session.commit()
+            except SQLAlchemyError:
+                db.session.rollback()
+                return None
+            return APIKey.query.options(joinedload(APIKey.project)).filter_by(
+                key=hashed, is_active=True).first()
 
         return await self._safe_execute(_get_key)
 
