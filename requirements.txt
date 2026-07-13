@@ -24,7 +24,7 @@ pre-commit==4.6.0
 pydantic==2.13.4
 Flask-Talisman==1.1.0
 Flask-Limiter==4.1.1
-Authlib==1.7.0
+Authlib==1.7.2
 psutil==7.2.2
 # >=2.40 needed for `enable_logs=True` kwarg on sentry_sdk.init()
 sentry-sdk[flask]>=2.64.0,<3.0.0
