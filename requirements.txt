@@ -28,7 +28,7 @@ Authlib==1.7.0
 psutil==7.2.2
 # >=2.40 needed for `enable_logs=True` kwarg on sentry_sdk.init()
 sentry-sdk[flask]>=2.64.0,<3.0.0
-regex==2026.6.28  # ReDoS-safe regex with timeout support
+regex==2026.7.10  # ReDoS-safe regex with timeout support
 
 # Production WSGI
 # gthread worker — compatible with Flask async routes + asgiref.AsyncToSync.
