@@ -18,7 +18,7 @@ httpx[http2]==0.28.1
 # Security and utilities
 bcrypt==5.0.0
 python-dotenv==1.2.2
-requests==2.33.1
+requests==2.34.2
 urllib3>=2.6.3  # Security fix for CVE-2024-37891
 pre-commit==4.6.0
 pydantic==2.13.4
