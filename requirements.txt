@@ -18,13 +18,13 @@ httpx[http2]==0.28.1
 # Security and utilities
 bcrypt==5.0.0
 python-dotenv==1.2.2
-requests==2.33.1
+requests==2.34.2
 urllib3>=2.6.3  # Security fix for CVE-2024-37891
 pre-commit==4.6.0
 pydantic==2.13.4
 Flask-Talisman==1.1.0
 Flask-Limiter==4.1.1
-Authlib==1.7.0
+Authlib==1.7.1
 psutil==7.2.2
 # >=2.40 needed for `enable_logs=True` kwarg on sentry_sdk.init()
 sentry-sdk[flask]>=2.64.0,<3.0.0
