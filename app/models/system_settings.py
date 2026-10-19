@@ -34,13 +34,18 @@ class SystemSettings(db.Model):
         return setting
 
     @staticmethod
+    def registration_allowed_by_env():
+        """Whether the REGISTRATION_ENABLED env var permits registration."""
+        return os.environ.get('REGISTRATION_ENABLED', 'false').lower() == 'true'
+
+    @staticmethod
     def is_registration_enabled():
         """Check if user registration is enabled.
 
         Requires both the REGISTRATION_ENABLED env var and the admin toggle
         to be 'true'. Closed by default.
         """
-        if os.environ.get('REGISTRATION_ENABLED', 'false').lower() != 'true':
+        if not SystemSettings.registration_allowed_by_env():
             return False
         value = SystemSettings.get_setting('registration_enabled', 'false')
         return (value or 'false').lower() == 'true'
