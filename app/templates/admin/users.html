@@ -120,7 +120,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="btn btn-outline-warning"
                                                         title="{% if user.is_admin %}Revoke Admin{% else %}Grant Admin{% endif %}"
-                                                        onclick="return confirm('{% if user.is_admin %}Revoke admin privileges for {{ user.username }}?{% else %}Grant admin privileges to {{ user.username }}?{% endif %}')">
+                                                        data-confirm="{% if user.is_admin %}Revoke admin privileges for {{ user.username }}?{% else %}Grant admin privileges to {{ user.username }}?{% endif %}" onclick="return confirm(this.dataset.confirm)">
                                                     <i class="fas fa-{% if user.is_admin %}user-minus{% else %}user-plus{% endif %}"></i>
                                                 </button>
                                             </form>
@@ -130,7 +130,7 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', f
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="btn btn-outline-{% if user.is_active %}danger{% else %}success{% endif %}"
                                                         title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %}"
-                                                        onclick="return confirm('{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}')">
+                                                        data-confirm="{% if user.is_active %}Deactivate {{ user.username }}?{% else %}Activate {{ user.username }}?{% endif %}" onclick="return confirm(this.dataset.confirm)">
                                                     <i class="fas fa-{% if user.is_active %}pause{% else %}play{% endif %}"></i>
                                                 </button>
                                             </form>
