@@ -252,16 +252,6 @@ class DatabaseService:
         result = await self._safe_execute(_update_user)
         return result is not None
 
-    async def delete_user(self, user: User) -> bool:
-        """Delete a user"""
-        def _delete_user():
-            db.session.delete(user)
-            db.session.commit()
-            return True
-
-        result = await self._safe_execute(_delete_user)
-        return result is not None
-
     async def toggle_user_admin_status(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Toggle admin status for a user"""
         def _toggle_admin():
@@ -373,16 +363,6 @@ class DatabaseService:
             return True
 
         result = await self._safe_execute(_update_project)
-        return result is not None
-
-    async def delete_project(self, project: Project) -> bool:
-        """Delete a project"""
-        def _delete_project():
-            db.session.delete(project)
-            db.session.commit()
-            return True
-
-        result = await self._safe_execute(_delete_project)
         return result is not None
 
     async def is_project_member(self, project_id: str, user_id: str) -> bool:

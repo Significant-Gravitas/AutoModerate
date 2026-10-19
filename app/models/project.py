@@ -25,8 +25,8 @@ class ProjectMember(db.Model):
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
-    project = db.relationship('Project', backref='memberships')
-    user = db.relationship('User', backref='project_memberships')
+    project = db.relationship('Project', backref=db.backref('memberships', cascade='all, delete-orphan'))
+    user = db.relationship('User', backref=db.backref('project_memberships', cascade='all, delete-orphan'))
 
     def to_dict(self):
         return {
@@ -57,8 +57,8 @@ class ProjectInvitation(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
-    project = db.relationship('Project', backref='invitations')
-    inviter = db.relationship('User', backref='sent_invitations')
+    project = db.relationship('Project', backref=db.backref('invitations', cascade='all, delete-orphan'))
+    inviter = db.relationship('User', backref=db.backref('sent_invitations', cascade='all, delete-orphan'))
 
     def to_dict(self):
         return {

@@ -1,4 +1,6 @@
 """System-wide settings model."""
+import os
+
 from app import db
 
 
@@ -32,10 +34,21 @@ class SystemSettings(db.Model):
         return setting
 
     @staticmethod
+    def registration_allowed_by_env():
+        """Whether the REGISTRATION_ENABLED env var permits registration."""
+        return os.environ.get('REGISTRATION_ENABLED', 'false').lower() == 'true'
+
+    @staticmethod
     def is_registration_enabled():
-        """Check if user registration is enabled."""
+        """Check if user registration is enabled.
+
+        Closed unless the REGISTRATION_ENABLED env var is 'true'. When it is,
+        the admin toggle decides (open if never set).
+        """
+        if not SystemSettings.registration_allowed_by_env():
+            return False
         value = SystemSettings.get_setting('registration_enabled', 'true')
-        return value.lower() == 'true'
+        return (value or 'true').lower() == 'true'
 
     def to_dict(self):
         return {

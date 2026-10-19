@@ -74,6 +74,7 @@ async def index():
 
     # Get system settings
     registration_enabled = SystemSettings.is_registration_enabled()
+    registration_env_locked = not SystemSettings.registration_allowed_by_env()
 
     return render_template('admin/index.html',
                            stats=stats,
@@ -81,7 +82,8 @@ async def index():
                            recent_projects=recent_projects,
                            recent_content=recent_content,
                            moderation_stats=moderation_stats,
-                           registration_enabled=registration_enabled)
+                           registration_enabled=registration_enabled,
+                           registration_env_locked=registration_env_locked)
 
 
 @admin_bp.route('/users')
@@ -234,7 +236,10 @@ async def delete_user(user_id):
             flash('You cannot delete your own account.', 'error')
             return redirect(url_for('admin.users'))
 
-        user = await db_service.get_user_by_id(user_id)
+        user = User.query.filter_by(id=user_id).first()
+        if not user:
+            flash('User not found.', 'error')
+            return redirect(url_for('admin.users'))
         username = user.username
 
         # Check if user has any projects
@@ -259,10 +264,36 @@ async def delete_user(user_id):
         return redirect(url_for('admin.users'))
 
 
+@admin_bp.route('/projects/<project_id>/delete', methods=['POST'])
+@admin_required
+async def delete_project(project_id):
+    """Delete any user's project and its related data (cascade)"""
+    project = Project.query.filter_by(id=project_id).first_or_404()
+    owner_id = project.user_id
+    name = project.name
+
+    try:
+        db.session.delete(project)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Admin delete project error: {str(e)}")
+        flash('Error deleting project. Please try again.', 'error')
+        return redirect(url_for('admin.user_detail', user_id=owner_id))
+
+    current_app.logger.info(f"Admin {current_user.email} deleted project {name} ({project_id})")
+    flash(f'Project {name} has been permanently deleted.', 'success')
+    return redirect(url_for('admin.user_detail', user_id=owner_id))
+
+
 @admin_bp.route('/settings/toggle-registration', methods=['POST'])
 @admin_required
 async def toggle_registration():
     """Toggle user registration on/off"""
+    if not SystemSettings.registration_allowed_by_env():
+        flash('Registration is disabled by server configuration (REGISTRATION_ENABLED).', 'error')
+        return redirect(url_for('admin.index'))
+
     try:
         current_status = SystemSettings.is_registration_enabled()
         new_status = 'false' if current_status else 'true'

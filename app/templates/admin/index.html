@@ -22,7 +22,12 @@
 <div class="btn-group">
     <form method="POST" action="{{ url_for('admin.toggle_registration') }}" style="display: inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        {% if registration_enabled %}
+        {% if registration_env_locked %}
+        <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                title="Set REGISTRATION_ENABLED=true on the server to allow registration">
+            <i class="fas fa-user-lock"></i> Registration Disabled (server config)
+        </button>
+        {% elif registration_enabled %}
         <button type="submit" class="btn btn-sm btn-outline-danger" title="Click to disable new user registration">
             <i class="fas fa-user-lock"></i> Disable Registration
         </button>
