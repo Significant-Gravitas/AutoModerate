@@ -37,9 +37,8 @@ class SystemSettings(db.Model):
     def is_registration_enabled():
         """Check if user registration is enabled.
 
-        REGISTRATION_ENABLED env var is a hard gate: unless it is 'true',
-        registration is closed regardless of the DB toggle, so a missing row
-        or a compromised admin session can't reopen it. Closed by default.
+        Requires both the REGISTRATION_ENABLED env var and the admin toggle
+        to be 'true'. Closed by default.
         """
         if os.environ.get('REGISTRATION_ENABLED', 'false').lower() != 'true':
             return False

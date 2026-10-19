@@ -99,9 +99,6 @@ def create_app(config_name: str = 'default') -> Flask:
         # otherwise. `enable_logs` requires sentry-sdk>=2.40.
         sentry_kwargs = dict(
             dsn=app.config['SENTRY_DSN'],
-            # Never ship secrets: frame locals leaked DATABASE_URL (with the
-            # DB password) into events, and PII mode sends cookies/headers/
-            # request bodies (session cookies, credentials).
             send_default_pii=False,
             include_local_variables=False,
             traces_sample_rate=1.0,
