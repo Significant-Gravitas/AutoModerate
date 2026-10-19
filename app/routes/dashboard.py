@@ -1,7 +1,9 @@
+import re
 import secrets
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
@@ -16,6 +18,28 @@ from app.services.ai.result_cache import ResultCache
 from app.services.database_service import db_service
 from app.utils.project_access import require_project_access
 from config.default_rules import create_default_rules
+
+# Invitation tokens come from secrets.token_urlsafe()
+_INVITE_TOKEN_RE = re.compile(r'[A-Za-z0-9_-]{1,255}')
+_DISCORD_WEBHOOK_PATH_RE = re.compile(r'/api/webhooks/\d+/[A-Za-z0-9_-]+')
+
+
+def _is_valid_discord_webhook_url(url):
+    """True only for plain https://discord.com/api/webhooks/... URLs."""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return False
+    return (parts.scheme == 'https'
+            and parts.hostname == 'discord.com'
+            and port in (None, 443)
+            and parts.username is None and parts.password is None
+            and not parts.fragment
+            and '@' not in parts.netloc
+            and '\\' not in url
+            and _DISCORD_WEBHOOK_PATH_RE.fullmatch(parts.path) is not None)
+
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -634,7 +658,7 @@ async def update_discord_settings(project_id):
     discord_webhook_url = request.form.get('discord_webhook_url', '').strip()
 
     # Validate webhook URL if provided
-    if discord_webhook_url and not discord_webhook_url.startswith('https://discord.com/api/webhooks/'):
+    if discord_webhook_url and not _is_valid_discord_webhook_url(discord_webhook_url):
         flash('Invalid Discord webhook URL', 'error')
         return redirect(url_for('dashboard.project_settings', project_id=project_id))
 
@@ -665,6 +689,8 @@ async def test_discord_webhook(project_id):
 
     # Determine webhook URL
     webhook_url = project.discord_webhook_url
+    if webhook_url and not _is_valid_discord_webhook_url(webhook_url):
+        return jsonify({'success': False, 'message': 'Invalid Discord webhook URL'}), 400
     if not webhook_url:
         # Try to use global webhook from environment
         from flask import current_app
@@ -923,6 +949,8 @@ async def update_member_role(project_id, membership_id):
 @dashboard_bp.route('/invite/<token>')
 async def accept_invitation(token):
     """Accept a project invitation"""
+    if not _INVITE_TOKEN_RE.fullmatch(token):
+        abort(404)
     invitation = ProjectInvitation.query.filter_by(token=token).first_or_404()
 
     if invitation.status != 'pending':
@@ -982,6 +1010,8 @@ async def accept_invitation(token):
 @login_required
 async def decline_invitation(token):
     """Decline a project invitation"""
+    if not _INVITE_TOKEN_RE.fullmatch(token):
+        abort(404)
     invitation = ProjectInvitation.query.filter_by(token=token).first_or_404()
 
     if invitation.status != 'pending':

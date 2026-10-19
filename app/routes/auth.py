@@ -23,14 +23,14 @@ async def login():
     if request.method == 'POST':
         # Input validation and sanitization
         if request.is_json:
-            data = request.get_json()
-            if not data:
+            data = request.get_json(silent=True)
+            if not data or not isinstance(data, dict):
                 return jsonify({
                     'success': False,
                     'message': 'Invalid JSON data'
                 }), 400
-            email = data.get('email', '').strip()
-            password = data.get('password', '')
+            email = _json_str(data, 'email').strip()
+            password = _json_str(data, 'password')
         else:
             email = request.form.get('email', '').strip()
             password = request.form.get('password', '')
@@ -117,15 +117,15 @@ async def register():
     if request.method == 'POST':
         # Input validation and sanitization
         if request.is_json:
-            data = request.get_json()
-            if not data:
+            data = request.get_json(silent=True)
+            if not data or not isinstance(data, dict):
                 return jsonify({
                     'success': False,
                     'message': 'Invalid JSON data'
                 }), 400
-            username = data.get('username', '').strip()
-            email = data.get('email', '').strip()
-            password = data.get('password', '')
+            username = _json_str(data, 'username').strip()
+            email = _json_str(data, 'email').strip()
+            password = _json_str(data, 'password')
         else:
             username = request.form.get('username', '').strip()
             email = request.form.get('email', '').strip()
@@ -252,6 +252,12 @@ async def profile():
         flash('User not found', 'error')
         return redirect(url_for('auth.login'))
     return render_template('auth/profile.html', user=user_data)
+
+
+def _json_str(data, key):
+    """Return data[key] if it is a string, else ''."""
+    value = data.get(key, '')
+    return value if isinstance(value, str) else ''
 
 
 def _is_valid_email(email):
