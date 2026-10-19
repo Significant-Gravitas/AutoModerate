@@ -259,6 +259,23 @@ async def delete_user(user_id):
         return redirect(url_for('admin.users'))
 
 
+@admin_bp.route('/projects/<project_id>/delete', methods=['POST'])
+@admin_required
+async def delete_project(project_id):
+    """Delete any user's project and its related data (cascade)"""
+    project = Project.query.filter_by(id=project_id).first_or_404()
+    owner_id = project.user_id
+    name = project.name
+
+    if not await db_service.delete_project(project):
+        flash('Error deleting project. Please try again.', 'error')
+        return redirect(url_for('admin.user_detail', user_id=owner_id))
+
+    current_app.logger.info(f"Admin {current_user.email} deleted project {name} ({project_id})")
+    flash(f'Project {name} has been permanently deleted.', 'success')
+    return redirect(url_for('admin.user_detail', user_id=owner_id))
+
+
 @admin_bp.route('/settings/toggle-registration', methods=['POST'])
 @admin_required
 async def toggle_registration():

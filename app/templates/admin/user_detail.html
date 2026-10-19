@@ -201,6 +201,13 @@
                                            class="btn btn-outline-info" title="View Project">
                                             <i class="fas fa-eye"></i>
                                         </a>
+                                        <form method="POST" action="{{ url_for('admin.delete_project', project_id=project_data.project.id) }}" style="display: inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete Project"
+                                                    onclick="return confirm('Permanently delete project {{ project_data.project.name }} and all its data (rules, API keys, content)?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
