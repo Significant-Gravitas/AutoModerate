@@ -57,6 +57,7 @@ jobs:
         CI: true
         SECRET_KEY: test-secret-key-for-ci
         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/automoderate_test
+        REGISTRATION_ENABLED: 'true'
         ADMIN_EMAIL: admin@example.com
         ADMIN_PASSWORD: admin123
         # OpenAI not required for core platform testing
