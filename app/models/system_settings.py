@@ -42,13 +42,13 @@ class SystemSettings(db.Model):
     def is_registration_enabled():
         """Check if user registration is enabled.
 
-        Requires both the REGISTRATION_ENABLED env var and the admin toggle
-        to be 'true'. Closed by default.
+        Closed unless the REGISTRATION_ENABLED env var is 'true'. When it is,
+        the admin toggle decides (open if never set).
         """
         if not SystemSettings.registration_allowed_by_env():
             return False
-        value = SystemSettings.get_setting('registration_enabled', 'false')
-        return (value or 'false').lower() == 'true'
+        value = SystemSettings.get_setting('registration_enabled', 'true')
+        return (value or 'true').lower() == 'true'
 
     def to_dict(self):
         return {
